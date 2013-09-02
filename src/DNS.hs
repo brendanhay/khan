@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
 -- Module      : Main
@@ -45,7 +44,7 @@ defineOptions "RegisterDNS" $ do
         "Differentiate and group record sets with identical policy types."
 
     regionOption "region" "region" Ireland
-        "Region where the resource specified by the set resides."
+        "Region to use for regionalised routing records."
 
     customOption "weight" "weight" 100 optionTypeWord8
         "Routing weight for the weighted policy type."
@@ -56,7 +55,8 @@ defineOptions "RegisterDNS" $ do
     maybeTextOption "healthCheck" "check" ""
         "Health Check"
 
-deriving instance Show RegisterDNS
+instance Discover RegisterDNS where
+    discover = return
 
 instance Validate RegisterDNS where
     validate = return
@@ -66,5 +66,6 @@ main = runSubcommand
     [ command "register" register
     ]
   where
-    register(opts :: RegisterDNS) auth = do
+    register (opts :: RegisterDNS) cred = do
+        auth <- hoistEither =<< credentials cred
         scriptIO . runAWS auth $ return ()

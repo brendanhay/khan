@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
@@ -18,6 +19,7 @@ module Khan.Options
       Khan     (..)
 
     -- * Program Helpers
+    , Discover (..)
     , Validate (..)
     , command
 
@@ -29,12 +31,16 @@ module Khan.Options
     , customOption
     ) where
 
-import Control.Applicative
 import Control.Error
+import Control.Monad
+import Control.Monad.IO.Class
 import Data.Text.Encoding
 import Khan.Options.Internal
 import Network.AWS
 import Options
+
+class Discover a where
+    discover :: MonadIO m => a -> EitherT String m a
 
 class Validate a where
     validate :: Monad m => a -> EitherT String m a
@@ -44,20 +50,25 @@ defineOptions "Khan" $ do
         "Log debug output"
 
     maybeTextOption "role" "iam-role" ""
-        "IAM role, if blank access/secret keys are retrieved from ENV."
+        "IAM role, if unspecified then credentials are retrieved from ENV."
+
+    boolOption "discovery" "discovery" False
+        "Attempt to populate options based on EC2 metadata. Requires --iam-role."
 
 instance Validate Khan where
-    validate = return
+    validate k@Khan{..} = do
+        when (discovery && isNothing role) $
+            throwT "--iam-role must be specified to use --discovery"
+        return k
 
-command :: (Options a, Validate a)
+command :: (Options a, Discover a, Validate a)
         => String
-        -> (a -> Auth -> EitherT String IO b)
+        -> (a -> Credentials -> EitherT String IO b)
         -> Subcommand Khan (IO b)
 command name action = subcommand name $ \k o _ -> runScript $ do
-    opts <- validate o
-    cred <- maybe env (FromRole . encodeUtf8) . role <$> validate k
-    auth <- hoistEither =<< credentials cred
-    action opts auth
+    khan <- validate k
+    opts <- validate =<< discover o
+    action opts . maybe env (FromRole . encodeUtf8) $ role khan
   where
     env = FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY"
 

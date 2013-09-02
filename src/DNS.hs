@@ -16,47 +16,55 @@
 
 module Main (main) where
 
+import Control.Applicative
 import Control.Error
 import Khan.Options
 import Options
+import Network.AWS.Route53
 
-defineOptions "DNSOpts" $ do
-    textOption "zoneName" "zone" ""
-        "zoneName"
+defineOptions "RegisterDNS" $ do
+    textOption "zone" "zone" ""
+        "Name of the hosted zone to modify."
 
-    textOption "recordName" "name" ""
-        "recordName"
+    textOption "domain" "domain" ""
+        "Domain name of the existing or new record set."
 
     recordTypeOption "recordType" "type" CNAME
-        "recordType"
+        "Record set type."
 
-    textsOption "recordValues" "value" []
-        "recordValue"
+    textsOption "values" "value" []
+        "A list of values to add."
 
-    integerOption "recordTTL" "ttl" 90
-        "recordTTL"
+    integerOption "ttl" "ttl" 90
+        "Record resource cache time to live in seconds."
 
-    textOption "policyType" "policy" "Basic"
-        "policyType"
+    textOption "policy" "policy" "Basic"
+        "Routing policy type."
 
-    customOption "policyWeight" "weight" 100 optionTypeWord8
-        "Routing policy weight"
+    maybeTextOption "setId" "set-id" ""
+        "Differentiate and group record sets with identical policy types."
 
-    textOption "policySet" "set-id" ""
-        "policySet"
+    regionOption "region" "region" Ireland
+        "Region where the resource specified by the set resides."
 
-    failoverOption "policyFailover" "failover" PRIMARY
-        "policyFailover"
+    customOption "weight" "weight" 100 optionTypeWord8
+        "Routing weight for the weighted policy type."
 
-    maybeTextOption "healthCheck" "healthcheck" ""
+    failoverOption "failover" "failover" PRIMARY
+        "Specify if this is the primary or secondary set."
+
+    maybeTextOption "healthCheck" "check" ""
         "Health Check"
 
-deriving instance Show DNSOpts
+deriving instance Show RegisterDNS
+
+instance Validate RegisterDNS where
+    validate = return
 
 main :: IO ()
 main = runSubcommand
     [ command "register" register
     ]
   where
-    register opts = do
-        scriptIO $ print (opts :: DNSOpts)
+    register(opts :: RegisterDNS) auth = do
+        scriptIO . runAWS auth $ return ()

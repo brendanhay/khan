@@ -29,7 +29,8 @@ executable khan-dns
     ghc-options:       -Wall -rtsopts -threaded
 
     build-depends:
-        base >= 4.6 && < 5
+        amazonka
+      , base >= 4.6 && < 5
       , errors
       , options
       , template-haskell

@@ -12,6 +12,7 @@ bin
 dist
 tmp
 .shelly
+vendor
 
 # CTAGS
 TAGS

@@ -1,3 +1,5 @@
+DEPS := vendor/options
+
 .PHONY: test lint doc
 
 all: build
@@ -5,8 +7,8 @@ all: build
 build: .conf
 	cabal-dev build
 
-install:
-	cabal-dev install -j \
+install: $(DEPS)
+	cabal-meta install --dev -j \
 	 --disable-documentation \
 	 --disable-library-coverage
 
@@ -26,3 +28,5 @@ doc:
 .conf:
 	cabal-dev configure && touch $@
 
+vendor/%:
+	git clone git@github.com:brendanhay/$*.git $@

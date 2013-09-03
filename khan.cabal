@@ -30,8 +30,9 @@ executable khan-dns
 
     build-depends:
         amazonka
-      , base >= 4.6 && < 5
+      , base             >= 4.6 && < 5
       , errors
+      , hslogger
       , options
       , template-haskell
       , text

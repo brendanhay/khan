@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
 -- Module      : Main
@@ -15,57 +16,96 @@
 
 module Main (main) where
 
-import Control.Applicative
 import Control.Error
-import Khan.Options
-import Options
+import Control.Monad.IO.Class
+import Khan.Internal
 import Network.AWS.Route53
 
-defineOptions "RegisterDNS" $ do
-    textOption "zone" "zone" ""
+defineOptions "Register" $ do
+    textOption "rZone" "zone" ""
         "Name of the hosted zone to modify."
 
-    textOption "domain" "domain" ""
+    textOption "rDomain" "domain" ""
         "Domain name of the existing or new record set."
 
-    recordTypeOption "recordType" "type" CNAME
+    recordTypeOption "rRecordType" "type" CNAME
         "Record set type."
 
-    textsOption "values" "value" []
+    textsOption "rValues" "value" []
         "A list of values to add."
 
-    integerOption "ttl" "ttl" 90
+    integerOption "rTtl" "ttl" 90
         "Record resource cache time to live in seconds."
 
-    textOption "policy" "policy" "Basic"
+    boolOption "rAlias" "alias" False
+        "Whether this record should be an alias for an AWS resource."
+
+    routingPolicyOption "rPolicy" "policy" Basic
         "Routing policy type."
 
-    maybeTextOption "setId" "set-id" ""
+    maybeTextOption "rSetId" "set-id" ""
         "Differentiate and group record sets with identical policy types."
 
-    regionOption "region" "region" Ireland
+    regionOption "rRegion" "region" Ireland
         "Region to use for regionalised routing records."
 
-    customOption "weight" "weight" 100 optionTypeWord8
+    customOption "rWeight" "weight" 100 optionTypeWord8
         "Routing weight for the weighted policy type."
 
-    failoverOption "failover" "failover" PRIMARY
+    failoverOption "rFailover" "failover" PRIMARY
         "Specify if this is the primary or secondary set."
 
-    maybeTextOption "healthCheck" "check" ""
-        "Health Check"
+    maybeTextOption "rHealthCheck" "check" ""
+        "Existing health check to assign."
 
-instance Discover RegisterDNS where
+deriving instance Show Register
+
+instance Discover Register where
     discover = return
+        -- get zone from tag
+        -- get domain from tag
+        -- get policy from tag
+        -- get set-id from tag
+        -- get region from metadata
+        -- get values from metadata
 
-instance Validate RegisterDNS where
-    validate = return
+instance Validate Register where
+    validate Register{..} = do
+        check rZone   "--zone must be specified."
+        check rDomain "--domain must be specified."
+        check rValues "At least one --value must be specified."
+
+defineOptions "Unregister" $ do
+    textOption "uZone" "zone" ""
+        "Name of the hosted zone to modify."
+
+    textsOption "uValues" "value" []
+        "A list of values to remove from matching records."
+
+deriving instance Show Unregister
+
+instance Discover Unregister where
+    discover = return
+        -- get zone from tag
+        -- get values from tag + metadata
+
+instance Validate Unregister where
+    validate Unregister{..} = do
+        check uZone   "--zone must be specified."
+        check uValues "At least one --value must be specified."
 
 main :: IO ()
 main = runSubcommand
-    [ command "register" register
+    [ command "register"   register
+    , command "unregister" unregister
     ]
   where
-    register (opts :: RegisterDNS) cred = do
-        auth <- hoistEither =<< credentials cred
-        scriptIO . runAWS auth $ return ()
+    register r@Register{..} aws = fmapLT show $ do
+        logStep "Running DNS Register..." r
+        aws $ do
+            ListHostedZonesResponse{..} <- send (ListHostedZones Nothing $ Just 1000)
+            liftIO $ print lhzrHostedZones
+
+    unregister u@Unregister{..} aws = fmapLT show $ do
+        logStep "Running DNS Unregister..." u
+        aws $ return ()

@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
--- Module      : Khan.Options
+-- Module      : Khan.Internal.Options
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -13,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Options
+module Khan.Internal.Options
     (
     -- * Application Options
       Khan     (..)
@@ -21,29 +22,17 @@ module Khan.Options
     -- * Program Helpers
     , Discover (..)
     , Validate (..)
+    , check
     , command
-
-    -- * Option Constructors
-    , recordTypeOption
-    , failoverOption
-    , regionOption
-    , maybeTextOption
-    , customOption
     ) where
 
 import Control.Error
 import Control.Monad
-import Control.Monad.IO.Class
 import Data.Text.Encoding
-import Khan.Options.Internal
+import Khan.Internal.Log
+import Khan.Internal.OptionTypes
+import Khan.Internal.Types
 import Network.AWS
-import Options
-
-class Discover a where
-    discover :: MonadIO m => a -> EitherT String m a
-
-class Validate a where
-    validate :: Monad m => a -> EitherT String m a
 
 defineOptions "Khan" $ do
     boolOption "debug" "debug" False
@@ -53,22 +42,36 @@ defineOptions "Khan" $ do
         "IAM role, if unspecified then credentials are retrieved from ENV."
 
     boolOption "discovery" "discovery" False
-        "Attempt to populate options based on EC2 metadata. Requires --iam-role."
+        "Populate options based on EC2 metadata. Requires --iam-role."
+
+deriving instance Show Khan
 
 instance Validate Khan where
-    validate k@Khan{..} = do
-        when (discovery && isNothing role) $
-            throwT "--iam-role must be specified to use --discovery"
-        return k
+    validate Khan{..} = do
+        check (discovery && isNothing role)
+             "--iam-role must be specified to use --discovery"
+
+check :: (Monad m, Invalid a) => a -> String -> EitherT String m ()
+check x = when (invalid x) . throwT
 
 command :: (Options a, Discover a, Validate a)
         => String
-        -> (a -> Credentials -> EitherT String IO b)
+        -> (a -> (EitherT AWSError AWS b -> EitherT AWSError IO b) -> Script b)
         -> Subcommand Khan (IO b)
-command name action = subcommand name $ \k o _ -> runScript $ do
-    khan <- validate k
-    opts <- validate =<< discover o
-    action opts . maybe env (FromRole . encodeUtf8) $ role khan
+command name action = subcommand name runner
   where
-    env = FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY"
+    runner k@Khan{..} o _ = runScript $ do
+        setLogging debug
+        logStep "Running Khan ..." k
+        validate k
+        opts <- disco discovery o
+        validate opts
+        action opts context
+      where
+        disco True  = (logDebug "Performing discovery..." >>) . discover
+        disco False = (logDebug "Skipping discovery..." >>) . return
 
+        context aws = credentials creds >>= \auth -> runAWS auth debug aws
+
+        creds = maybe (FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY")
+                      (FromRole . encodeUtf8) role

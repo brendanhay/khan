@@ -16,10 +16,13 @@
 
 module Main (main) where
 
-import Control.Error
-import Control.Monad.IO.Class
-import Khan.Internal
-import Network.AWS.Route53
+import           Control.Applicative
+import           Control.Error
+import           Data.List           (find)
+import           Data.Text           (Text)
+import qualified Data.Text           as Text
+import           Khan.Internal
+import           Network.AWS.Route53
 
 defineOptions "Register" $ do
     textOption "rZone" "zone" ""
@@ -34,7 +37,7 @@ defineOptions "Register" $ do
     textsOption "rValues" "value" []
         "A list of values to add."
 
-    integerOption "rTtl" "ttl" 90
+    integerOption "rTTL" "ttl" 90
         "Record resource cache time to live in seconds."
 
     boolOption "rAlias" "alias" False
@@ -43,7 +46,7 @@ defineOptions "Register" $ do
     routingPolicyOption "rPolicy" "policy" Basic
         "Routing policy type."
 
-    maybeTextOption "rSetId" "set-id" ""
+    textOption "rSetId" "set-id" ""
         "Differentiate and group record sets with identical policy types."
 
     regionOption "rRegion" "region" Ireland
@@ -74,6 +77,8 @@ instance Validate Register where
         check rZone   "--zone must be specified."
         check rDomain "--domain must be specified."
         check rValues "At least one --value must be specified."
+        check (rPolicy /= Basic && Text.null rSetId)
+            "--set-id must be specified for all non-basic routing policies."
 
 defineOptions "Unregister" $ do
     textOption "uZone" "zone" ""
@@ -100,12 +105,62 @@ main = runSubcommand
     , command "unregister" unregister
     ]
   where
-    register r@Register{..} aws = fmapLT show $ do
+    register :: Register -> (AWSContext () -> Script ()) -> Script ()
+    register r@Register{..} aws = do
         logStep "Running DNS Register..." r
         aws $ do
-            ListHostedZonesResponse{..} <- send (ListHostedZones Nothing $ Just 1000)
-            liftIO $ print lhzrHostedZones
+            logInfo "Listing hosted zones..."
+            hzs <- lhzrHostedZones <$> send (ListHostedZones Nothing $ Just 100)
+            hz  <- findZone rZone hzs
+            hzi <- Text.stripPrefix "/hostedzone/" (hzId hz)
+                ?? Error ("Invalid hosted zone identifier: " ++ Text.unpack (hzId hz))
+            logStep ("Found hosted zone: " ++ Text.unpack hzi) hz
+            res <- send . ChangeResourceRecordSets hzi $ ChangeBatch Nothing
+                [ Change CreateAction $ mkRRSet
+                    hzi rPolicy rDomain rRecordType rSetId rAlias rTTL
+                    (fromIntegral rWeight) rFailover rRegion rHealthCheck rValues
+                ]
 
-    unregister u@Unregister{..} aws = fmapLT show $ do
+            logInfo $ show res
+
+    unregister u@Unregister{..} aws = do
         logStep "Running DNS Unregister..." u
         aws $ return ()
+
+findZone :: Text -> [HostedZone] -> AWSContext HostedZone
+findZone name hzs = find ((== strip name) . strip . hzName) hzs
+    ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
+  where
+    strip = Text.dropWhileEnd (== '.')
+
+mkRRSet :: Text
+        -> RoutingPolicy
+        -> Text
+        -> RecordType
+        -> Text
+        -> Bool
+        -> Integer
+        -> Integer
+        -> Failover
+        -> Region
+        -> Maybe Text
+        -> [Text]
+        -> ResourceRecordSet
+mkRRSet zone policy name typ setid alias ttl weight failover region health vs =
+    mk policy alias
+  where
+    mk Failover True  = aset FailoverAliasRecordSet $ failover
+    mk Latency  True  = aset LatencyAliasRecordSet  $ region
+    mk Weighted True  = aset WeightedAliasRecordSet $ weight
+    mk Basic    True  = AliasRecordSet name typ tgt health
+
+    mk Failover False = rset FailoverRecordSet $ failover
+    mk Latency  False = rset LatencyRecordSet  $ region
+    mk Weighted False = rset WeightedRecordSet $ weight
+    mk Basic    False = BasicRecordSet name typ ttl rrs health
+
+    aset x y = x name typ setid y tgt health
+    rset x y = x name typ setid y ttl rrs health
+
+    tgt = AliasTarget zone (head vs) False
+    rrs = ResourceRecords vs

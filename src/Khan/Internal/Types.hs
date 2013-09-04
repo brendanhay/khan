@@ -43,6 +43,7 @@ data RoutingPolicy
     | Latency
     | Weighted
     | Basic
+      deriving (Eq)
 
 instance Read RoutingPolicy where
     readPrec = readAssocList

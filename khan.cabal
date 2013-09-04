@@ -31,6 +31,7 @@ executable khan-dns
     build-depends:
         amazonka
       , base             >= 4.6 && < 5
+      , bytestring
       , errors
       , hslogger
       , options

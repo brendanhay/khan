@@ -49,14 +49,14 @@ deriving instance Show Khan
 instance Validate Khan where
     validate Khan{..} = do
         check (discovery && isNothing role)
-             "--iam-role must be specified to use --discovery"
+            "--iam-role must be specified to use --discovery"
 
 check :: (Monad m, Invalid a) => a -> String -> EitherT String m ()
 check x = when (invalid x) . throwT
 
 command :: (Options a, Discover a, Validate a)
         => String
-        -> (a -> (EitherT AWSError AWS b -> EitherT AWSError IO b) -> Script b)
+        -> (a -> (AWSContext b -> Script b) -> Script b)
         -> Subcommand Khan (IO b)
 command name action = subcommand name runner
   where
@@ -71,7 +71,8 @@ command name action = subcommand name runner
         disco True  = (logDebug "Performing discovery..." >>) . discover
         disco False = (logDebug "Skipping discovery..." >>) . return
 
-        context aws = credentials creds >>= \auth -> runAWS auth debug aws
+        context aws = fmapLT show $ credentials creds >>=
+            \auth -> runAWS auth debug aws
 
         creds = maybe (FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY")
                       (FromRole . encodeUtf8) role

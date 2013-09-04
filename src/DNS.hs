@@ -24,7 +24,7 @@ import qualified Data.Text           as Text
 import           Khan.Internal
 import           Network.AWS.Route53
 
-defineOptions "Register" $ do
+defineOptions "Add" $ do
     textOption "rZone" "zone" ""
         "Name of the hosted zone to modify."
 
@@ -61,9 +61,9 @@ defineOptions "Register" $ do
     maybeTextOption "rHealthCheck" "check" ""
         "Existing health check to assign."
 
-deriving instance Show Register
+deriving instance Show Add
 
-instance Discover Register where
+instance Discover Add where
     discover = return
         -- get zone from tag
         -- get domain from tag
@@ -72,42 +72,42 @@ instance Discover Register where
         -- get region from metadata
         -- get values from metadata
 
-instance Validate Register where
-    validate Register{..} = do
+instance Validate Add where
+    validate Add{..} = do
         check rZone   "--zone must be specified."
         check rDomain "--domain must be specified."
         check rValues "At least one --value must be specified."
         check (rPolicy /= Basic && Text.null rSetId)
             "--set-id must be specified for all non-basic routing policies."
 
-defineOptions "Unregister" $ do
+defineOptions "Delete" $ do
     textOption "uZone" "zone" ""
         "Name of the hosted zone to modify."
 
     textsOption "uValues" "value" []
         "A list of values to remove from matching records."
 
-deriving instance Show Unregister
+deriving instance Show Delete
 
-instance Discover Unregister where
+instance Discover Delete where
     discover = return
         -- get zone from tag
         -- get values from tag + metadata
 
-instance Validate Unregister where
-    validate Unregister{..} = do
+instance Validate Delete where
+    validate Delete{..} = do
         check uZone   "--zone must be specified."
         check uValues "At least one --value must be specified."
 
 main :: IO ()
 main = runSubcommand
-    [ command "register"   register
-    , command "unregister" unregister
+    [ command "add"    add
+    , command "delete" delete
     ]
   where
-    register :: Register -> (AWSContext () -> Script ()) -> Script ()
-    register r@Register{..} aws = do
-        logStep "Running DNS Register..." r
+    add :: Add -> (AWSContext () -> Script ()) -> Script ()
+    add r@Add{..} aws = do
+        logStep "Running DNS Add..." r
         aws $ do
             logInfo "Listing hosted zones..."
             hzs <- lhzrHostedZones <$> send (ListHostedZones Nothing $ Just 100)
@@ -123,8 +123,8 @@ main = runSubcommand
 
             logInfo $ show res
 
-    unregister u@Unregister{..} aws = do
-        logStep "Running DNS Unregister..." u
+    delete u@Delete{..} aws = do
+        logStep "Running DNS Delete..." u
         aws $ return ()
 
 findZone :: Text -> [HostedZone] -> AWSContext HostedZone

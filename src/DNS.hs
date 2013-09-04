@@ -18,9 +18,10 @@ module Main (main) where
 
 import           Control.Applicative
 import           Control.Error
-import           Data.List           (find)
-import           Data.Text           (Text)
-import qualified Data.Text           as Text
+import           Control.Monad.IO.Class
+import           Data.List              (find)
+import           Data.Text              (Text)
+import qualified Data.Text              as Text
 import           Khan.Internal
 import           Network.AWS.Route53
 
@@ -101,35 +102,43 @@ instance Validate Delete where
 
 main :: IO ()
 main = runSubcommand
-    [ command "add"    add
-    , command "delete" delete
+    [ command "add-record"    add
+    , command "delete-record" delete
     ]
   where
     add :: Add -> (AWSContext () -> Script ()) -> Script ()
     add r@Add{..} aws = do
         logStep "Running DNS Add..." r
         aws $ do
-            logInfo "Listing hosted zones..."
-            hzs <- lhzrHostedZones <$> send (ListHostedZones Nothing $ Just 100)
-            hz  <- findZone rZone hzs
-            hzi <- Text.stripPrefix "/hostedzone/" (hzId hz)
-                ?? Error ("Invalid hosted zone identifier: " ++ Text.unpack (hzId hz))
-            logStep ("Found hosted zone: " ++ Text.unpack hzi) hz
-            res <- send . ChangeResourceRecordSets hzi $ ChangeBatch Nothing
+            zid <- findZoneId rZone
+            res <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
                 [ Change CreateAction $ mkRRSet
-                    hzi rPolicy rDomain rRecordType rSetId rAlias rTTL
+                    zid rPolicy rDomain rRecordType rSetId rAlias rTTL
                     (fromIntegral rWeight) rFailover rRegion rHealthCheck rValues
                 ]
-
             logInfo $ show res
 
     delete u@Delete{..} aws = do
         logStep "Running DNS Delete..." u
-        aws $ return ()
+        aws $ do
+            zid <- findZoneId uZone
+            liftIO $ print zid
 
-findZone :: Text -> [HostedZone] -> AWSContext HostedZone
-findZone name hzs = find ((== strip name) . strip . hzName) hzs
-    ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
+findZoneId :: Text -> AWSContext Text
+findZoneId name = do
+    logInfo "Listing hosted zones..."
+
+    hzs  <- lhzrHostedZones <$> send (ListHostedZones Nothing $ Just 100)
+    zone <- find ((== strip name) . strip . hzName) hzs
+        ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
+
+    let zid  = hzId zone
+        zid' = Text.unpack zid
+
+    logStep ("Found hosted zone: " ++ zid') zone
+
+    Text.stripPrefix "/hostedzone/" zid
+        ?? Error ("Invalid hosted zone identifier: " ++ zid')
   where
     strip = Text.dropWhileEnd (== '.')
 

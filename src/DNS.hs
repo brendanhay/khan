@@ -112,7 +112,7 @@ main = runSubcommand
         aws $ do
             zid <- findZoneId rZone
             res <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
-                [ Change CreateAction $ mkRRSet
+                [ Change CreateAction $ recordSet
                     zid rPolicy rDomain rRecordType rSetId rAlias rTTL
                     (fromIntegral rWeight) rFailover rRegion rHealthCheck rValues
                 ]
@@ -142,20 +142,20 @@ findZoneId name = do
   where
     strip = Text.dropWhileEnd (== '.')
 
-mkRRSet :: Text
-        -> RoutingPolicy
-        -> Text
-        -> RecordType
-        -> Text
-        -> Bool
-        -> Integer
-        -> Integer
-        -> Failover
-        -> Region
-        -> Maybe Text
-        -> [Text]
-        -> ResourceRecordSet
-mkRRSet zone policy name typ setid alias ttl weight failover region health vs =
+recordSet :: Text
+          -> RoutingPolicy
+          -> Text
+          -> RecordType
+          -> Text
+          -> Bool
+          -> Integer
+          -> Integer
+          -> Failover
+          -> Region
+          -> Maybe Text
+          -> [Text]
+          -> ResourceRecordSet
+recordSet zone policy name typ setid alias ttl weight failover region health vs =
     mk policy alias
   where
     mk Failover True  = aset FailoverAliasRecordSet $ failover

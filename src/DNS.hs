@@ -25,7 +25,7 @@ import qualified Data.Text              as Text
 import           Khan.Internal
 import           Network.AWS.Route53
 
-defineOptions "Add" $ do
+defineOptions "Record" $ do
     textOption "rZone" "zone" ""
         "Name of the hosted zone to modify."
 
@@ -62,9 +62,9 @@ defineOptions "Add" $ do
     maybeTextOption "rHealthCheck" "check" ""
         "Existing health check to assign."
 
-deriving instance Show Add
+deriving instance Show Record
 
-instance Discover Add where
+instance Discover Record where
     discover = return
         -- get zone from tag
         -- get domain from tag
@@ -73,32 +73,13 @@ instance Discover Add where
         -- get region from metadata
         -- get values from metadata
 
-instance Validate Add where
-    validate Add{..} = do
+instance Validate Record where
+    validate Record{..} = do
         check rZone   "--zone must be specified."
         check rDomain "--domain must be specified."
         check rValues "At least one --value must be specified."
         check (rPolicy /= Basic && Text.null rSetId)
             "--set-id must be specified for all non-basic routing policies."
-
-defineOptions "Delete" $ do
-    textOption "uZone" "zone" ""
-        "Name of the hosted zone to modify."
-
-    textsOption "uValues" "value" []
-        "A list of values to remove from matching records."
-
-deriving instance Show Delete
-
-instance Discover Delete where
-    discover = return
-        -- get zone from tag
-        -- get values from tag + metadata
-
-instance Validate Delete where
-    validate Delete{..} = do
-        check uZone   "--zone must be specified."
-        check uValues "At least one --value must be specified."
 
 defineOptions "List" $ do
     textOption "lZone" "zone" ""
@@ -111,26 +92,25 @@ instance Validate List
 
 main :: IO ()
 main = runSubcommand
-    [ awsCommand "add-record"    add
-    , awsCommand "delete-record" delete
+    [ awsCommand "add"    add
+    , awsCommand "delete" delete
+    , awsCommand "list"   list
     ]
   where
-    add :: Add -> AWSContext ()
-    add Add{..} = do
-        zid <- findZoneId rZone
-        res <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
-            [ Change CreateAction $ recordSet
-                zid rPolicy rDomain rRecordType rSetId rAlias rTTL
-                (fromIntegral rWeight) rFailover rRegion rHealthCheck rValues
-            ]
-        logInfo $ show res
-
-    delete Delete{..} = do
-        zid <- findZoneId uZone
-        liftIO $ print zid
+    add = modifyRecordSet CreateAction
+    delete = modifyRecordSet DeleteAction
 
     list List{..} = do
         return ()
+
+modifyRecordSet action Record{..} = do
+    zid <- findZoneId rZone
+    res <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
+        [ Change action $ recordSet
+              zid rPolicy rDomain rRecordType rSetId rAlias rTTL
+              (fromIntegral rWeight) rFailover rRegion rHealthCheck rValues
+        ]
+    logInfo $ show res
 
 findZoneId :: Text -> AWSContext Text
 findZoneId name = do

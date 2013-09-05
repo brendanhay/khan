@@ -14,7 +14,7 @@ module Khan.Internal
     ) where
 
 import Khan.Internal.Log         as Internal
-import Khan.Internal.OptionTypes as Internal
+import Khan.Internal.OptionTypes as Internal hiding (subcommand)
 import Khan.Internal.Options     as Internal
 import Khan.Internal.Types       as Internal
 import Network.AWS               as AWS

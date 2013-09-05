@@ -23,7 +23,8 @@ module Khan.Internal.Options
     , Discover (..)
     , Validate (..)
     , check
-    , command
+    , awsCommand
+    , subCommand
     ) where
 
 import Control.Error
@@ -54,25 +55,43 @@ instance Validate Khan where
 check :: (Monad m, Invalid a) => a -> String -> EitherT String m ()
 check x = when (invalid x) . throwT
 
-command :: (Options a, Discover a, Validate a)
-        => String
-        -> (a -> (AWSContext b -> Script b) -> Script b)
-        -> Subcommand Khan (IO b)
-command name action = subcommand name runner
+awsCommand :: (Show a, Options a, Discover a, Validate a)
+           => String
+           -> (a -> AWSContext b)
+           -> Subcommand Khan (IO b)
+awsCommand name action = subcommand name $ runner cmd
   where
-    runner k@Khan{..} o _ = runScript $ do
-        setLogging debug
-        logStep "Running Khan ..." k
-        validate k
-        opts <- disco discovery o
-        validate opts
-        action opts context
-      where
-        disco True  = (logDebug "Performing discovery..." >>) . discover
-        disco False = (logDebug "Skipping discovery..." >>) . return
+    cmd Khan{..} opts creds = do
+        auth <- fmapLT show $ credentials creds
+        fmapLT show . runAWS auth debug $ action opts
 
-        context aws = fmapLT show $ credentials creds >>=
+subCommand :: (Show a, Options a, Discover a, Validate a)
+           => String
+           -> (a -> (AWSContext b -> Script b) -> Script b)
+           -> Subcommand Khan (IO b)
+subCommand name action = subcommand name $ runner cmd
+  where
+    cmd Khan{..} opts creds = do
+        action opts $ \aws -> fmapLT show $ credentials creds >>=
             \auth -> runAWS auth debug aws
 
-        creds = maybe (FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY")
-                      (FromRole . encodeUtf8) role
+runner :: (Show a, Validate a, Discover a)
+       => (Khan -> a -> Credentials -> Script b)
+       -> Khan
+       -> a
+       -> [String]
+       -> IO b
+runner cmd k@Khan{..} o _ = runScript $ do
+    setLogging debug
+    logStep "Running Khan ..." k
+    validate k
+    opts <- disco discovery o
+    validate opts
+    logStep "Running Subcommand ..." opts
+    cmd k opts creds
+  where
+    disco True  = (logDebug "Performing discovery..." >>) . discover
+    disco False = (logDebug "Skipping discovery..."   >>) . return
+
+    creds = maybe (FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY")
+                  (FromRole . encodeUtf8) role

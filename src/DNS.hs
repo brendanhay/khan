@@ -100,29 +100,37 @@ instance Validate Delete where
         check uZone   "--zone must be specified."
         check uValues "At least one --value must be specified."
 
+defineOptions "List" $ do
+    textOption "lZone" "zone" ""
+        "Name of the hosted zone to inspect."
+
+deriving instance Show List
+
+instance Discover List
+instance Validate List
+
 main :: IO ()
 main = runSubcommand
-    [ command "add-record"    add
-    , command "delete-record" delete
+    [ awsCommand "add-record"    add
+    , awsCommand "delete-record" delete
     ]
   where
-    add :: Add -> (AWSContext () -> Script ()) -> Script ()
-    add r@Add{..} aws = do
-        logStep "Running DNS Add..." r
-        aws $ do
-            zid <- findZoneId rZone
-            res <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
-                [ Change CreateAction $ recordSet
-                    zid rPolicy rDomain rRecordType rSetId rAlias rTTL
-                    (fromIntegral rWeight) rFailover rRegion rHealthCheck rValues
-                ]
-            logInfo $ show res
+    add :: Add -> AWSContext ()
+    add Add{..} = do
+        zid <- findZoneId rZone
+        res <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
+            [ Change CreateAction $ recordSet
+                zid rPolicy rDomain rRecordType rSetId rAlias rTTL
+                (fromIntegral rWeight) rFailover rRegion rHealthCheck rValues
+            ]
+        logInfo $ show res
 
-    delete u@Delete{..} aws = do
-        logStep "Running DNS Delete..." u
-        aws $ do
-            zid <- findZoneId uZone
-            liftIO $ print zid
+    delete Delete{..} = do
+        zid <- findZoneId uZone
+        liftIO $ print zid
+
+    list List{..} = do
+        return ()
 
 findZoneId :: Text -> AWSContext Text
 findZoneId name = do

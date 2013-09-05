@@ -11,6 +11,7 @@
 module Khan.Internal.Types where
 
 import           Control.Error
+import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Text              (Text)
 import qualified Data.Text              as Text
@@ -19,9 +20,11 @@ import           Text.Read
 
 class Discover a where
     discover :: MonadIO m => a -> EitherT String m a
+    discover = return
 
 class Validate a where
     validate :: Monad m => a -> EitherT String m ()
+    validate = void . return
 
 class Invalid a where
     invalid :: a -> Bool

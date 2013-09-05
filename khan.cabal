@@ -35,6 +35,7 @@ executable khan-dns
       , errors
       , hslogger
       , options
+      , pretty-show
       , template-haskell
       , text
       , transformers

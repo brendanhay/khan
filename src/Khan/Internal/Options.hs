@@ -48,7 +48,7 @@ defineOptions "Khan" $ do
 deriving instance Show Khan
 
 instance Validate Khan where
-    validate Khan{..} = do
+    validate Khan{..} =
         check (discovery && isNothing role)
             "--iam-role must be specified to use --discovery"
 
@@ -71,9 +71,8 @@ subCommand :: (Show a, Options a, Discover a, Validate a)
            -> Subcommand Khan (IO b)
 subCommand name action = subcommand name $ runner cmd
   where
-    cmd Khan{..} opts creds = do
-        action opts $ \aws -> fmapLT show $ credentials creds >>=
-            \auth -> runAWS auth debug aws
+    cmd Khan{..} opts creds = action opts $ \aws ->
+        fmapLT show $ credentials creds >>= \auth -> runAWS auth debug aws
 
 runner :: (Show a, Validate a, Discover a)
        => (Khan -> a -> Credentials -> Script b)

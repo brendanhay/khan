@@ -26,6 +26,7 @@ import           Data.Text              (Text)
 import qualified Data.Text              as Text
 import           Khan.Internal
 import           Network.AWS.Route53
+import           Text.Show.Pretty       (ppShow)
 
 pollDelay :: Int
 pollDelay = 10 * 1000000
@@ -90,30 +91,52 @@ defineOptions "List" $ do
     textOption "lZone" "zone" ""
         "Name of the hosted zone to inspect."
 
+    integerOption "lResults" "max" 5
+        "Pagination window size."
+
+    textsOption "lNames" "name" []
+        "A list of names to filter by."
+
+    textsOption "lValues" "value" []
+        "A list of values to filter by."
+
 deriving instance Show List
 
 instance Discover List
-instance Validate List
+
+instance Validate List where
+    validate List{..} =
+        check lZone "--zone must be specified."
 
 main :: IO ()
 main = runSubcommand
-    [ awsCommand "add"    (modifyRecordSet CreateAction)
-    , awsCommand "delete" (modifyRecordSet DeleteAction)
+    [ awsCommand "add"    $ modify CreateAction
+    , awsCommand "delete" $ modify DeleteAction
     , awsCommand "list"   list
     ]
   where
-    list List{..} = do
-        return ()
+    modify act r@Record{..} = do
+        zid <- findZoneId rZone
+        chg <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
+            [ Change act $ recordSet zid r
+            ]
+        waitForChange $ crrsrChangeInfo chg
 
-modifyRecordSet :: ChangeAction -> Record -> AWSContext ()
-modifyRecordSet action Record{..} = do
-    zid <- findZoneId rZone
-    chg <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
-        [ Change action $ recordSet zid rPolicy rDomain rRecordType rSetId
-            rAlias rTTL (fromIntegral rWeight) rFailover rRegion
-            (HealthCheckId <$> rHealthCheck) rValues
-        ]
-    waitForChange $ crrsrChangeInfo chg
+    list List{..} = do
+        zid <- findZoneId lZone
+        listRecords zid lNames lValues lResults $ \rrs -> tryAWS $ do
+            mapM_ (logInfo . ppShow) rrs
+            logInfo "Press enter to continue..."
+            void $ getLine
+
+findZoneId :: Text -> AWSContext HostedZoneId
+findZoneId name = do
+    logInfo "Listing hosted zones..."
+    hzs  <- lhzrHostedZones <$> send (ListHostedZones Nothing $ Just 100)
+    hzId <$> find ((== strip name) . strip . hzName) hzs
+        ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
+  where
+    strip = Text.dropWhileEnd (== '.')
 
 waitForChange :: ChangeInfo -> AWSContext ()
 waitForChange c@ChangeInfo{..}
@@ -123,46 +146,57 @@ waitForChange c@ChangeInfo{..}
           liftIO $ threadDelay pollDelay
           send (GetChange ciId) >>= void . waitForChange . gcrChangeInfo
 
-findZoneId :: Text -> AWSContext HostedZoneId
-findZoneId name = do
-    logInfo "Listing hosted zones..."
-    hzs  <- lhzrHostedZones <$> send (ListHostedZones Nothing $ Just 100)
-    zone <- find ((== strip name) . strip . hzName) hzs
-        ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
-    let zid = hzId zone
-    logStep ("Found hosted zone " ++ show zid) zone
-    return zid
+recordSet :: HostedZoneId -> Record -> ResourceRecordSet
+recordSet zid Record{..} = mk rPolicy rAlias
   where
-    strip = Text.dropWhileEnd (== '.')
+    mk Failover True  = aset FailoverAliasRecordSet rFailover
+    mk Latency  True  = aset LatencyAliasRecordSet  rRegion
+    mk Weighted True  = aset WeightedAliasRecordSet weight
+    mk Basic    True  = AliasRecordSet rDomain rRecordType tgt health
 
-recordSet :: HostedZoneId
-          -> RoutingPolicy
-          -> Text
-          -> RecordType
-          -> Text
-          -> Bool
-          -> Integer
-          -> Integer
-          -> Failover
-          -> Region
-          -> Maybe HealthCheckId
-          -> [Text]
-          -> ResourceRecordSet
-recordSet zone policy name typ setid alias ttl weight failover region health vs =
-    mk policy alias
+    mk Failover False = rset FailoverRecordSet rFailover
+    mk Latency  False = rset LatencyRecordSet  rRegion
+    mk Weighted False = rset WeightedRecordSet weight
+    mk Basic    False = BasicRecordSet rDomain rRecordType rTTL rrs health
+
+    aset x y = x rDomain rRecordType rSetId y tgt health
+    rset x y = x rDomain rRecordType rSetId y rTTL rrs health
+
+    tgt = AliasTarget zid (head rValues) False
+    rrs = ResourceRecords rValues
+
+    weight = fromIntegral rWeight
+    health = HealthCheckId <$> rHealthCheck
+
+listRecords :: HostedZoneId
+            -> [Text]
+            -> [Text]
+            -> Integer
+            -> ([ResourceRecordSet] -> AWSContext ())
+            -> AWSContext ()
+listRecords zid ns vs items f =
+    cont [] (Just . ListResourceRecordSets zid Nothing Nothing Nothing $ Just items)
   where
-    mk Failover True  = aset FailoverAliasRecordSet $ failover
-    mk Latency  True  = aset LatencyAliasRecordSet  $ region
-    mk Weighted True  = aset WeightedAliasRecordSet $ weight
-    mk Basic    True  = AliasRecordSet name typ tgt health
+    cont _  Nothing   = return ()
+    cont rr (Just rq) = do
+        res <- send rq
+        let rq' = next res
+            rrs = rr ++ filterRecordSets ns vs (lrrsrResourceRecordSets res)
+        if length rrs < fromIntegral items && isJust rq'
+            then cont rrs rq'
+            else f rrs
 
-    mk Failover False = rset FailoverRecordSet $ failover
-    mk Latency  False = rset LatencyRecordSet  $ region
-    mk Weighted False = rset WeightedRecordSet $ weight
-    mk Basic    False = BasicRecordSet name typ ttl rrs health
+    next ListResourceRecordSetsResponse{..}
+        | not lrrsrIsTruncated = Nothing
+        | otherwise = Just $ ListResourceRecordSets zid
+              lrrsrNextRecordName
+              lrrsrNextRecordType
+              lrrsrNextRecordIdentifier
+              (Just lrrsrMaxItems)
 
-    aset x y = x name typ setid y tgt health
-    rset x y = x name typ setid y ttl rrs health
-
-    tgt = AliasTarget zone (head vs) False
-    rrs = ResourceRecords vs
+filterRecordSets :: [Text] -> [Text] -> [ResourceRecordSet] -> [ResourceRecordSet]
+filterRecordSets ns vs = filter (\x -> names x || values x)
+  where
+    names   = (`match` ns) . rrsName
+    values  = or . map (`match` vs) . rrValues . rrsResourceRecords
+    match x = or . map (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)

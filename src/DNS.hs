@@ -115,17 +115,15 @@ main = runSubcommand
   where
     modify act r@Record{..} = do
         zid <- findZoneId rZone
-        chg <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
-            [ Change act $ recordSet zid r
-            ]
+        chg <- send . ChangeResourceRecordSets zid $
+            ChangeBatch Nothing [Change act $ recordSet zid r]
         waitForChange $ crrsrChangeInfo chg
 
     search Search{..} = do
         zid <- findZoneId sZone
         listRecords zid sNames sValues sResults $ \rrs -> tryAWS $ do
             mapM_ (logInfo . ppShow) rrs
-            logInfo "Press enter to continue..."
-            void $ getLine
+            when (not $ null rrs) $ logInfo "Press enter to continue..." >> void getLine
 
 findZoneId :: Text -> AWSContext HostedZoneId
 findZoneId name = do

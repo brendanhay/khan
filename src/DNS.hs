@@ -3,6 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 -- Module      : Main
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -91,7 +92,7 @@ defineOptions "Search" $ do
     textOption "sZone" "zone" ""
         "Name of the hosted zone to inspect."
 
-    integerOption "sResults" "max" 5
+    intOption "sResults" "max" 5
         "Pagination window size."
 
     textsOption "sNames" "name" []
@@ -171,11 +172,11 @@ recordSet zid Record{..} = mk rPolicy rAlias
 listRecords :: HostedZoneId
             -> [Text]
             -> [Text]
-            -> Integer
+            -> Int
             -> ([ResourceRecordSet] -> AWSContext ())
             -> AWSContext ()
 listRecords zid ns vs items f =
-    cont [] (Just . ListResourceRecordSets zid Nothing Nothing Nothing $ Just items)
+    cont [] (Just . ListResourceRecordSets zid Nothing Nothing Nothing $ Just $ fromIntegral items)
   where
     cont []  Nothing  = return ()
     cont rr  Nothing  = f rr
@@ -183,9 +184,9 @@ listRecords zid ns vs items f =
         res <- send rq
         let nrq = next res
             rrs = rr ++ matching res
-        if length rrs < fromIntegral items && isJust nrq
+        if length rrs < items && isJust nrq
             then cont rrs nrq
-            else f rrs
+            else f (take items rrs) >> cont (drop items rrs) nrq
 
     next ListResourceRecordSetsResponse{..}
         | not lrrsrIsTruncated = Nothing
@@ -195,7 +196,9 @@ listRecords zid ns vs items f =
               lrrsrNextRecordIdentifier
               (Just lrrsrMaxItems)
 
-    matching = filter (\x -> names x || values x) . lrrsrResourceRecordSets
+    matching (lrrsrResourceRecordSets -> rr)
+        | null ns && null vs = rr
+        | otherwise          = filter (\x -> names x || values x) rr
       where
         names   = (`match` ns) . rrsName
         values  = or . map (`match` vs) . rrValues . rrsResourceRecords

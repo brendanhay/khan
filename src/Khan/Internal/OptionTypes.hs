@@ -21,6 +21,7 @@ module Khan.Internal.OptionTypes
     , maybeTextOption
     , textsOption
     , integerOption
+    , intOption
     , boolOption
 
     -- * Option Types

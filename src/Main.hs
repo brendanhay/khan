@@ -1,4 +1,4 @@
--- Module      : Khan.Internal
+-- Module      : Main
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -8,11 +8,10 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Internal
-    ( module Internal
-    ) where
+module Main (main) where
 
-import Khan.Internal.Log         as Internal
-import Khan.Internal.OptionTypes as Internal
-import Khan.Internal.Options     as Internal
-import Khan.Internal.Types       as Internal
+import Khan.DNS
+import Khan.Internal
+
+main :: IO ()
+main = runProgram [dns]

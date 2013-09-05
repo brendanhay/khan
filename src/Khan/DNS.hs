@@ -3,9 +3,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Main
+-- Module      : Khan.DNS
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -15,7 +16,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Main (main) where
+module Khan.DNS (dns) where
 
 import           Control.Applicative
 import           Control.Concurrent
@@ -26,8 +27,9 @@ import           Data.List              (find)
 import           Data.Text              (Text)
 import qualified Data.Text              as Text
 import           Khan.Internal
+import           Network.AWS
 import           Network.AWS.Route53
-import           Text.Show.Pretty       (ppShow)
+import           Text.Show.Pretty
 
 defineOptions "Record" $ do
     textOption "rZone" "zone" ""
@@ -106,11 +108,11 @@ instance Validate Search where
     validate Search{..} =
         check sZone "--zone must be specified."
 
-main :: IO ()
-main = runSubcommand
-    [ awsCommand "add"    $ modify CreateAction
-    , awsCommand "delete" $ modify DeleteAction
-    , awsCommand "search" search
+dns :: (String, [Subcommand Khan (Script ())])
+dns = ("dns",) $
+    [ subCommand "add"    $ modify CreateAction
+    , subCommand "delete" $ modify DeleteAction
+    , subCommand "search" search
     ]
   where
     modify act r@Record{..} = do

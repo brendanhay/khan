@@ -1,5 +1,0 @@
-../hexpat-pickle-generic
-../querystring-pickle
-../aws-haskell
-./vendor/options
-.

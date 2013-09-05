@@ -33,13 +33,6 @@ module Khan.Internal.OptionTypes
     , regionOption
     , routingPolicyOption
     , customOption
-
-    -- * Program Setup
-    , Options
-    , Subcommand
-    , defineOptions
-    , runSubcommand
-    , subcommand
     ) where
 
 import           Control.Error

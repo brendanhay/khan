@@ -12,14 +12,13 @@ module Khan.Internal.Types where
 
 import           Control.Error
 import           Control.Monad
-import           Control.Monad.IO.Class
 import           Data.Text              (Text)
 import qualified Data.Text              as Text
 import           Network.AWS.Internal
 import           Text.Read
 
 class Discover a where
-    discover :: MonadIO m => a -> EitherT String m a
+    discover :: a -> AWSContext a
     discover = return
 
 class Validate a where

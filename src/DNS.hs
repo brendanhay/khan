@@ -29,9 +29,6 @@ import           Khan.Internal
 import           Network.AWS.Route53
 import           Text.Show.Pretty       (ppShow)
 
-pollDelay :: Int
-pollDelay = 10 * 1000000
-
 defineOptions "Record" $ do
     textOption "rZone" "zone" ""
         "Name of the hosted zone to modify."
@@ -166,7 +163,7 @@ waitForChange c@ChangeInfo{..}
     | ciStatus == INSYNC = logInfo $ "Change " ++ show ciId ++ " INSYNC."
     | otherwise = do
           logStep ("Waiting for change " ++ show ciId) c
-          liftIO $ threadDelay pollDelay
+          liftIO . threadDelay $ 10 * 1000000
           send (GetChange ciId) >>= void . waitForChange . gcrChangeInfo
 
 listRecords :: HostedZoneId

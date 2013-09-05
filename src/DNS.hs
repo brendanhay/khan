@@ -139,14 +139,6 @@ findZoneId name = do
   where
     strip = Text.dropWhileEnd (== '.')
 
-waitForChange :: ChangeInfo -> AWSContext ()
-waitForChange c@ChangeInfo{..}
-    | ciStatus == INSYNC = logInfo $ "Change " ++ show ciId ++ " INSYNC."
-    | otherwise = do
-          logStep ("Waiting for change " ++ show ciId) c
-          liftIO $ threadDelay pollDelay
-          send (GetChange ciId) >>= void . waitForChange . gcrChangeInfo
-
 recordSet :: HostedZoneId -> Record -> ResourceRecordSet
 recordSet zid Record{..} = mk rPolicy rAlias
   where
@@ -169,14 +161,21 @@ recordSet zid Record{..} = mk rPolicy rAlias
     weight = fromIntegral rWeight
     health = HealthCheckId <$> rHealthCheck
 
+waitForChange :: ChangeInfo -> AWSContext ()
+waitForChange c@ChangeInfo{..}
+    | ciStatus == INSYNC = logInfo $ "Change " ++ show ciId ++ " INSYNC."
+    | otherwise = do
+          logStep ("Waiting for change " ++ show ciId) c
+          liftIO $ threadDelay pollDelay
+          send (GetChange ciId) >>= void . waitForChange . gcrChangeInfo
+
 listRecords :: HostedZoneId
             -> [Text]
             -> [Text]
             -> Int
             -> ([ResourceRecordSet] -> AWSContext ())
             -> AWSContext ()
-listRecords zid ns vs items f =
-    cont [] (Just . ListResourceRecordSets zid Nothing Nothing Nothing $ Just $ fromIntegral items)
+listRecords zid ns vs items f = cont [] $ Just initial
   where
     cont []  Nothing  = return ()
     cont rr  Nothing  = f rr
@@ -187,6 +186,9 @@ listRecords zid ns vs items f =
         if length rrs < items && isJust nrq
             then cont rrs nrq
             else f (take items rrs) >> cont (drop items rrs) nrq
+
+    initial = ListResourceRecordSets zid Nothing Nothing Nothing
+        (Just $ fromIntegral items)
 
     next ListResourceRecordSetsResponse{..}
         | not lrrsrIsTruncated = Nothing

@@ -87,32 +87,32 @@ instance Validate Record where
         check (rPolicy /= Basic && Text.null rSetId)
             "--set-id must be specified for all non-basic routing policies."
 
-defineOptions "List" $ do
-    textOption "lZone" "zone" ""
+defineOptions "Search" $ do
+    textOption "sZone" "zone" ""
         "Name of the hosted zone to inspect."
 
-    integerOption "lResults" "max" 5
+    integerOption "sResults" "max" 5
         "Pagination window size."
 
-    textsOption "lNames" "name" []
+    textsOption "sNames" "name" []
         "A list of names to filter by."
 
-    textsOption "lValues" "value" []
+    textsOption "sValues" "value" []
         "A list of values to filter by."
 
-deriving instance Show List
+deriving instance Show Search
 
-instance Discover List
+instance Discover Search
 
-instance Validate List where
-    validate List{..} =
-        check lZone "--zone must be specified."
+instance Validate Search where
+    validate Search{..} =
+        check sZone "--zone must be specified."
 
 main :: IO ()
 main = runSubcommand
     [ awsCommand "add"    $ modify CreateAction
     , awsCommand "delete" $ modify DeleteAction
-    , awsCommand "list"   list
+    , awsCommand "search" search
     ]
   where
     modify act r@Record{..} = do
@@ -122,9 +122,9 @@ main = runSubcommand
             ]
         waitForChange $ crrsrChangeInfo chg
 
-    list List{..} = do
-        zid <- findZoneId lZone
-        listRecords zid lNames lValues lResults $ \rrs -> tryAWS $ do
+    search Search{..} = do
+        zid <- findZoneId sZone
+        listRecords zid sNames sValues sResults $ \rrs -> tryAWS $ do
             mapM_ (logInfo . ppShow) rrs
             logInfo "Press enter to continue..."
             void $ getLine
@@ -177,13 +177,14 @@ listRecords :: HostedZoneId
 listRecords zid ns vs items f =
     cont [] (Just . ListResourceRecordSets zid Nothing Nothing Nothing $ Just items)
   where
-    cont _  Nothing   = return ()
+    cont []  Nothing  = return ()
+    cont rr  Nothing  = f rr
     cont rr (Just rq) = do
         res <- send rq
-        let rq' = next res
-            rrs = rr ++ filterRecordSets ns vs (lrrsrResourceRecordSets res)
-        if length rrs < fromIntegral items && isJust rq'
-            then cont rrs rq'
+        let nrq = next res
+            rrs = rr ++ matching res
+        if length rrs < fromIntegral items && isJust nrq
+            then cont rrs nrq
             else f rrs
 
     next ListResourceRecordSetsResponse{..}
@@ -194,9 +195,8 @@ listRecords zid ns vs items f =
               lrrsrNextRecordIdentifier
               (Just lrrsrMaxItems)
 
-filterRecordSets :: [Text] -> [Text] -> [ResourceRecordSet] -> [ResourceRecordSet]
-filterRecordSets ns vs = filter (\x -> names x || values x)
-  where
-    names   = (`match` ns) . rrsName
-    values  = or . map (`match` vs) . rrValues . rrsResourceRecords
-    match x = or . map (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
+    matching = filter (\x -> names x || values x) . lrrsrResourceRecordSets
+      where
+        names   = (`match` ns) . rrsName
+        values  = or . map (`match` vs) . rrValues . rrsResourceRecords
+        match x = or . map (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)

@@ -17,13 +17,18 @@
 module Main (main) where
 
 import           Control.Applicative
+import           Control.Concurrent
 import           Control.Error
+import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.List              (find)
 import           Data.Text              (Text)
 import qualified Data.Text              as Text
 import           Khan.Internal
 import           Network.AWS.Route53
+
+pollDelay :: Int
+pollDelay = 10 * 1000000
 
 defineOptions "Record" $ do
     textOption "rZone" "zone" ""
@@ -92,45 +97,45 @@ instance Validate List
 
 main :: IO ()
 main = runSubcommand
-    [ awsCommand "add"    add
-    , awsCommand "delete" delete
+    [ awsCommand "add"    (modifyRecordSet CreateAction)
+    , awsCommand "delete" (modifyRecordSet DeleteAction)
     , awsCommand "list"   list
     ]
   where
-    add = modifyRecordSet CreateAction
-    delete = modifyRecordSet DeleteAction
-
     list List{..} = do
         return ()
 
+modifyRecordSet :: ChangeAction -> Record -> AWSContext ()
 modifyRecordSet action Record{..} = do
     zid <- findZoneId rZone
-    res <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
-        [ Change action $ recordSet
-              zid rPolicy rDomain rRecordType rSetId rAlias rTTL
-              (fromIntegral rWeight) rFailover rRegion rHealthCheck rValues
+    chg <- send . ChangeResourceRecordSets zid $ ChangeBatch Nothing
+        [ Change action $ recordSet zid rPolicy rDomain rRecordType rSetId
+            rAlias rTTL (fromIntegral rWeight) rFailover rRegion
+            (HealthCheckId <$> rHealthCheck) rValues
         ]
-    logInfo $ show res
+    waitForChange $ crrsrChangeInfo chg
 
-findZoneId :: Text -> AWSContext Text
+waitForChange :: ChangeInfo -> AWSContext ()
+waitForChange c@ChangeInfo{..}
+    | ciStatus == INSYNC = logInfo $ "Change " ++ show ciId ++ " INSYNC."
+    | otherwise = do
+          logStep ("Waiting for change " ++ show ciId) c
+          liftIO $ threadDelay pollDelay
+          send (GetChange ciId) >>= void . waitForChange . gcrChangeInfo
+
+findZoneId :: Text -> AWSContext HostedZoneId
 findZoneId name = do
     logInfo "Listing hosted zones..."
-
     hzs  <- lhzrHostedZones <$> send (ListHostedZones Nothing $ Just 100)
     zone <- find ((== strip name) . strip . hzName) hzs
         ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
-
-    let zid  = hzId zone
-        zid' = Text.unpack zid
-
-    logStep ("Found hosted zone: " ++ zid') zone
-
-    Text.stripPrefix "/hostedzone/" zid
-        ?? Error ("Invalid hosted zone identifier: " ++ zid')
+    let zid = hzId zone
+    logStep ("Found hosted zone " ++ show zid) zone
+    return zid
   where
     strip = Text.dropWhileEnd (== '.')
 
-recordSet :: Text
+recordSet :: HostedZoneId
           -> RoutingPolicy
           -> Text
           -> RecordType
@@ -140,7 +145,7 @@ recordSet :: Text
           -> Integer
           -> Failover
           -> Region
-          -> Maybe Text
+          -> Maybe HealthCheckId
           -> [Text]
           -> ResourceRecordSet
 recordSet zone policy name typ setid alias ttl weight failover region health vs =

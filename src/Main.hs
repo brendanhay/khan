@@ -12,6 +12,7 @@ module Main (main) where
 
 import Khan.DNS
 import Khan.Internal
+import Khan.Meta
 
 main :: IO ()
-main = runProgram [dns]
+main = runProgram [dns, meta]

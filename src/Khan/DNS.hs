@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
@@ -108,7 +107,7 @@ instance Validate Search where
     validate Search{..} =
         check sZone "--zone must be specified."
 
-dns :: (String, [Subcommand Khan (Script ())])
+dns :: (String, [SubCommand ()])
 dns = ("dns",) $
     [ subCommand "add"    $ modify CreateAction
     , subCommand "delete" $ modify DeleteAction

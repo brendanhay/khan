@@ -18,11 +18,11 @@ module Khan.Internal.Options
     (
     -- * Application Options
       Khan     (..)
+    , SubCommand
 
     -- * Program Helpers
     , Discover (..)
     , Validate (..)
-    , Subcommand
     , defineOptions
     , check
     , runProgram
@@ -47,43 +47,35 @@ defineOptions "Khan" $ do
     maybeTextOption "kRole" "iam-role" ""
         "IAM role - if specified takes precendence over access/secret keys."
 
-    maybeTextOption "kAccess" "access-key" ""
-        "AWS access key."
-
-    maybeTextOption "kSecret" "secret-key" ""
-        "AWS secret key."
-
     boolOption "kDiscovery" "discovery" False
         "Populate options from EC2 metadata. Requires --iam-role."
 
 deriving instance Show Khan
 
 instance Validate Khan where
-    validate Khan{..} = do
-        check (kDiscovery && noRole)
+    validate Khan{..} =
+        check (kDiscovery && isNothing kRole)
             "--iam-role must be specified in order to use --discovery."
-        check (or [isNothing kAccess, isNothing kSecret, noRole])
-            "--access-key and --secret-key must be specified unless --iam-role is used."
-      where
-        noRole = isNothing kRole
 
 check :: (Monad m, Invalid a) => a -> String -> EitherT String m ()
 check x = when (invalid x) . throwT
+
+type SubCommand a = Subcommand Khan (Script a)
 
 subCommand :: (Show a, Options a, Discover a, Validate a)
            => String
            -> (a -> AWSContext b)
            -> Subcommand Khan (Script b)
-subCommand name action = Options.subcommand name runner
+subCommand name action = Options.subcommand name run
   where
-    runner k@Khan{..} o _ = do
+    run k@Khan{..} o _ = do
         setLogging kDebug
         logStep "Running Khan..." k
         validate k
         auth <- credentials $ creds kRole
         fmapLT show . runAWS auth kDebug $ do
             opts <- disco kDiscovery o
-            fmapLT Error $ validate opts
+            fmapError $ validate opts
             action opts
 
     disco True  = (logDebug "Performing discovery..." >>) . discover
@@ -92,7 +84,7 @@ subCommand name action = Options.subcommand name runner
     creds = maybe (FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY")
                   (FromRole . encodeUtf8)
 
-runProgram :: Options o => [(String, [Subcommand o (Script a)])] -> IO a
+runProgram :: [(String, [SubCommand a])] -> IO a
 runProgram cmds = do
     args <- getArgs
     case args of

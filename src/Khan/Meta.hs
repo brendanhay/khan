@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE TupleSections       #-}
 
 -- Module      : Khan.Meta
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -15,16 +14,12 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Meta where
+module Khan.Meta (meta) where
 
 import           Control.Applicative
-import           Control.Concurrent
-import           Control.Monad
-import           Data.List                (find)
-import           Data.Maybe
 import           Data.Text                (Text)
 import qualified Data.Text                as Text
-import           Khan
+import           Khan.Internal
 import           Network.AWS.EC2.Metadata
 
 defineOptions "Describe" $ do
@@ -39,3 +34,11 @@ instance Discover Describe where
 instance Validate Describe where
     validate Describe{..} =
         check dInstanceId "--instance-id must be specified."
+
+meta :: (String, [SubCommand ()])
+meta = ("meta",) $
+    [ subCommand "describe" describe
+    ]
+  where
+    describe d@Describe{..} = do
+        logInfo $ show d

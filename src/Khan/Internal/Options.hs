@@ -18,6 +18,7 @@ module Khan.Internal.Options
     (
     -- * Application Options
       Khan     (..)
+    , Command  (..)
     , SubCommand
 
     -- * Program Helpers
@@ -31,12 +32,13 @@ module Khan.Internal.Options
 
 import Control.Error
 import Control.Monad
+import Data.List                 (find)
 import Data.Text.Encoding
 import Khan.Internal.Log
 import Khan.Internal.OptionTypes
 import Khan.Internal.Types
 import Network.AWS
-import Options                hiding (boolOption)
+import Options                   hiding (boolOption)
 import System.Environment
 import System.Exit
 
@@ -60,12 +62,12 @@ instance Validate Khan where
 check :: (Monad m, Invalid a) => a -> String -> EitherT Error m ()
 check x = when (invalid x) . throwT . Error
 
-type SubCommand a = Subcommand Khan (EitherT Error IO a)
+type SubCommand = Subcommand Khan (EitherT Error IO ())
 
 subCommand :: (Show a, Options a, Discover a, Validate a)
            => String
-           -> (a -> AWSContext b)
-           -> SubCommand b
+           -> (a -> AWSContext ())
+           -> SubCommand
 subCommand name action = Options.subcommand name run
   where
     run k@Khan{..} o _ = do
@@ -84,30 +86,40 @@ subCommand name action = Options.subcommand name run
     creds = maybe (FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY")
                   (FromRole . encodeUtf8)
 
-runProgram :: [(String, [SubCommand a])] -> IO a
+data Command = Command
+    { cmdName :: String
+    , cmdDesc :: String
+    , cmdSubs :: [SubCommand]
+    }
+
+runProgram :: [Command] -> IO ()
 runProgram cmds = do
     args <- getArgs
     case args of
-        []       -> help
-        (a:argv) -> maybe help (run argv) $ a `lookup` cmds
+        []     -> help "Additional subcommand required."
+        (a:as) -> maybe (help $ "Unknown subcommand \"" ++ a ++ "\".")
+                        (run as . cmdSubs) $ find ((== a) . cmdName) cmds
   where
     run argv sub =
         let parsed = parseSubcommand sub argv
         in case parsedSubcommand parsed of
-               Just cmd -> runScript $ fmapLT awsError cmd
-               Nothing  -> case parsedError parsed of
-                   Just ex -> do
-                       putStrLn $ parsedHelp parsed
-                       putStrLn ex
-                       exitFailure
-                   Nothing -> do
-                       putStrLn $ parsedHelp parsed
-                       exitSuccess
-    help = do
+            Just cmd -> runScript $ fmapLT awsError cmd
+            Nothing  -> case parsedError parsed of
+                Just ex -> do
+                    putStrLn $ parsedHelp parsed
+                    putStrLn ex
+                    exitFailure
+                Nothing -> do
+                    putStrLn $ parsedHelp parsed
+                    exitSuccess
+    help msg = do
         putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
-        putStrLn $ unlines ("Subcommands:" : map (("  " ++) . fst) cmds ++ [""])
-        putStrLn "No subcommand specified"
+        putStrLn $ unlines ("Subcommands:" : map desc cmds ++ [""])
+        putStrLn msg
         exitFailure
+
+    desc Command{..} =
+        "  " ++ cmdName ++ replicate (28 - length cmdName) ' ' ++ cmdDesc
 
     awsError (Error s) = s
     awsError (Ex e)    = show e

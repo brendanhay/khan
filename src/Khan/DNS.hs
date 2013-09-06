@@ -107,8 +107,8 @@ instance Validate Search where
     validate Search{..} =
         check sZone "--zone must be specified."
 
-dns :: (String, [SubCommand ()])
-dns = ("dns",) $
+dns :: Command
+dns = Command "dns" "Manage DNS Records."
     [ subCommand "add"    $ modify CreateAction
     , subCommand "delete" $ modify DeleteAction
     , subCommand "search" search

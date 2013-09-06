@@ -35,8 +35,8 @@ instance Validate Describe where
     validate Describe{..} =
         check dInstanceId "--instance-id must be specified."
 
-meta :: (String, [SubCommand ()])
-meta = ("meta",) $
+meta :: Command
+meta = Command "meta" "Manage Instance Metadata."
     [ subCommand "describe" describe
     ]
   where

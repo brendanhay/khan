@@ -57,15 +57,15 @@ instance Validate Khan where
         check (kDiscovery && isNothing kRole)
             "--iam-role must be specified in order to use --discovery."
 
-check :: (Monad m, Invalid a) => a -> String -> EitherT String m ()
-check x = when (invalid x) . throwT
+check :: (Monad m, Invalid a) => a -> String -> EitherT Error m ()
+check x = when (invalid x) . throwT . Error
 
-type SubCommand a = Subcommand Khan (Script a)
+type SubCommand a = Subcommand Khan (EitherT Error IO a)
 
 subCommand :: (Show a, Options a, Discover a, Validate a)
            => String
            -> (a -> AWSContext b)
-           -> Subcommand Khan (Script b)
+           -> SubCommand b
 subCommand name action = Options.subcommand name run
   where
     run k@Khan{..} o _ = do
@@ -73,9 +73,9 @@ subCommand name action = Options.subcommand name run
         logStep "Running Khan..." k
         validate k
         auth <- credentials $ creds kRole
-        fmapLT show . runAWS auth kDebug $ do
+        runAWS auth kDebug $ do
             opts <- disco kDiscovery o
-            fmapError $ validate opts
+            validate opts
             action opts
 
     disco True  = (logDebug "Performing discovery..." >>) . discover
@@ -91,16 +91,10 @@ runProgram cmds = do
         []       -> help
         (a:argv) -> maybe help (run argv) $ a `lookup` cmds
   where
-    help = do
-        putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
-        putStrLn $ unlines ("Subcommands:" : map (("  " ++) . fst) cmds ++ [""])
-        putStrLn "No subcommand specified"
-        exitFailure
-
     run argv sub =
         let parsed = parseSubcommand sub argv
         in case parsedSubcommand parsed of
-               Just cmd -> runScript cmd
+               Just cmd -> runScript $ fmapLT awsError cmd
                Nothing  -> case parsedError parsed of
                    Just ex -> do
                        putStrLn $ parsedHelp parsed
@@ -109,3 +103,11 @@ runProgram cmds = do
                    Nothing -> do
                        putStrLn $ parsedHelp parsed
                        exitSuccess
+    help = do
+        putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
+        putStrLn $ unlines ("Subcommands:" : map (("  " ++) . fst) cmds ++ [""])
+        putStrLn "No subcommand specified"
+        exitFailure
+
+    awsError (Error s) = s
+    awsError (Ex e)    = show e

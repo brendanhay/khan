@@ -22,7 +22,7 @@ class Discover a where
     discover = return
 
 class Validate a where
-    validate :: Monad m => a -> EitherT String m ()
+    validate :: Monad m => a -> EitherT Error m ()
     validate = void . return
 
 class Invalid a where

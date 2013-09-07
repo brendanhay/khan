@@ -122,9 +122,9 @@ dns = Command "dns" "Manage DNS Records."
 
     search Search{..} = do
         zid <- findZoneId sZone
-        listRecords zid sNames sValues sResults $ \rrs -> tryAWS $ do
+        listRecords zid sNames sValues sResults $ \rrs -> tryIO' $ do
             mapM_ (logInfo . ppShow) rrs
-            when (not $ null rrs) $ logInfo "Press enter to continue..." >> void getLine
+            unless (null rrs) $ logInfo "Press enter to continue..." >> void getLine
 
 findZoneId :: Text -> AWSContext HostedZoneId
 findZoneId name = do
@@ -199,5 +199,5 @@ listRecords zid ns vs items f = cont [] $ Just initial
         | otherwise          = filter (\x -> names x || values x) rr
       where
         names   = (`match` ns) . rrsName
-        values  = or . map (`match` vs) . rrValues . rrsResourceRecords
-        match x = or . map (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
+        values  = any (`match` vs) . rrValues . rrsResourceRecords
+        match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)

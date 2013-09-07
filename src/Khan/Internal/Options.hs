@@ -30,34 +30,72 @@ module Khan.Internal.Options
     , subCommand
     ) where
 
-import Control.Error
-import Control.Monad
-import Data.List                 (find)
-import Data.Text.Encoding
-import Khan.Internal.Log
-import Khan.Internal.OptionTypes
-import Khan.Internal.Types
-import Network.AWS
-import Options                   hiding (boolOption)
-import System.Environment
-import System.Exit
+import           Control.Applicative
+import           Control.Error
+import           Control.Monad
+import           Control.Monad.IO.Class
+import qualified Data.ByteString.Char8     as BS
+import           Data.List                 (find)
+import           Data.Text.Encoding
+import           Khan.Internal.Log
+import           Khan.Internal.OptionTypes
+import           Khan.Internal.Types
+import           Network.AWS               hiding (accessKey, secretKey)
+import           Options                   hiding (boolOption, stringOption)
+import           System.Environment
+import           System.Exit
+
+accessKey, secretKey :: String
+accessKey = "ACCESS_KEY_ID"
+secretKey = "SECRET_ACCESS_KEY"
 
 defineOptions "Khan" $ do
     boolOption "kDebug" "debug" False
         "Log debug output"
 
+    boolOption "kDiscovery" "discovery" False
+        "Populate options from EC2 metadata and tags."
+
     maybeTextOption "kRole" "iam-role" ""
         "IAM role - if specified takes precendence over access/secret keys."
 
-    boolOption "kDiscovery" "discovery" False
-        "Populate options from EC2 metadata. Requires --iam-role."
+    stringOption "kAccess" "access-key" ""
+        "AWS access key."
+
+    stringOption "kSecret" "secret-key" ""
+        "AWS secret key."
 
 deriving instance Show Khan
 
 instance Validate Khan where
-    validate Khan{..} =
-        check (kDiscovery && isNothing kRole)
+    validate Khan{..} = do
+        check (kDiscovery && role)
             "--iam-role must be specified in order to use --discovery."
+        check (null kAccess && role) $ msg "--access-key" accessKey
+        check (null kSecret && role) $ msg "--secret-key" secretKey
+      where
+        role = isNothing kRole
+
+        msg k e = k ++ " must be specified or "
+            ++ e ++ " env must be set if --iam-role is not set."
+
+validKeys :: Khan -> Bool
+validKeys Khan{..} = (not . null) `all` [kAccess, kSecret]
+
+discoverKhan :: (Applicative m, MonadIO m) => Khan -> EitherT Error m Khan
+discoverKhan k@Khan{..}
+    | isJust kRole = right k
+    | validKeys k  = right k
+    | otherwise    = lookupKeys
+  where
+    lookupKeys = tryIO' $ do
+        acc <- env accessKey kAccess
+        sec <- env secretKey kSecret
+        return $! k { kAccess = acc, kSecret = sec }
+
+    env k' v
+        | null v    = fromMaybe "" <$> lookupEnv k'
+        | otherwise = return v
 
 check :: (Monad m, Invalid a) => a -> String -> EitherT Error m ()
 check x = when (invalid x) . throwT . Error
@@ -70,11 +108,11 @@ subCommand :: (Show a, Options a, Discover a, Validate a)
            -> SubCommand
 subCommand name action = Options.subcommand name run
   where
-    run k@Khan{..} o _ = do
-        setLogging kDebug
-        logStep "Running Khan..." k
-        validate k
-        auth <- credentials $ creds kRole
+    run k o _ = do
+        setLogging $ kDebug k
+        khan@Khan{..} <- discoverKhan k
+        validate khan
+        auth <- credentials $ creds khan
         runAWS auth kDebug $ do
             opts <- disco kDiscovery o
             validate opts
@@ -83,8 +121,9 @@ subCommand name action = Options.subcommand name run
     disco True  = (logDebug "Performing discovery..." >>) . discover
     disco False = (logDebug "Skipping discovery..."   >>) . return
 
-    creds = maybe (FromEnv "ACCESS_KEY_ID" "SECRET_ACCESS_KEY")
-                  (FromRole . encodeUtf8)
+    creds Khan{..}
+        | Just r <- kRole = FromRole $! encodeUtf8 r
+        | otherwise       = FromKeys (BS.pack kAccess) (BS.pack kSecret)
 
 data Command = Command
     { cmdName :: String

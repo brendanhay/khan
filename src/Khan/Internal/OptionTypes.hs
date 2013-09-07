@@ -20,6 +20,7 @@ module Khan.Internal.OptionTypes
       textOption
     , maybeTextOption
     , textsOption
+    , stringOption
     , integerOption
     , intOption
     , boolOption
@@ -43,7 +44,7 @@ import           Language.Haskell.TH
 import           Network.AWS.Internal.Types
 import           Network.AWS.Route53
 import qualified Options                    as Opts
-import           Options                    hiding (textOption, textsOption, integerOption, boolOption)
+import           Options                    hiding (textOption, textsOption, integerOption, boolOption, stringOption)
 import           Options.OptionTypes
 
 type Opt a = String -> String -> a -> String -> OptionsM ()
@@ -62,6 +63,9 @@ maybeTextOption name flag (Text.unpack -> def) desc =
 
 textsOption :: Opt [Text]
 textsOption name flag def = Opts.textsOption name flag def . defaultText (Text.unpack $ Text.intercalate ", " def)
+
+stringOption :: Opt String
+stringOption name flag def = Opts.stringOption name flag def . defaultText def
 
 integerOption :: Opt Integer
 integerOption name flag def = Opts.integerOption name flag def . defaultText (show def)

@@ -17,19 +17,32 @@
 module Khan.Meta (meta) where
 
 import           Control.Applicative
-import           Data.Text                (Text)
-import qualified Data.Text                as Text
+import           Control.Error
+import qualified Data.ByteString.Char8    as BS
+import           Data.Text.Encoding
 import           Khan.Internal
+import           Network.AWS
+-- import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 
 defineOptions "Describe" $ do
     textOption "dInstanceId" "instance-id" ""
         "Id of the instance to describe."
 
+    regionOption "dRegion" "region" Ireland
+        "Region of the instance."
+
 deriving instance Show Describe
 
 instance Discover Describe where
-    discover = return
+    discover d = do
+        iid <- decodeUtf8 <$> metadata InstanceId
+        az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
+        reg <- fmapError $ tryRead ("Failed to read region from: " ++ az) az
+        return $! d
+            { dInstanceId = iid
+            , dRegion     = reg
+            }
 
 instance Validate Describe where
     validate Describe{..} =
@@ -41,4 +54,13 @@ meta = Command "meta" "Manage Instance Metadata."
     ]
   where
     describe d@Describe{..} = do
-        logInfo $ show d
+        logInfo $ "Describing instance " ++ show d ++ "..."
+        -- r@DescribeTagsResponse{..} <- send $ DescribeTags
+        --     [ TagResourceId [dInstanceId]
+        --     ]
+
+        -- logInfo $ show r
+
+--        within dRegion
+
+

@@ -22,7 +22,7 @@ import qualified Data.ByteString.Char8    as BS
 import           Data.Text.Encoding
 import           Khan.Internal
 import           Network.AWS
--- import           Network.AWS.EC2
+import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 
 defineOptions "Describe" $ do
@@ -55,11 +55,11 @@ meta = Command "meta" "Manage Instance Metadata."
   where
     describe d@Describe{..} = do
         logInfo $ "Describing instance " ++ show d ++ "..."
-        -- r@DescribeTagsResponse{..} <- send $ DescribeTags
-        --     [ TagResourceId [dInstanceId]
-        --     ]
+        r@DescribeTagsResponse{..} <- send $ DescribeTags
+            [ TagResourceId [dInstanceId]
+            ]
 
-        -- logInfo $ show r
+        logInfo $ show r
 
 --        within dRegion
 

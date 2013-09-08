@@ -55,12 +55,10 @@ meta = Command "meta" "Manage Instance Metadata."
   where
     describe d@Describe{..} = do
         logInfo $ "Describing instance " ++ show d ++ "..."
-        r@DescribeTagsResponse{..} <- send $ DescribeTags
-            [ TagResourceId [dInstanceId]
-            ]
-
-        logInfo $ show r
-
---        within dRegion
+        within dRegion $ do
+            r <- send $ DescribeTags
+                [ TagResourceId [dInstanceId]
+                ]
+            logInfo $ show r
 
 

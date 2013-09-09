@@ -35,6 +35,7 @@ executable khan
       , errors
       , hslogger
       , options
+      , pipes            >= 4.0
       , pretty-show
       , template-haskell
       , text

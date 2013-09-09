@@ -6,7 +6,7 @@ DEPS  := vendor/options vendor/http-streams
 
 all: build
 
-build: cabal.sandbox.config .cabal-sandbox
+build: cabal.sandbox.config
 	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS)))
 
 install: $(DEPS) add-sources

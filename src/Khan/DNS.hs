@@ -2,7 +2,6 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 -- Module      : Khan.DNS
@@ -28,6 +27,7 @@ import qualified Data.Text              as Text
 import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.Route53
+import           Pipes
 import           Text.Show.Pretty
 
 defineOptions "Record" $ do
@@ -118,13 +118,36 @@ dns = Command "dns" "Manage DNS Records."
         zid <- findZoneId rZone
         chg <- send . ChangeResourceRecordSets zid $
             ChangeBatch Nothing [Change act $ recordSet zid r]
-        waitForChange $ crrsrChangeInfo chg
+        wait $ crrsrChangeInfo chg
+      where
+        wait c@ChangeInfo{..} = case ciStatus of
+            INSYNC  -> logInfo $ "Change " ++ show ciId ++ " INSYNC."
+            PENDING -> do
+                logStep ("Waiting for change " ++ show ciId) c
+                liftIO . threadDelay $ 10 * 1000000
+                send (GetChange ciId) >>= void . wait . gcrChangeInfo
 
     search Search{..} = do
         zid <- findZoneId sZone
-        listRecords zid sNames sValues sResults $ \rrs -> tryIO' $ do
+        runEffect $ for (paginate $ start zid) (liftIO . display)
+      where
+        display (matching -> rrs) = do
             mapM_ (logInfo . ppShow) rrs
-            unless (null rrs) $ logInfo "Press enter to continue..." >> void getLine
+            unless (null rrs) $
+                logInfo "Press enter to continue..." >> void getLine
+
+        start zid = ListResourceRecordSets zid Nothing Nothing Nothing results
+
+        results = Just $ fromIntegral sResults
+
+        matching (lrrsrResourceRecordSets -> rr)
+            | null sNames && null sValues = rr
+            | otherwise = filter (\x -> ns x || vs x) rr
+
+        ns = (`match` sNames) . rrsName
+        vs = any (`match` sValues) . rrValues . rrsResourceRecords
+
+        match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
 
 findZoneId :: Text -> AWSContext HostedZoneId
 findZoneId name = do
@@ -156,48 +179,3 @@ recordSet zid Record{..} = mk rPolicy rAlias
 
     weight = fromIntegral rWeight
     health = HealthCheckId <$> rHealthCheck
-
-waitForChange :: ChangeInfo -> AWSContext ()
-waitForChange c@ChangeInfo{..}
-    | ciStatus == INSYNC = logInfo $ "Change " ++ show ciId ++ " INSYNC."
-    | otherwise = do
-          logStep ("Waiting for change " ++ show ciId) c
-          liftIO . threadDelay $ 10 * 1000000
-          send (GetChange ciId) >>= void . waitForChange . gcrChangeInfo
-
-listRecords :: HostedZoneId
-            -> [Text]
-            -> [Text]
-            -> Int
-            -> ([ResourceRecordSet] -> AWSContext ())
-            -> AWSContext ()
-listRecords zid ns vs items f = cont [] $ Just initial
-  where
-    cont []  Nothing  = return ()
-    cont rr  Nothing  = f rr
-    cont rr (Just rq) = do
-        res <- send rq
-        let nrq = next res
-            rrs = rr ++ matching res
-        if length rrs < items && isJust nrq
-            then cont rrs nrq
-            else f (take items rrs) >> cont (drop items rrs) nrq
-
-    initial = ListResourceRecordSets zid Nothing Nothing Nothing
-        (Just $ fromIntegral items)
-
-    next ListResourceRecordSetsResponse{..}
-        | not lrrsrIsTruncated = Nothing
-        | otherwise = Just $ ListResourceRecordSets zid
-              lrrsrNextRecordName
-              lrrsrNextRecordType
-              lrrsrNextRecordIdentifier
-              (Just lrrsrMaxItems)
-
-    matching (lrrsrResourceRecordSets -> rr)
-        | null ns && null vs = rr
-        | otherwise          = filter (\x -> names x || values x) rr
-      where
-        names   = (`match` ns) . rrsName
-        values  = any (`match` vs) . rrValues . rrsResourceRecords
-        match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)

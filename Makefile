@@ -1,12 +1,13 @@
-DEPS  := vendor/options
+SHELL := /usr/bin/env bash
 FLAGS := -j --disable-documentation --disable-library-coverage
+DEPS  := vendor/options vendor/http-streams
 
 .PHONY: test lint doc
 
 all: build
 
-build: cabal.sandbox.config
-	cabal build
+build: cabal.sandbox.config .cabal-sandbox
+	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS)))
 
 install: $(DEPS) add-sources
 	cabal install $(FLAGS)

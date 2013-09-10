@@ -17,17 +17,17 @@
 module Khan.DNS (dns) where
 
 import           Control.Applicative
-import           Control.Concurrent
+import           Control.Concurrent     (threadDelay)
 import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.List              (find)
 import           Data.Text              (Text)
 import qualified Data.Text              as Text
 import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.Route53
 import           Pipes
+import qualified Pipes.Prelude          as Pipes
 import           Text.Show.Pretty
 
 defineOptions "Record" $ do
@@ -90,7 +90,7 @@ defineOptions "Search" $ do
     textOption "sZone" "zone" ""
         "Name of the hosted zone to inspect."
 
-    intOption "sResults" "max" 5
+    intOption "sResults" "max" 4
         "Pagination window size."
 
     textsOption "sNames" "name" []
@@ -152,10 +152,11 @@ dns = Command "dns" "Manage DNS Records."
 findZoneId :: Text -> AWSContext HostedZoneId
 findZoneId name = do
     logInfo "Listing hosted zones..."
-    hzs  <- lhzrHostedZones <$> send (ListHostedZones Nothing $ Just 100)
-    hzId <$> find ((== strip name) . strip . hzName) hzs
-        ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
+    mz <- Pipes.find match $ (paginate ~> each . lhzrHostedZones) start
+    hzId <$> mz ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
   where
+    start = ListHostedZones Nothing $ Just 10
+    match = (== strip name) . strip . hzName
     strip = Text.dropWhileEnd (== '.')
 
 recordSet :: HostedZoneId -> Record -> ResourceRecordSet

@@ -24,6 +24,7 @@ import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
+import           Text.Show.Pretty
 
 defineOptions "Describe" $ do
     textOption "dInstanceId" "instance-id" ""
@@ -56,9 +57,7 @@ meta = Command "meta" "Manage Instance Metadata."
     describe d@Describe{..} = do
         logInfo $ "Describing instance " ++ show d ++ "..."
         within dRegion $ do
-            r <- send $ DescribeTags
+            res <- send $ DescribeTags
                 [ TagResourceId [dInstanceId]
                 ]
-            logInfo $ show r
-
-
+            logInfo $ ppShow res

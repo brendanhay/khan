@@ -41,7 +41,7 @@ defineOptions "Record" $ do
         "Record set type."
 
     textsOption "rValues" "value" []
-        "A list of values to add."
+        "A value to add."
 
     integerOption "rTTL" "ttl" 90
         "Record resource cache time to live in seconds."
@@ -94,10 +94,10 @@ defineOptions "Search" $ do
         "Pagination window size."
 
     textsOption "sNames" "name" []
-        "A list of names to filter by."
+        "A name to filter by."
 
     textsOption "sValues" "value" []
-        "A list of values to filter by."
+        "A value to filter by."
 
 deriving instance Show Search
 
@@ -109,8 +109,8 @@ instance Validate Search where
 
 dns :: Command
 dns = Command "dns" "Manage DNS Records."
-    [ subCommand "add"    $ modify CreateAction
-    , subCommand "delete" $ modify DeleteAction
+    [ subCommand "create" $ modify CreateAction
+    , subCommand "remove" $ modify DeleteAction
     , subCommand "search" search
     ]
   where

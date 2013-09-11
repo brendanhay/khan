@@ -11,8 +11,9 @@
 module Main (main) where
 
 import Khan.DNS
+import Khan.Firewall
 import Khan.Internal
 import Khan.Meta
 
 main :: IO ()
-main = runProgram [dns, meta]
+main = runProgram [dns, firewall, meta]

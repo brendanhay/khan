@@ -10,10 +10,15 @@
 
 module Main (main) where
 
-import Khan.DNS
-import Khan.Firewall
-import Khan.Internal
-import Khan.Meta
+import           Khan.Internal
+
+import qualified Khan.DNS as DNS
+import qualified Khan.Metadata as Metadata
+import qualified Khan.Security as Security
 
 main :: IO ()
-main = runProgram [dns, firewall, meta]
+main = runProgram
+    [ DNS.command
+    , Metadata.command
+    , Security.command
+    ]

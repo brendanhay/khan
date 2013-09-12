@@ -12,7 +12,8 @@ module Khan.Internal
     ( module Internal
     ) where
 
-import Khan.Internal.Log         as Internal
-import Khan.Internal.OptionTypes as Internal
-import Khan.Internal.Options     as Internal
-import Khan.Internal.Types       as Internal
+import Khan.Internal.Log     as Internal
+import Khan.Internal.Options as Internal
+import Khan.Internal.Program as Internal
+import Khan.Internal.Types   as Internal
+

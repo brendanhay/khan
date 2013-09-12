@@ -12,6 +12,7 @@ module Khan.Internal.Types where
 
 import           Control.Error
 import           Control.Monad
+import           Data.Attoparsec.Text
 import           Data.Text              (Text)
 import qualified Data.Text              as Text
 import           Network.AWS.Internal
@@ -60,3 +61,20 @@ instance Show RoutingPolicy where
     show Latency  = "latency"
     show Weighted = "weighted"
     show Basic    = "basic"
+
+newtype Rule = Rule IpPermission
+
+instance Show Rule where
+    show (Rule IpPermission{..}) = intercalate ":"
+        [ show iptIpProtocol
+        , show iptFromPort
+        , show iptToPort
+        , fromMaybe "" $ headMay (map uigGroupName iptGroups) <|> headMay (map irCidrIp iptIpRanges)
+        ]
+
+-- readMix = readParen True $ \r -> do
+--             (v1, r'') <- readsPrec d r
+--             (v2, r')  <- readsPrec d r''
+--             return (Mix v1 v2, r')
+
+-- "tcp:0:22:group|0.0.0.0"

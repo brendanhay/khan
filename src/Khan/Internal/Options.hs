@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 -- Module      : Khan.Internal.Options
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -16,149 +16,112 @@
 
 module Khan.Internal.Options
     (
-    -- * Application Options
-      Khan     (..)
-    , Command  (..)
-    , SubCommand
+    -- * Default Options
+      textOption
+    , maybeTextOption
+    , textsOption
+    , stringOption
+    , integerOption
+    , intOption
+    , boolOption
 
-    -- * Program Helpers
-    , Discover (..)
-    , Validate (..)
-    , defineOptions
-    , check
-    , runProgram
-    , subCommand
+    -- * Option Types
+    , optionTypeWord8
+
+    -- * Custom Options
+    , recordTypeOption
+    , failoverOption
+    , regionOption
+    , routingPolicyOption
+    , customOption
     ) where
 
-import           Control.Applicative
 import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
-import qualified Data.ByteString.Char8     as BS
-import           Data.List                 (find)
-import           Data.Text.Encoding
-import           Khan.Internal.Log
-import           Khan.Internal.OptionTypes
+import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
 import           Khan.Internal.Types
-import           Network.AWS               hiding (accessKey, secretKey)
-import           Options                   hiding (boolOption, stringOption)
-import           System.Environment
-import           System.Exit
+import           Language.Haskell.TH
+import           Network.AWS.Internal.Types
+import           Network.AWS.Route53
+import qualified Options                    as Opts
+import           Options                    hiding (textOption, textsOption, integerOption, boolOption, stringOption)
+import           Options.OptionTypes
 
-accessKey, secretKey :: String
-accessKey = "ACCESS_KEY_ID"
-secretKey = "SECRET_ACCESS_KEY"
+type Opt a = String -> String -> a -> String -> OptionsM ()
 
-defineOptions "Khan" $ do
-    boolOption "kDebug" "debug" False
-        "Log debug output"
+textOption :: Opt Text
+textOption name flag def = Opts.textOption name flag def
+    . defaultText (Text.unpack def)
 
-    boolOption "kDiscovery" "discovery" False
-        "Populate options from EC2 metadata and tags."
+maybeTextOption :: Opt Text
+maybeTextOption name flag (Text.unpack -> def) desc =
+    option name $ \o -> o
+        { optionLongFlags   = [flag]
+        , optionDefault     = def
+        , optionType        = optionTypeMaybe optionTypeText
+        , optionDescription = defaultText def desc
+        }
 
-    maybeTextOption "kRole" "iam-role" ""
-        "IAM role - if specified takes precendence over access/secret keys."
+textsOption :: Opt [Text]
+textsOption name flag def = Opts.textsOption name flag def
+    . defaultText (Text.unpack $ Text.intercalate ", " def)
 
-    stringOption "kAccess" "access-key" ""
-        "AWS access key."
+stringOption :: Opt String
+stringOption name flag def = Opts.stringOption name flag def
+    . defaultText def
 
-    stringOption "kSecret" "secret-key" ""
-        "AWS secret key."
+integerOption :: Opt Integer
+integerOption name flag def = Opts.integerOption name flag def
+    . defaultText (show def)
 
-deriving instance Show Khan
+boolOption :: Opt Bool
+boolOption name flag def = Opts.boolOption name flag def
+    . defaultText (show def)
 
-instance Validate Khan where
-    validate Khan{..} = do
-        check (kDiscovery && role)
-            "--iam-role must be specified in order to use --discovery."
-        check (null kAccess && role) $ msg "--access-key" accessKey
-        check (null kSecret && role) $ msg "--secret-key" secretKey
-      where
-        role = isNothing kRole
+recordTypeOption :: Opt RecordType
+recordTypeOption = readOption (ConT ''RecordType)
 
-        msg k e = k ++ " must be specified or "
-            ++ e ++ " env must be set if --iam-role is not set."
+failoverOption :: Opt Failover
+failoverOption = readOption (ConT ''Failover)
 
-validKeys :: Khan -> Bool
-validKeys Khan{..} = (not . null) `all` [kAccess, kSecret]
+regionOption :: Opt Region
+regionOption = readOption (ConT ''Region)
 
-discoverKhan :: (Applicative m, MonadIO m) => Khan -> EitherT Error m Khan
-discoverKhan k@Khan{..}
-    | isJust kRole = right k
-    | validKeys k  = right k
-    | otherwise    = lookupKeys
-  where
-    lookupKeys = tryIO' $ do
-        acc <- env accessKey kAccess
-        sec <- env secretKey kSecret
-        return $! k { kAccess = acc, kSecret = sec }
+routingPolicyOption :: Opt RoutingPolicy
+routingPolicyOption = readOption (ConT ''RoutingPolicy)
 
-    env k' v
-        | null v    = fromMaybe "" <$> lookupEnv k'
-        | otherwise = return v
+customOption :: Show a
+             => String
+             -> String
+             -> a
+             -> OptionType a
+             -> String
+             -> OptionsM ()
+customOption name flag (show -> def) typ desc =
+    option name $ \o -> o
+        { optionLongFlags   = [flag]
+        , optionDefault     = def
+        , optionType        = typ
+        , optionDescription = defaultText def desc
+        }
 
-check :: (Monad m, Invalid a) => a -> String -> EitherT Error m ()
-check x = when (invalid x) . throwT . Error
+--
+-- Internal
+--
 
-type SubCommand = Subcommand Khan (EitherT Error IO ())
+readOption :: (Show a, Read a)
+           => Type
+           -> String
+           -> String
+           -> a
+           -> String
+           -> OptionsM ()
+readOption typ name flag def =
+    customOption name flag def (OptionType typ False readEither [| readEither |])
 
-subCommand :: (Show a, Options a, Discover a, Validate a)
-           => String
-           -> (a -> AWSContext ())
-           -> SubCommand
-subCommand name action = Options.subcommand name run
-  where
-    run k o _ = do
-        setLogging $ kDebug k
-        khan@Khan{..} <- discoverKhan k
-        validate khan
-        auth <- credentials $ creds khan
-        runAWS auth kDebug $ do
-            opts <- disco kDiscovery o
-            validate opts
-            action opts
+readEither :: Read a => String -> Either String a
+readEither s = note ("Unable to read: " ++ s) $ readMay s
 
-    disco True  = (logDebug "Performing discovery..." >>) . discover
-    disco False = (logDebug "Skipping discovery..."   >>) . return
-
-    creds Khan{..}
-        | Just r <- kRole = FromRole $! encodeUtf8 r
-        | otherwise       = FromKeys (BS.pack kAccess) (BS.pack kSecret)
-
-data Command = Command
-    { cmdName :: String
-    , cmdDesc :: String
-    , cmdSubs :: [SubCommand]
-    }
-
-runProgram :: [Command] -> IO ()
-runProgram cmds = do
-    args <- getArgs
-    case args of
-        []     -> help "Additional subcommand required."
-        (a:as) -> maybe (help $ "Unknown subcommand \"" ++ a ++ "\".")
-                        (run as . cmdSubs) $ find ((== a) . cmdName) cmds
-  where
-    run argv sub =
-        let parsed = parseSubcommand sub argv
-        in case parsedSubcommand parsed of
-            Just cmd -> runScript $ fmapLT awsError cmd
-            Nothing  -> case parsedError parsed of
-                Just ex -> do
-                    putStrLn $ parsedHelp parsed
-                    putStrLn ex
-                    exitFailure
-                Nothing -> do
-                    putStrLn $ parsedHelp parsed
-                    exitSuccess
-    help msg = do
-        putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
-        putStrLn $ unlines ("Subcommands:" : map desc cmds ++ [""])
-        putStrLn msg
-        exitFailure
-
-    desc Command{..} =
-        "  " ++ cmdName ++ replicate (28 - length cmdName) ' ' ++ cmdDesc
-
-    awsError (Error s) = s
-    awsError (Ex e)    = show e
+defaultText :: String -> String -> String
+defaultText ""  desc = desc
+defaultText def desc = desc ++ " default: " ++ def

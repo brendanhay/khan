@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.DNS (dns) where
+module Khan.DNS (command) where
 
 import           Control.Applicative
 import           Control.Concurrent     (threadDelay)
@@ -107,8 +107,8 @@ instance Validate Search where
     validate Search{..} =
         check sZone "--zone must be specified."
 
-dns :: Command
-dns = Command "dns" "Manage DNS Records."
+command :: Command
+command = Command "dns" "Manage DNS Records."
     [ subCommand "create" $ modify CreateAction
     , subCommand "remove" $ modify DeleteAction
     , subCommand "search" search

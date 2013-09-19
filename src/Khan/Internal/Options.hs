@@ -33,6 +33,7 @@ module Khan.Internal.Options
     , failoverOption
     , regionOption
     , routingPolicyOption
+    , rulesOption
     , customOption
     ) where
 
@@ -41,6 +42,7 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Khan.Internal.Types
 import           Language.Haskell.TH
+import           Network.AWS.EC2
 import           Network.AWS.Internal.Types
 import           Network.AWS.Route53
 import qualified Options                    as Opts
@@ -90,6 +92,15 @@ regionOption = readOption (ConT ''Region)
 routingPolicyOption :: Opt RoutingPolicy
 routingPolicyOption = readOption (ConT ''RoutingPolicy)
 
+rulesOption :: String -> String -> String -> OptionsM ()
+rulesOption name flag desc =
+    option name $ \o -> o
+        { optionLongFlags   = [flag]
+        , optionDefault     = ""
+        , optionType        = optionTypeList ',' optionTypeRule
+        , optionDescription = desc
+        }
+
 customOption :: Show a
              => String
              -> String
@@ -125,3 +136,6 @@ readEither s = note ("Unable to read: " ++ s) $ readMay s
 defaultText :: String -> String -> String
 defaultText ""  desc = desc
 defaultText def desc = desc ++ " default: " ++ def
+
+optionTypeRule :: OptionType IpPermission
+optionTypeRule = OptionType (ConT ''IpPermission) False parseRule [| parseRule |]

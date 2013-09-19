@@ -30,6 +30,7 @@ executable khan
 
     build-depends:
         amazonka
+      , attoparsec
       , base             >= 4.6 && < 5
       , bytestring
       , errors

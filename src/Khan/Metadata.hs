@@ -48,7 +48,5 @@ command = Command "metadata" "Manage Instance Metadata."
   where
     describe d@Describe{..} = do
         logInfo $ "Describing instance " ++ show d ++ "..."
-        res <- send $ DescribeTags
-            [ TagResourceId [dInstanceId]
-            ]
+        res <- send $ DescribeTags [TagResourceId [dInstanceId]]
         logInfo $ ppShow res

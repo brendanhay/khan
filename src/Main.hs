@@ -12,13 +12,19 @@ module Main (main) where
 
 import           Khan.Internal
 
-import qualified Khan.DNS as DNS
-import qualified Khan.Metadata as Metadata
-import qualified Khan.Security as Security
+import qualified Khan.Artifact    as Artifact
+import qualified Khan.AutoScaling as AutoScaling
+import qualified Khan.DNS         as DNS
+import qualified Khan.Metadata    as Metadata
+import qualified Khan.Role        as Role
+import qualified Khan.Security    as Security
 
 main :: IO ()
 main = runProgram
-    [ DNS.command
+    [ Artifact.command
+    , AutoScaling.command
+    , DNS.command
     , Metadata.command
+    , Role.command
     , Security.command
     ]

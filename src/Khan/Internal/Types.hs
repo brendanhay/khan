@@ -18,14 +18,14 @@ import           Control.Applicative
 import           Control.Error
 import           Control.Monad
 import           Data.Attoparsec.Text
-import           Data.Foldable        (Foldable, toList)
-import           Data.List            (intercalate)
-import           Data.Maybe
-import           Data.Monoid
-import           Data.Text            (Text)
-import qualified Data.Text            as Text
+import           Data.Foldable                (Foldable, toList)
+import           Data.List                    (intercalate)
+import           Data.Text                    (Text)
+import qualified Data.Text                    as Text
+import           Data.Version
 import           Network.AWS.EC2
 import           Network.AWS.Internal
+import           Text.ParserCombinators.ReadP (readP_to_S)
 import           Text.Read
 
 class Discover a where
@@ -83,7 +83,7 @@ showRules = intercalate ", " . map rule . toList
         ]
       where
         groupOrRange =
-                 headMay (catMaybes . map uigGroupName $ toList iptGroups)
+                 headMay (mapMaybe uigGroupName $ toList iptGroups)
              <|> headMay (map irCidrIp $ toList iptIpRanges)
 
 parseRule :: String -> Either String IpPermission
@@ -118,3 +118,12 @@ parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0"
             "udp"  -> return UDP
             "icmp" -> return ICMP
             _      -> fail "Failed to parsed protocol"
+
+defaultVersion :: Version
+defaultVersion = Version [0] []
+
+parseVersionE :: String -> Either String Version
+parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
+    . listToMaybe
+    . reverse
+    $ readP_to_S parseVersion s

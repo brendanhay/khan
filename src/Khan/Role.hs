@@ -30,7 +30,7 @@ import           Pipes
 import qualified Pipes.Prelude          as Pipes
 import           Text.Show.Pretty
 
-defineOptions "Group" $ do
+defineOptions "Group" $
     textOption "gName" "name" ""
         "Name of the group."
 

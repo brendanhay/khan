@@ -30,7 +30,7 @@ import           Pipes
 import qualified Pipes.Prelude          as Pipes
 import           Text.Show.Pretty
 
-defineOptions "Object" $ do
+defineOptions "Object" $
     textOption "oName" "name" ""
         "Name of the object."
 
@@ -39,7 +39,7 @@ deriving instance Show Object
 instance Discover Object
 instance Validate Object
 
-defineOptions "Bucket" $ do
+defineOptions "Bucket" $
     textOption "bName" "name" ""
         "Name of the bucket."
 

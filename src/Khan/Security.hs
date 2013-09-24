@@ -81,19 +81,19 @@ command = Command "security" "Manage security groups and rules."
             logInfo . Text.unpack $ "Modifying group " <> gName <> "..."
 
             let gid  = sgitGroupId grp
-                strip1 = map (\u -> UserIdGroupPair Nothing Nothing (uigGroupName u))
+                strip1 = map (UserIdGroupPair Nothing Nothing . uigGroupName)
                 strip2 = map (\p -> p { iptGroups = Items . strip1 . toList $ iptGroups p })
 
                 ps   = toList $ sgitIpPermissions grp
                 auth = strip2 gRules \\ strip2 ps
                 rev  = strip2 ps \\ strip2 gRules
 
-            when (not $ null auth) $ do
+            unless (null auth) $ do
                 liftIO . putStrLn $ "Authorizing " ++ showRules auth ++ " on " ++ Text.unpack gName ++ "..."
                 _ <- send $ AuthorizeSecurityGroupIngress (Just gid) Nothing auth
                 return ()
 
-            when (not $ null rev) $ do
+            unless (null rev) $ do
                 liftIO . putStrLn $ "Revoking " ++ showRules rev ++ " on " ++ Text.unpack gName ++ "..."
                 _ <- send $ RevokeSecurityGroupIngress (Just gid) Nothing rev
                 return ()

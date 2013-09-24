@@ -26,7 +26,7 @@ import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 import           Text.Show.Pretty
 
-defineOptions "Describe" $ do
+defineOptions "Describe" $
     textOption "dInstanceId" "instance-id" ""
         "Id of the instance to describe."
 

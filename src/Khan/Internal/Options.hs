@@ -21,8 +21,8 @@ module Khan.Internal.Options
     , maybeTextOption
     , textsOption
     , stringOption
-    , integerOption
     , intOption
+    , integerOption
     , boolOption
 
     -- * Option Types
@@ -33,20 +33,23 @@ module Khan.Internal.Options
     , failoverOption
     , regionOption
     , routingPolicyOption
+    , instanceTypeOption
     , rulesOption
+    , versionOption
     , customOption
     ) where
 
 import           Control.Error
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
+import           Data.Version
 import           Khan.Internal.Types
 import           Language.Haskell.TH
 import           Network.AWS.EC2
 import           Network.AWS.Internal.Types
 import           Network.AWS.Route53
 import qualified Options                    as Opts
-import           Options                    hiding (textOption, textsOption, integerOption, boolOption, stringOption)
+import           Options                    hiding (textOption, textsOption, intOption, integerOption, boolOption, stringOption)
 import           Options.OptionTypes
 
 type Opt a = String -> String -> a -> String -> OptionsM ()
@@ -72,6 +75,10 @@ stringOption :: Opt String
 stringOption name flag def = Opts.stringOption name flag def
     . defaultText def
 
+intOption :: Opt Int
+intOption name flag def = Opts.intOption name flag def
+    . defaultText (show def)
+
 integerOption :: Opt Integer
 integerOption name flag def = Opts.integerOption name flag def
     . defaultText (show def)
@@ -92,6 +99,9 @@ regionOption = readOption (ConT ''Region)
 routingPolicyOption :: Opt RoutingPolicy
 routingPolicyOption = readOption (ConT ''RoutingPolicy)
 
+instanceTypeOption :: Opt InstanceType
+instanceTypeOption = readOption (ConT ''InstanceType)
+
 rulesOption :: String -> String -> String -> OptionsM ()
 rulesOption name flag desc =
     option name $ \o -> o
@@ -99,6 +109,15 @@ rulesOption name flag desc =
         , optionDefault     = ""
         , optionType        = optionTypeList ',' optionTypeRule
         , optionDescription = desc
+        }
+
+versionOption :: String -> String -> Version -> String -> OptionsM ()
+versionOption name flag (showVersion -> def) desc =
+    option name $ \o -> o
+        { optionLongFlags   = [flag]
+        , optionDefault     = def
+        , optionType        = optionTypeVersion
+        , optionDescription = defaultText def desc
         }
 
 customOption :: Show a
@@ -138,4 +157,9 @@ defaultText ""  desc = desc
 defaultText def desc = desc ++ " default: " ++ def
 
 optionTypeRule :: OptionType IpPermission
-optionTypeRule = OptionType (ConT ''IpPermission) False parseRule [| parseRule |]
+optionTypeRule =
+    OptionType (ConT ''IpPermission) False parseRule [| parseRule |]
+
+optionTypeVersion :: OptionType Version
+optionTypeVersion =
+    OptionType (ConT ''Version) False parseVersionE [| parseVersionE |]

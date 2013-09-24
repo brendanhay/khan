@@ -52,7 +52,7 @@ secretKey = "SECRET_ACCESS_KEY"
 
 defineOptions "Khan" $ do
     boolOption "kDebug" "debug" False
-        "Log debug output"
+        "Log debug output."
 
     boolOption "kDiscovery" "discovery" False
         "Populate options from EC2 metadata and tags."
@@ -142,16 +142,18 @@ data Command = Command
     , cmdSubs :: [SubCommand]
     }
 
-runProgram :: [Command] -> IO ()
-runProgram cmds = do
+runProgram :: [Command] -> [Command] -> IO ()
+runProgram wflow metal = do
     args <- getArgs
     case args of
-        []     -> help "Additional subcommand required."
-        (a:as) -> maybe (help $ "Unknown subcommand \"" ++ a ++ "\".")
-                        (run as . cmdSubs) $ find ((== a) . cmdName) cmds
+        []          -> help "Additional subcommand required."
+        (name:rest) -> maybe (help $ "Unknown subcommand \"" ++ name ++ "\".")
+            (run rest . cmdSubs) $ find ((== name) . cmdName) cmds
   where
-    run argv sub =
-        let parsed = parseSubcommand sub argv
+    cmds = wflow ++ metal
+
+    run argv subs =
+        let parsed = parseSubcommand subs argv
         in case parsedSubcommand parsed of
             Just cmd -> runScript $ fmapLT awsError cmd <* logInfo "Exiting..."
             Nothing  -> case parsedError parsed of
@@ -162,9 +164,11 @@ runProgram cmds = do
                 Nothing -> do
                     putStrLn $ parsedHelp parsed
                     exitSuccess
+
     help msg = do
         putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
-        putStrLn $ unlines ("Subcommands:" : map desc cmds ++ [""])
+        putStrLn $ unlines ("Workflow:" : map desc wflow ++ [""])
+        putStrLn $ unlines ("Low Level:" : map desc metal ++ [""])
         putStrLn msg
         exitFailure
 

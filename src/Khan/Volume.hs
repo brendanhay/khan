@@ -30,14 +30,14 @@ import           Pipes
 import qualified Pipes.Prelude          as Pipes
 import           Text.Show.Pretty
 
-defineOptions "Group" $ do
+defineOptions "Group" $
     textOption "gName" "name" ""
         "Name of the group."
 
-deriving volume Show Group
+deriving instance Show Group
 
-volume Discover Group
-volume Validate Group
+instance Discover Group
+instance Validate Group
 
 command :: Command
 command = Command "volume" "Manage EBS Volumes."

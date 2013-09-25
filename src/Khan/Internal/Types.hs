@@ -72,10 +72,10 @@ instance Show RoutingPolicy where
     show Weighted = "weighted"
     show Basic    = "basic"
 
-showRules :: Foldable f => f IpPermission -> String
+showRules :: Foldable f => f IpPermissionType -> String
 showRules = intercalate ", " . map rule . toList
   where
-    rule IpPermission{..} = intercalate ":"
+    rule IpPermissionType{..} = intercalate ":"
         [ show iptIpProtocol
         , show iptFromPort
         , show iptToPort
@@ -86,7 +86,7 @@ showRules = intercalate ", " . map rule . toList
                  headMay (mapMaybe uigGroupName $ toList iptGroups)
              <|> headMay (map irCidrIp $ toList iptIpRanges)
 
-parseRule :: String -> Either String IpPermission
+parseRule :: String -> Either String IpPermissionType
 parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0")
     . parseOnly parser
     . Text.pack
@@ -97,10 +97,10 @@ parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0"
         t <- decimal <* char ':'
         g <- eitherP range group
 
-        let perm = IpPermission p f t
+        let perm = IpPermissionType p f t
 
-        return $! either (\x -> perm (Items []) (Items [x]))
-                         (\x -> perm (Items [x]) (Items [])) g
+        return $! either (\x -> perm [] [x])
+                         (\x -> perm [x] []) g
 
     range = do
         a <- takeTill (== '.') <* char '.'

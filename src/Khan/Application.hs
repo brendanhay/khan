@@ -28,6 +28,7 @@ import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
 import           Network.AWS.EC2
+import           Network.AWS.IAM
 import           Network.AWS.Internal
 import           Pipes
 import qualified Pipes.Prelude           as Pipes
@@ -103,28 +104,34 @@ command = Command "app" "Application."
   where
     deploy Deploy{..} = do
         -- Find AMI
-
         mi  <- fmap (listToMaybe . djImagesSet) . send $
             DescribeImages [] [] ["self"] [Filter "name" [name]]
-
         ami <- diritImageId <$> mi ?? "Failed to find any AMIs"
-
         logInfo $ "Found AMI " ++ Text.unpack ami
 
-        -- Find Key Pair
+        -- Ensure IAM Role Exists
+        within NorthVirginia $ do
+            _ <- send $ GetRole role
+            logInfo $ "Found Role " ++ Text.unpack role
 
-        -- Find IAM Role
+        -- -- Ensure Key Pair Exists
+        -- -- _ <- send $ DescribeKeyPairs
 
-        -- 
+        -- -- Create versioned Security Group (Exists == OK)
+        -- _ <- send $ CreateSecurityGroup role role Nothing
 
-        -- Create versioned Security Group
+        -- -- Authorise Ingress Rules
+        -- _ <- send $ AuthorizeSecurityGroupIngress Nothing (Just role)
+        --     [ flip (IpPermissionType TCP 8080 8080) []
+        --         [ UserIdGroupPair Nothing Nothing (Just role)
+        --         ]
+        --     ]
 
-        -- Create versioned LaunchConfiguration
-
-        _   <- send $ CreateLaunchConfiguration
+        -- Create versioned LaunchConfiguration (Exists == OK)
+        _ <- send $ CreateLaunchConfiguration
                     (Members [])
                     Nothing
-                    (Just dName) -- Role
+                    (Just role) -- Role
                     ami
                     Nothing
                     dType
@@ -138,8 +145,7 @@ command = Command "app" "Application."
 
         logInfo $ "Created Launch Configuration " ++ Text.unpack name
 
-      
-
+        -- Create ASG (Exists == Error!)
         -- let a = CreateAutoScalingGroup
         --             name -- Versioned Name
         --             (Members dZones)
@@ -159,6 +165,7 @@ command = Command "app" "Application."
         -- logInfo $ show a
 
       where
+        role = dName
         name = Text.concat [dName, "_", safeVersion dVersion]
 
     info Info{..} = return ()

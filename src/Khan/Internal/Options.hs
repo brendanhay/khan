@@ -156,9 +156,9 @@ defaultText :: String -> String -> String
 defaultText ""  desc = desc
 defaultText def desc = desc ++ " default: " ++ def
 
-optionTypeRule :: OptionType IpPermission
+optionTypeRule :: OptionType IpPermissionType
 optionTypeRule =
-    OptionType (ConT ''IpPermission) False parseRule [| parseRule |]
+    OptionType (ConT ''IpPermissionType) False parseRule [| parseRule |]
 
 optionTypeVersion :: OptionType Version
 optionTypeVersion =

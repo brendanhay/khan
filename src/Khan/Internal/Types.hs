@@ -126,4 +126,14 @@ parseVersionE :: String -> Either String Version
 parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
     . listToMaybe
     . reverse
-    $ readP_to_S parseVersion s
+    . readP_to_S parseVersion
+    $ map f s
+  where
+    f '+' = '-'
+    f  c  = c
+
+safeVersion :: Version -> Text
+safeVersion = Text.map f . Text.pack . showVersion
+  where
+    f '-' = '/'
+    f  c  = c

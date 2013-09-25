@@ -18,7 +18,7 @@ module Khan.Security (command) where
 
 import           Control.Applicative
 import           Control.Error
-import           Control.Monad                  (void, when)
+import           Control.Monad                  (void, unless)
 import qualified Data.ByteString.Char8          as BS
 import           Data.Foldable                  (toList)
 import           Data.List                      ((\\))

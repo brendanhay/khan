@@ -110,9 +110,8 @@ command = Command "app" "Application."
         logInfo $ "Found AMI " ++ Text.unpack ami
 
         -- Ensure IAM Role Exists
-        within NorthVirginia $ do
-            _ <- send $ GetRole role
-            logInfo $ "Found Role " ++ Text.unpack role
+        _ <- send $ GetRole role
+        logInfo $ "Found Role " ++ Text.unpack role
 
         -- -- Ensure Key Pair Exists
         -- -- _ <- send $ DescribeKeyPairs

@@ -145,7 +145,7 @@ command = Command "app" "Manage Applications."
         k <- sendAsync $ CreateKeyPair role
 
         checkError (("EntityAlreadyExists" ==) . etCode . erError) =<< wait r
-        either exist write  =<< wait k
+        either exist write =<< wait k
 
         send_ $ PutRolePolicy policy role role
         logInfo . Text.unpack $ "Updated policy for role " <> role

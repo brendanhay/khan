@@ -129,10 +129,13 @@ command = Command "app" "Application."
         (policy, trust) <- liftIO $ (,)
             <$> Text.readFile aPolicy
             <*> Text.readFile aTrust
+
         r <- sendAsync $ CreateRole trust Nothing role
         k <- sendAsync $ CreateKeyPair role
+
         checkError (("EntityAlreadyExists" ==) . etCode . erError) =<< wait r
         either exist write  =<< wait k
+
         send_ $ PutRolePolicy policy role role
         logInfo . Text.unpack $ "Updated policy for role " <> role
       where

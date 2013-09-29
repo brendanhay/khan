@@ -33,7 +33,7 @@ defineOptions "Describe" $
 deriving instance Show Describe
 
 instance Discover Describe where
-    discover d = do
+    discover d = liftEitherT $ do
         iid <- decodeUtf8 <$> metadata InstanceId
         return $! d { dInstanceId = iid }
 

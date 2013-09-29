@@ -14,11 +14,11 @@ import           Khan.Internal
 
 import qualified Khan.Application as Application
 
--- import qualified Khan.Artifact    as Artifact
--- import qualified Khan.DNS         as DNS
--- import qualified Khan.Metadata    as Metadata
--- import qualified Khan.Role        as Role
--- import qualified Khan.Security    as Security
+import qualified Khan.Artifact    as Artifact
+import qualified Khan.DNS         as DNS
+import qualified Khan.Metadata    as Metadata
+import qualified Khan.Role        as Role
+import qualified Khan.Security    as Security
 
 main :: IO ()
 main = runProgram
@@ -27,11 +27,10 @@ main = runProgram
     [ Application.command
     ]
 
-    []
-    -- -- Low Level
-    -- [ Artifact.command
-    -- , DNS.command
-    -- , Metadata.command
-    -- , Role.command
-    -- , Security.command
-    -- ]
+    -- Low Level
+    [ Artifact.command
+    , DNS.command
+    , Metadata.command
+    , Role.command
+    , Security.command
+    ]

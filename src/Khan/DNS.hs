@@ -18,7 +18,6 @@ module Khan.DNS (command) where
 
 import           Control.Applicative
 import           Control.Concurrent     (threadDelay)
-import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Text              (Text)
@@ -118,14 +117,14 @@ command = Command "dns" "Manage DNS Records."
         zid <- findZoneId rZone
         chg <- send . ChangeResourceRecordSets zid $
             ChangeBatch Nothing [Change act $ recordSet zid r]
-        wait $ crrsrChangeInfo chg
+        waitChange $ crrsrChangeInfo chg
       where
-        wait c@ChangeInfo{..} = case ciStatus of
+        waitChange c@ChangeInfo{..} = case ciStatus of
             INSYNC  -> logInfo $ "Change " ++ show ciId ++ " INSYNC."
             PENDING -> do
                 logStep ("Waiting for change " ++ show ciId) c
                 liftIO . threadDelay $ 10 * 1000000
-                send (GetChange ciId) >>= void . wait . gcrChangeInfo
+                send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
 
     search Search{..} = do
         zid <- findZoneId sZone
@@ -149,15 +148,16 @@ command = Command "dns" "Manage DNS Records."
 
         match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
 
-findZoneId :: Text -> AWSContext HostedZoneId
+findZoneId :: Text -> AWS HostedZoneId
 findZoneId name = do
     logInfo "Listing hosted zones..."
     mz <- Pipes.find match $ (paginate ~> each . lhzrHostedZones) start
-    hzId <$> mz ?? Error ("Unable to find a hosted zone named " ++ Text.unpack name)
+    hzId <$> noteError msg mz
   where
     start = ListHostedZones Nothing $ Just 10
     match = (== strip name) . strip . hzName
     strip = Text.dropWhileEnd (== '.')
+    msg   = "Unable to find a hosted zone named " ++ Text.unpack name
 
 recordSet :: HostedZoneId -> Record -> ResourceRecordSet
 recordSet zid Record{..} = mk rPolicy rAlias

@@ -60,10 +60,11 @@ command = Command "security" "Manage security groups and rules."
     , subCommand "delete"   delete
     ]
   where
-    describe :: Group -> AWSContext ()
-    describe Group{..} = maybe
-        (left . Error $ "Unable to find group " ++ Text.unpack gName)
-        (logInfo . ppShow) =<< findGroup (Left gName)
+    describe :: Group -> AWS ()
+    describe Group{..} = do
+        mg <- findGroup $ Left gName
+        g  <- noteError ("Unable to find group " ++ Text.unpack gName) mg
+        logInfo $ ppShow g
 
     modify Group{..} = do
         logInfo . Text.unpack $ "Searching for group " <> gName <> "..."
@@ -74,15 +75,15 @@ command = Command "security" "Manage security groups and rules."
             gid <- fmap csgrGroupId . send $
                 CreateSecurityGroup gName (fromMaybe gName gDesc) Nothing
             logInfo . Text.unpack $ "Group " <> gid <> " created."
-            g   <- findGroup (Right gid)
-            g ?? (Error $ "Unable to find created group " ++ Text.unpack gName)
+            mg  <- findGroup (Right gid)
+            noteError ("Unable to find created group " ++ Text.unpack gName) mg
 
         update grp = do
             logInfo . Text.unpack $ "Modifying group " <> gName <> "..."
 
             let gid  = sgitGroupId grp
                 strip1 = map (UserIdGroupPair Nothing Nothing . uigGroupName)
-                strip2 = map (\p -> p { iptGroups = Items . strip1 . toList $ iptGroups p })
+                strip2 = map (\p -> p { iptGroups = strip1 . toList $ iptGroups p })
 
                 ps   = toList $ sgitIpPermissions grp
                 auth = strip2 gRules \\ strip2 ps
@@ -105,8 +106,8 @@ command = Command "security" "Manage security groups and rules."
         void . send $ DeleteSecurityGroup (Just gName) Nothing
         logInfo "Group deleted."
 
-findGroup :: Either Text Text -> AWSContext (Maybe SecurityGroupItemType)
-findGroup eid = group <$> send' (req eid)
+findGroup :: Either Text Text -> AWS (Maybe SecurityGroupItemType)
+findGroup eid = group <$> sendCatch (req eid)
   where
     req (Left name) = DescribeSecurityGroups [name] []    []
     req (Right gid) = DescribeSecurityGroups []     [gid] []

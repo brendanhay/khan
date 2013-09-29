@@ -131,7 +131,7 @@ command = Command "app" "Application."
         -- Find AMI
         mi  <- fmap (listToMaybe . djImagesSet) . send $
             DescribeImages [] [] ["self"] [Filter "name" [name]]
-        ami <- diritImageId <$> mi ?? "Failed to find any AMIs"
+        ami <- diritImageId <$> noteError "Failed to find any AMIs" mi
         logInfo $ "Found AMI " ++ Text.unpack ami
 
         -- Create versioned Security Group (Exists == OK)
@@ -139,7 +139,7 @@ command = Command "app" "Application."
         _  <- case esg of
             Left e | ecCode (head (eerErrors e)) == "InvalidGroup.Duplicate"
                 -> return undefined
-            o   -> hoistEither $ fmapL toError o
+            o   -> hoistError $ fmapL toError o
 
         -- -- Authorise Ingress Rules
         -- _ <- send $ AuthorizeSecurityGroupIngress Nothing (Just role)

@@ -88,7 +88,7 @@ initialise k@Khan{..}
         | otherwise = return v
 
 instance Discover Khan where
-    discover k@Khan{..} = AWS $ do
+    discover k@Khan{..} = liftEitherT $ do
         az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
         reg <- fmapLT toError $ tryRead ("Failed to read region from: " ++ az) az
         return $! k { kRegion = reg }
@@ -123,11 +123,11 @@ subCommand name action = Options.subcommand name run
         khan@Khan{..} <- initialise k
         setLogging kDebug
         validate khan
-        auth <- credentials $ creds khan
         logInfo $ "Setting region to " ++ show kRegion ++ "..."
-        res  <- lift . runAWS auth kDebug . within kRegion $ do
+        env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
+        res <- lift . runAWS env $ do
             opts <- disco kDiscovery o
-            AWS $ validate opts
+            liftEitherT $ validate opts
             action opts
         hoistEither res
 

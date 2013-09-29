@@ -30,3 +30,6 @@ tags
 
 # OSX
 .DS_Store
+
+# Output
+*.pem

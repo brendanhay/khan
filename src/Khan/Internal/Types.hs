@@ -29,7 +29,7 @@ import           Text.ParserCombinators.ReadP (readP_to_S)
 import           Text.Read
 
 class Discover a where
-    discover :: a -> AWSContext a
+    discover :: a -> AWS a
     discover = return
 
 class Validate a where

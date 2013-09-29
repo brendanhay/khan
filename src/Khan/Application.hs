@@ -34,18 +34,28 @@ import           Pipes
 import qualified Pipes.Prelude           as Pipes
 import           Text.Show.Pretty
 
-defineOptions "Info" $
-    textOption "iName" "name" ""
+defineOptions "App" $ do
+    textOption "aName" "name" ""
         "Name of the application."
 
-deriving instance Show Info
+    textOption "aEnv" "env" "dev"
+        "Environment of the application."
 
-instance Discover Info
-instance Validate Info
+deriving instance Show App
+
+instance Discover App
+
+instance Validate App where
+    validate App{..} = do
+        check aName "--name must be specified."
+        check aEnv  "--env must be specified."
 
 defineOptions "Deploy" $ do
     textOption "dName" "name" ""
         "Name of the application."
+
+    textOption "dEnv" "env" "dev"
+        "Environment to deploy the application into."
 
     versionOption "dVersion" "version" defaultVersion
         "Version of the application."
@@ -78,6 +88,7 @@ instance Discover Deploy
 instance Validate Deploy where
     validate Deploy{..} = do
         check dName     "--name must be specified."
+        check dEnv      "--env must be specified."
         check dZones    "--zone must be specified at least once."
         check dGrace    "--grace must be greater than 0."
         check dMin      "--min must be greater than 0."
@@ -97,27 +108,38 @@ instance Validate Route
 
 command :: Command
 command = Command "app" "Application."
-    [ subCommand "deploy" deploy
-    , subCommand "info" info
-    , subCommand "route" route
+    [ subCommand "create" create
+    , subCommand "deploy" deploy
+    , subCommand "info"   info
+    , subCommand "route"  route
     ]
   where
+    prerequisites role = do
+        a <- sendAsync $ GetRole role
+        b <- sendAsync $ DescribeKeyPairs [role] []
+        wait_ a >> wait_ b
+        logInfo $ "Found Role and KeyPair for " ++ Text.unpack role
+
+    create App{..} = do
+        prerequisites role
+      where
+        role = Text.concat [aName, "-", aEnv]
+
     deploy Deploy{..} = do
+        prerequisites role
+
         -- Find AMI
         mi  <- fmap (listToMaybe . djImagesSet) . send $
             DescribeImages [] [] ["self"] [Filter "name" [name]]
         ami <- diritImageId <$> mi ?? "Failed to find any AMIs"
         logInfo $ "Found AMI " ++ Text.unpack ami
 
-        -- Ensure IAM Role Exists
-        _ <- send $ GetRole role
-        logInfo $ "Found Role " ++ Text.unpack role
-
-        -- -- Ensure Key Pair Exists
-        -- -- _ <- send $ DescribeKeyPairs
-
-        -- -- Create versioned Security Group (Exists == OK)
-        -- _ <- send $ CreateSecurityGroup role role Nothing
+        -- Create versioned Security Group (Exists == OK)
+        esg <- sendCatch $ CreateSecurityGroup role role Nothing
+        _  <- case esg of
+            Left e | ecCode (head (eerErrors e)) == "InvalidGroup.Duplicate"
+                -> return undefined
+            o   -> hoistEither $ fmapL toError o
 
         -- -- Authorise Ingress Rules
         -- _ <- send $ AuthorizeSecurityGroupIngress Nothing (Just role)
@@ -128,19 +150,19 @@ command = Command "app" "Application."
 
         -- Create versioned LaunchConfiguration (Exists == OK)
         _ <- send $ CreateLaunchConfiguration
-                    (Members [])
-                    Nothing
-                    (Just role) -- Role
-                    ami
-                    Nothing
-                    dType
-                    Nothing
-                    Nothing -- (Just keypair)
-                    name -- Versioned Name
-                    Nothing
-                    (Members []) -- securityGroups
-                    Nothing
-                    Nothing
+            (Members [])
+            Nothing
+            (Just role) -- Role
+            ami
+            Nothing
+            dType
+            Nothing
+            Nothing -- (Just keypair)
+            name -- Versioned Name
+            Nothing
+            (Members []) -- securityGroups
+            Nothing
+            Nothing
 
         logInfo $ "Created Launch Configuration " ++ Text.unpack name
 
@@ -164,9 +186,9 @@ command = Command "app" "Application."
         -- logInfo $ show a
 
       where
-        role = dName
+        role = Text.concat [dName, "-", dEnv]
         name = Text.concat [dName, "_", safeVersion dVersion]
 
-    info Info{..} = return ()
+    info App{..} = return ()
 
     route Route{..} = return ()

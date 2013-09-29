@@ -33,14 +33,15 @@ import           Control.Applicative
 import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Class (lift)
 import qualified Data.ByteString.Char8     as BS
 import           Data.List                 (find)
-import qualified Data.Text as Text
+import qualified Data.Text                 as Text
 import           Data.Text.Encoding
 import           Khan.Internal.Log
 import           Khan.Internal.Options
 import           Khan.Internal.Types
-import           Network.AWS               hiding (accessKey, secretKey)
+import           Network.AWS
 import           Network.AWS.EC2.Metadata
 import           Options                   hiding (boolOption, stringOption)
 import           System.Environment
@@ -77,7 +78,7 @@ initialise k@Khan{..}
     | validKeys k  = right k
     | otherwise    = lookupKeys
   where
-    lookupKeys = tryIO' $ do
+    lookupKeys = fmapLT toError . syncIO $ do
         acc <- env accessKey kAccess
         sec <- env secretKey kSecret
         return $! k { kAccess = acc, kSecret = sec }
@@ -87,9 +88,9 @@ initialise k@Khan{..}
         | otherwise = return v
 
 instance Discover Khan where
-    discover k@Khan{..} = do
+    discover k@Khan{..} = AWS $ do
         az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
-        reg <- fmapError $ tryRead ("Failed to read region from: " ++ az) az
+        reg <- fmapLT toError $ tryRead ("Failed to read region from: " ++ az) az
         return $! k { kRegion = reg }
 
 instance Validate Khan where
@@ -114,7 +115,7 @@ type SubCommand = Subcommand Khan (EitherT Error IO ())
 
 subCommand :: (Show a, Options a, Discover a, Validate a)
            => String
-           -> (a -> AWSContext ())
+           -> (a -> AWS ())
            -> SubCommand
 subCommand name action = Options.subcommand name run
   where
@@ -124,10 +125,11 @@ subCommand name action = Options.subcommand name run
         validate khan
         auth <- credentials $ creds khan
         logInfo $ "Setting region to " ++ show kRegion ++ "..."
-        runAWS auth kDebug . within kRegion $ do
+        res  <- lift . runAWS auth kDebug . within kRegion $ do
             opts <- disco kDiscovery o
-            validate opts
+            AWS $ validate opts
             action opts
+        hoistEither res
 
     disco True  = (logDebug "Performing discovery..." >>) . discover
     disco False = (logDebug "Skipping discovery..."   >>) . return

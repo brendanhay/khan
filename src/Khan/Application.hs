@@ -129,7 +129,7 @@ instance Validate Route where
         check (defaultVersion == rVersion) "--version must be specified."
 
 command :: Command
-command = Command "app" "Application workflow."
+command = Command "app" "Manage Applications."
     [ subCommand "create" create
     , subCommand "deploy" deploy
     , subCommand "info"   info

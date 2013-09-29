@@ -17,6 +17,7 @@ module Khan.Internal.Types where
 import           Control.Applicative
 import           Control.Error
 import           Control.Monad
+import           Control.Monad.IO.Class
 import           Data.Attoparsec.Text
 import           Data.Foldable                (Foldable, toList)
 import           Data.List                    (intercalate)
@@ -33,7 +34,7 @@ class Discover a where
     discover = return
 
 class Validate a where
-    validate :: Monad m => a -> EitherT Error m ()
+    validate :: MonadIO m => a -> EitherT Error m ()
     validate = void . return
 
 class Invalid a where

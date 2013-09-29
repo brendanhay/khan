@@ -30,9 +30,11 @@ executable khan
 
     build-depends:
         amazonka
+      , async
       , attoparsec
       , base             >= 4.6 && < 5
       , bytestring
+      , directory
       , errors
       , hslogger
       , options

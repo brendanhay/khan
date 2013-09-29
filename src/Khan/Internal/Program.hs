@@ -25,6 +25,8 @@ module Khan.Internal.Program
     , Validate (..)
     , defineOptions
     , check
+    , checkIO
+    , checkPath
     , runProgram
     , subCommand
     ) where
@@ -44,6 +46,7 @@ import           Khan.Internal.Types
 import           Network.AWS
 import           Network.AWS.EC2.Metadata
 import           Options                   hiding (boolOption, stringOption)
+import           System.Directory
 import           System.Environment
 import           System.Exit
 
@@ -110,6 +113,12 @@ validKeys Khan{..} = (not . null) `all` [kAccess, kSecret]
 
 check :: (Monad m, Invalid a) => a -> String -> EitherT Error m ()
 check x = when (invalid x) . throwT . Error
+
+checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT Error m ()
+checkIO io e = liftIO io >>= (`check` e)
+
+checkPath :: MonadIO m => FilePath -> String -> EitherT Error m ()
+checkPath p = checkIO (not <$> doesFileExist p)
 
 type SubCommand = Subcommand Khan (EitherT Error IO ())
 

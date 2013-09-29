@@ -17,21 +17,24 @@
 module Khan.Application (command) where
 
 import           Control.Applicative
-import           Control.Concurrent      (threadDelay)
+import           Control.Concurrent       (threadDelay)
+import qualified Control.Concurrent.Async as A
 import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.Text               (Text)
-import qualified Data.Text               as Text
+import           Data.Monoid
+import           Data.Text                (Text)
+import qualified Data.Text                as Text
+import qualified Data.Text.IO             as Text
 import           Data.Version
 import           Khan.Internal
 import           Network.AWS
-import           Network.AWS.AutoScaling hiding (Filter)
+import           Network.AWS.AutoScaling  hiding (Filter)
 import           Network.AWS.EC2
 import           Network.AWS.IAM
 import           Network.AWS.Internal
 import           Pipes
-import qualified Pipes.Prelude           as Pipes
+import qualified Pipes.Prelude            as Pipes
 import           Text.Show.Pretty
 
 defineOptions "App" $ do
@@ -41,6 +44,12 @@ defineOptions "App" $ do
     textOption "aEnv" "env" "dev"
         "Environment of the application."
 
+    stringOption "aPolicy" "policy" "./role-policy.json"
+        "Role policy file."
+
+    stringOption "aTrust" "trust" "./trust-relationship.json"
+        "Trust relationship file."
+
 deriving instance Show App
 
 instance Discover App
@@ -49,6 +58,8 @@ instance Validate App where
     validate App{..} = do
         check aName "--name must be specified."
         check aEnv  "--env must be specified."
+        checkPath aPolicy $ aPolicy ++ " specified by --policy must exist."
+        checkPath aTrust  $ aTrust ++ " specified by --trust must exist."
 
 defineOptions "Deploy" $ do
     textOption "dName" "name" ""
@@ -114,19 +125,36 @@ command = Command "app" "Application."
     , subCommand "route"  route
     ]
   where
-    prerequisites role = do
-        a <- sendAsync $ GetRole role
-        b <- sendAsync $ DescribeKeyPairs [role] []
-        wait_ a >> wait_ b
-        logInfo $ "Found Role and KeyPair for " ++ Text.unpack role
-
     create App{..} = do
-        prerequisites role
+        (policy, trust) <- liftIO $ (,)
+            <$> Text.readFile aPolicy
+            <*> Text.readFile aTrust
+        r <- sendAsync $ CreateRole trust Nothing role
+        k <- sendAsync $ CreateKeyPair role
+        checkError (("EntityAlreadyExists" ==) . etCode . erError) =<< wait r
+        either exist write  =<< wait k
+        send_ $ PutRolePolicy policy role role
+        logInfo . Text.unpack $ "Updated policy for role " <> role
       where
         role = Text.concat [aName, "-", aEnv]
+        path = Text.unpack role ++ ".pem"
+
+        write k = do
+            liftIO . Text.writeFile path $ ckqKeyMaterial k
+            logInfo $ "Wrote new KeyPair to " ++ path
+
+        exist e = do
+            checkError
+                (("InvalidKeyPair.Duplicate" ==) . ecCode . head . eerErrors)
+                (Left e)
+            logInfo . Text.unpack $ "KeyPair " <> role <> " exists, not writing."
 
     deploy Deploy{..} = do
-        prerequisites role
+        -- Check prerequisites
+        r <- sendAsync $ GetRole role
+        k <- sendAsync $ DescribeKeyPairs [role] []
+        waitAsync_ r >> waitAsync_ k
+        logInfo $ "Found Role and KeyPair for " ++ Text.unpack role
 
         -- Find AMI
         mi  <- fmap (listToMaybe . djImagesSet) . send $
@@ -135,11 +163,8 @@ command = Command "app" "Application."
         logInfo $ "Found AMI " ++ Text.unpack ami
 
         -- Create versioned Security Group (Exists == OK)
-        esg <- sendCatch $ CreateSecurityGroup role role Nothing
-        _  <- case esg of
-            Left e | ecCode (head (eerErrors e)) == "InvalidGroup.Duplicate"
-                -> return undefined
-            o   -> hoistError $ fmapL toError o
+        checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
+            =<< sendCatch (CreateSecurityGroup role role Nothing)
 
         -- -- Authorise Ingress Rules
         -- _ <- send $ AuthorizeSecurityGroupIngress Nothing (Just role)

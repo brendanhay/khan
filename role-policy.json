@@ -6,7 +6,7 @@
         "ec2:DescribeInstances"
       ],
       "Resource": [
-        "arn:aws:ec2:::user/*"
+        "arn:aws:ec2:*::user/*"
       ],
       "Effect": "Allow"
     },

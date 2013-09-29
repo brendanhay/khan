@@ -120,6 +120,9 @@ parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0"
             "icmp" -> return ICMP
             _      -> fail "Failed to parsed protocol"
 
+defaultEnv :: Text
+defaultEnv = "dev"
+
 defaultVersion :: Version
 defaultVersion = Version [0] []
 

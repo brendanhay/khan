@@ -41,7 +41,7 @@ defineOptions "App" $ do
     textOption "aName" "name" ""
         "Name of the application."
 
-    textOption "aEnv" "env" "dev"
+    textOption "aEnv" "env" defaultEnv
         "Environment of the application."
 
     stringOption "aPolicy" "policy" "./role-policy.json"
@@ -65,7 +65,7 @@ defineOptions "Deploy" $ do
     textOption "dName" "name" ""
         "Name of the application."
 
-    textOption "dEnv" "env" "dev"
+    textOption "dEnv" "env" defaultEnv
         "Environment to deploy the application into."
 
     versionOption "dVersion" "version" defaultVersion
@@ -108,14 +108,25 @@ instance Validate Deploy where
         check dCooldown "--cooldown must be greater than 0"
         check (defaultVersion == dVersion) "--version must be specified."
 
-defineOptions "Route" $
+defineOptions "Route" $ do
+    textOption "rName" "name" ""
+        "Name of the application."
+
+    textOption "rEnv" "env" defaultEnv
+        "Environment to deploy the application into."
+
     versionOption "rVersion" "version" defaultVersion
         "Version of the application."
 
 deriving instance Show Route
 
 instance Discover Route
-instance Validate Route
+
+instance Validate Route where
+    validate Route{..} = do
+        check rName "--name must be specified."
+        check rEnv  "--env must be specified."
+        check (defaultVersion == rVersion) "--version must be specified."
 
 command :: Command
 command = Command "app" "Application."
@@ -139,7 +150,7 @@ command = Command "app" "Application."
         send_ $ PutRolePolicy policy role role
         logInfo . Text.unpack $ "Updated policy for role " <> role
       where
-        role = Text.concat [aName, "-", aEnv]
+        role = roleName aName aEnv
         path = Text.unpack role ++ ".pem"
 
         write k = do
@@ -212,11 +223,16 @@ command = Command "app" "Application."
         --             Nothing
 
         -- logInfo $ show a
-
       where
-        role = Text.concat [dName, "-", dEnv]
-        name = Text.concat [dName, "_", safeVersion dVersion]
+        role = roleName dName dEnv
+        name = versionName role dVersion
 
     info App{..} = return ()
 
     route Route{..} = return ()
+
+roleName :: Text -> Text -> Text
+roleName name env = Text.concat [name, "-", env]
+
+versionName :: Text -> Version -> Text
+versionName name ver = Text.concat [name, "_", safeVersion ver]

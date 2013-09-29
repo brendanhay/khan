@@ -153,15 +153,15 @@ command = Command "app" "Manage Applications."
         role = roleName aName aEnv
         path = Text.unpack role ++ ".pem"
 
-        write k = do
-            liftIO . Text.writeFile path $ ckqKeyMaterial k
-            logInfo $ "Wrote new KeyPair to " ++ path
-
         exist e = do
             checkError
                 (("InvalidKeyPair.Duplicate" ==) . ecCode . head . eerErrors)
                 (Left e)
             logInfo . Text.unpack $ "KeyPair " <> role <> " exists, not writing."
+
+        write k = do
+            liftIO . Text.writeFile path $ ckqKeyMaterial k
+            logInfo $ "Wrote new KeyPair to " ++ path
 
     deploy Deploy{..} = do
         -- Check prerequisites

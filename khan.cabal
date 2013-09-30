@@ -32,14 +32,14 @@ executable khan
         amazonka
       , async
       , attoparsec
-      , base             >= 4.6 && < 5
+      , base              >= 4.6 && < 5
       , bytestring
       , directory
       , errors
-      , hslogger
       , options
-      , pipes            >= 4.0
+      , pipes             >= 4.0
       , pretty-show
       , template-haskell
       , text
+      , text-format
       , transformers

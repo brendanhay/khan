@@ -32,6 +32,7 @@ module Khan.Internal.Options
     , recordTypeOption
     , failoverOption
     , regionOption
+    , zonesOption
     , routingPolicyOption
     , instanceTypeOption
     , rulesOption
@@ -96,6 +97,15 @@ failoverOption = readOption (ConT ''Failover)
 regionOption :: Opt Region
 regionOption = readOption (ConT ''Region)
 
+zonesOption :: String -> String -> String -> OptionsM ()
+zonesOption name flag desc =
+    option name $ \o -> o
+        { optionLongFlags   = [flag]
+        , optionDefault     = ""
+        , optionType        = optionTypeList ',' optionTypeZone
+        , optionDescription = desc
+        }
+
 routingPolicyOption :: Opt RoutingPolicy
 routingPolicyOption = readOption (ConT ''RoutingPolicy)
 
@@ -155,6 +165,10 @@ readEither s = note ("Unable to read: " ++ s) $ readMay s
 defaultText :: String -> String -> String
 defaultText ""  desc = desc
 defaultText def desc = desc ++ " default: " ++ def
+
+optionTypeZone :: OptionType AvailabilityZone
+optionTypeZone =
+    OptionType (ConT ''AvailabilityZone) False readEither [| readEither |]
 
 optionTypeRule :: OptionType IpPermissionType
 optionTypeRule =

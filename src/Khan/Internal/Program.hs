@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
@@ -130,9 +131,8 @@ subCommand name action = Options.subcommand name run
   where
     run k o _ = do
         khan@Khan{..} <- initialise k
-        setLogging kDebug
         validate khan
-        logInfo $ "Setting region to " ++ show kRegion ++ "..."
+        logInfo "Setting region to {}..." [Shown kRegion]
         env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
         res <- lift . runAWS env $ do
             opts <- disco kDiscovery o
@@ -140,8 +140,8 @@ subCommand name action = Options.subcommand name run
             action opts
         hoistEither res
 
-    disco True  = (logDebug "Performing discovery..." >>) . discover
-    disco False = (logDebug "Skipping discovery..."   >>) . return
+    disco True  = (logDebug_ "Performing discovery..." >>) . discover
+    disco False = (logDebug_ "Skipping discovery..."   >>) . return
 
     creds Khan{..}
         | Just r <- kRole = FromRole $! encodeUtf8 r
@@ -166,7 +166,7 @@ runProgram wflow metal = do
     run argv subs =
         let parsed = parseSubcommand subs argv
         in case parsedSubcommand parsed of
-            Just cmd -> runScript $ fmapLT awsError cmd <* logInfo "Exiting..."
+            Just cmd -> runScript $ fmapLT awsError cmd <* logInfo_ "Exiting..."
             Nothing  -> case parsedError parsed of
                 Just ex -> do
                     putStrLn $ parsedHelp parsed

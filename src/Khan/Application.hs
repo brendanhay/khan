@@ -17,12 +17,9 @@
 module Khan.Application (command) where
 
 import           Control.Applicative
-import           Control.Concurrent       (threadDelay)
-import qualified Control.Concurrent.Async as A
 import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.Monoid
 import           Data.Text                (Text)
 import qualified Data.Text                as Text
 import qualified Data.Text.IO             as Text
@@ -33,9 +30,7 @@ import           Network.AWS.AutoScaling  hiding (Filter)
 import           Network.AWS.EC2
 import           Network.AWS.IAM
 import           Network.AWS.Internal
-import           Pipes
-import qualified Pipes.Prelude            as Pipes
-import           Text.Show.Pretty
+import           Text.Printf
 
 defineOptions "App" $ do
     textOption "aName" "name" ""
@@ -71,8 +66,8 @@ defineOptions "Deploy" $ do
     versionOption "dVersion" "version" defaultVersion
         "Version of the application."
 
-    textsOption "dZones" "zone" []
-        "Availability zone in which instances are provisioned."
+    zonesOption "dZones" "zones"
+        "Availability zones in which instances are provisioned. separator: ,"
 
     integerOption "dGrace" "grace" 20
         "Seconds until healthchecks are activated."
@@ -132,6 +127,7 @@ command :: Command
 command = Command "app" "Manage Applications."
     [ subCommand "create" create
     , subCommand "deploy" deploy
+    , subCommand "scale"  scale
     , subCommand "retire" retire
     , subCommand "info"   info
     , subCommand "route"  route
@@ -158,7 +154,7 @@ command = Command "app" "Manage Applications."
         -- etCode = "LimitExceeded",
         -- etMessage = "Cannot exceed quota for InstanceSessionsPerInstanceProfile: 1"
         wait a >>= checkError (("LimitExceeded" ==) . etCode . erError)
-        waitAsync_ p <* logInfo ("Updated policy for role " ++ Text.unpack role)
+        waitAsync_ p <* logInfo "Updated policy for role {}" [role]
       where
         role = roleName aName aEnv
         path = Text.unpack role ++ ".pem"
@@ -167,37 +163,38 @@ command = Command "app" "Manage Applications."
             checkError
                 (("InvalidKeyPair.Duplicate" ==) . ecCode . head . eerErrors)
                 (Left e)
-            logInfo . Text.unpack $ "KeyPair " <> role <> " exists, not updating."
+            logInfo "KeyPair {} exists, not updating." [role]
 
         write k = do
             liftIO . Text.writeFile path $ ckqKeyMaterial k
-            logInfo $ "Wrote new KeyPair to " ++ path
+            logInfo "Wrote new KeyPair to {}" [path]
 
     deploy Deploy{..} = do
         g <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
 
-        when ((length . members .  dasgrAutoScalingGroups $ dashrDescribeAutoScalingGroupsResult g) > 0) $
-            throwError $ "Auto Scaling Group " ++ Text.unpack name ++ " already exists."
+        -- FIXME: Check if a delete is in progress and block
+
+        when (not . null . members .  dasgrAutoScalingGroups $ dashrDescribeAutoScalingGroupsResult g) .
+            throwError . printf "Auto Scaling Group %s already exists." $ Text.unpack name
 
         r <- sendAsync $ GetRole role
         k <- sendAsync $ DescribeKeyPairs [role] []
-        a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [name]]
+        a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [image]]
         s <- sendAsync $ CreateSecurityGroup role role Nothing
 
-        waitAsync_ r <* logInfo ("Found Role " ++ Text.unpack role)
-        waitAsync_ k <* logInfo ("Found KeyPair " ++ Text.unpack role)
+        waitAsync_ r <* logInfo "Found Role {}" [role]
+        waitAsync_ k <* logInfo "Found KeyPair {}" [role]
 
         ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
             (fmap diritImageId . noteError "Failed to find any matching AMIs")
-        logInfo $ "Found AMI " ++ Text.unpack ami ++ " named " ++ Text.unpack name
+        logInfo "Found AMI {} named {}" [ami, image]
 
         wait s >>= checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
-        logInfo $ "Found Security Group " ++ Text.unpack role
+        logInfo "Found Security Group {}" [role]
 
         i <- sendAsync $ AuthorizeSecurityGroupIngress Nothing (Just role)
-            [ flip (IpPermissionType TCP 8080 8080) []
-                [ UserIdGroupPair Nothing Nothing (Just role)
-                ]
+            [ (IpPermissionType TCP 8080 8080)
+                [UserIdGroupPair Nothing Nothing (Just role)] []
             ]
         c <- sendAsync $ CreateLaunchConfiguration
             (Members [])
@@ -215,39 +212,68 @@ command = Command "app" "Manage Applications."
             Nothing          -- User Data
 
         wait i >>= checkError (("InvalidPermission.Duplicate" ==) . ecCode . head . eerErrors)
-        logInfo "Updated Security Group rules"
+        logInfo_ "Updated Security Group rules"
 
         wait c >>= checkError (("AlreadyExists" ==) . aseCode . aserError)
-        logInfo $ "Created Launch Configuration " ++ Text.unpack name
+        logInfo "Created Launch Configuration {}" [name]
 
         send_ $ CreateAutoScalingGroup
-            name -- Versioned Name
-            (Members dZones)
-            (Just dCooldown)
-            (Just dCapacity)
-            (Just dGrace)
-            (Just "EC2")
-            name
+            name                        -- Name
+            (Members dZones)            -- Zones
+            (Just dCooldown)            -- Default Cooldown
+            (Just dCapacity)            -- Desired Capacity
+            (Just dGrace)               -- Grace Period
+            (Just "EC2")                -- Health Check Type: EC2 | ELB
+            name                        -- Launch Configuration Name
             (Members [])
             dMax
             dMin
             Nothing
-            (Members tags)
+            (Members [tag "Name" name]) -- Tags
             (Members [])
             Nothing
-        logInfo $ "Created Auto Scaling Group " ++ Text.unpack name
+        logInfo "Created Auto Scaling Group {}" [name]
       where
-        role = roleName dName dEnv
-        name = versionName dName dVersion
-        tags = [ Tag "application" (Just True) (Just name) (Just "auto-scaling-group") (Just dName)
-               , Tag "version" (Just True) (Just name) (Just "auto-scaling-group") (Just $ safeVersion dVersion)
-               , Tag "name" (Just True) (Just name) (Just "auto-scaling-group") (Just name)
-               ]
+        image = versionName dName dVersion
+        name  = versionName role dVersion
+        role  = roleName dName dEnv
 
-    retire Cluster{..} = return ()
-        -- Scale down asg
-        -- Delete asg
-        -- Delete launch config
+        tag k v = Tag k (Just True) (Just name) (Just "auto-scaling-group") (Just v)
+
+    scale Deploy{..} = do
+        g   <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
+        grp <- noteError (printf "Auto Scaling Group %s doesn't exist." $ Text.unpack name)
+            . listToMaybe . members .  dasgrAutoScalingGroups $
+                dashrDescribeAutoScalingGroupsResult g
+
+        liftIO $ print grp
+
+        -- send_ $ UpdateAutoScalingGroup
+        --     name             -- Name
+        --     (Members dZones) -- Zones
+        --     (Just dCooldown) -- Default Cooldown
+        --     (Just dCapacity) -- Desired Capacity
+        --     (Just dGrace)    -- Grace Period
+        --     (Just "EC2")     -- Health Check Type: EC2 | ELB
+        --     (Just name)      -- Launch Configuration Name
+        --     (Just dMax)
+        --     (Just dMin)
+        --     Nothing
+        --     (Members [])
+        --     Nothing
+        -- logInfo $ "Updated Auto Scaling Group " ++ Text.unpack name
+      where
+        name = versionName role dVersion
+        role = roleName dName dEnv
+
+    retire Cluster{..} = do
+        send_ $ DeleteAutoScalingGroup name (Just True)
+        logInfo "Delete of Auto Scaling Group {} in progress" [name]
+        send_ $ DeleteLaunchConfiguration name
+        logInfo "Deleted Launch Configuration {}" [name]
+      where
+        name = versionName role cVersion
+        role = roleName cName cEnv
 
     info Cluster{..} = return ()
 

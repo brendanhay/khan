@@ -120,9 +120,9 @@ command = Command "dns" "Manage DNS Records."
         waitChange $ crrsrChangeInfo chg
       where
         waitChange c@ChangeInfo{..} = case ciStatus of
-            INSYNC  -> logInfo $ "Change " ++ show ciId ++ " INSYNC."
+            INSYNC  -> logInfo_ $ "Change " ++ show ciId ++ " INSYNC."
             PENDING -> do
-                logStep ("Waiting for change " ++ show ciId) c
+                logInfo "Waiting for change {}" (Only $ Shown ciId)
                 liftIO . threadDelay $ 10 * 1000000
                 send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
 
@@ -131,9 +131,9 @@ command = Command "dns" "Manage DNS Records."
         runEffect $ for (paginate $ start zid) (liftIO . display)
       where
         display (matching -> rrs) = do
-            mapM_ (logInfo . ppShow) rrs
+            mapM_ (logInfo_ . ppShow) rrs
             unless (null rrs) $
-                logInfo "Press enter to continue..." >> void getLine
+                logInfo_ "Press enter to continue..." >> void getLine
 
         start zid = ListResourceRecordSets zid Nothing Nothing Nothing results
 
@@ -150,7 +150,7 @@ command = Command "dns" "Manage DNS Records."
 
 findZoneId :: Text -> AWS HostedZoneId
 findZoneId name = do
-    logInfo "Listing hosted zones..."
+    logInfo_ "Listing hosted zones..."
     mz <- Pipes.find match $ (paginate ~> each . lhzrHostedZones) start
     hzId <$> noteError msg mz
   where

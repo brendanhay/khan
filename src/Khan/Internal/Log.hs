@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- Module      : Khan.Internal.Log
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
@@ -8,34 +10,42 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Internal.Log where
+module Khan.Internal.Log
+    (
+    -- * Variadic Format
+      logInfo
+    , logError
+    , logDebug
+
+    -- * String-Like
+    , logInfo_
+    , logError_
+    , logDebug_
+
+    -- * Re-exported
+    , Shown (..)
+    ) where
 
 import Control.Monad.IO.Class
-import System.IO
-import System.Log.Handler.Simple
-import System.Log.Logger
+import Data.Monoid
+import Data.String
+import Data.Text               (Text)
+import Data.Text.Format
+import Data.Text.Format.Params
+import Data.Text.IO            (hPutStrLn)
+import Network.AWS
+import System.IO               (stdout, stderr)
 
-logStep :: (MonadIO m, Show a) => String -> a -> m ()
-logStep msg = (logInfo msg >>) . logDebug . show
+logInfo, logError :: (MonadIO m, Params ps) => Format -> ps -> m ()
+logInfo  s = hprint stdout (s <> "\n")
+logError s = hprint stderr (s <> "\n")
 
-logInfo, logWarn, logError, logDebug :: MonadIO m => String -> m ()
-logInfo  = logMsg infoM
-logWarn  = logMsg warningM
-logError = logMsg errorM
-logDebug = logMsg debugM
+logInfo_, logError_ :: MonadIO m => Text -> m ()
+logInfo_  = liftIO . hPutStrLn stdout
+logError_ = liftIO . hPutStrLn stderr
 
-logMsg :: MonadIO m => (String -> a -> IO ()) -> a -> m ()
-logMsg f = liftIO . f logName
+logDebug :: Params ps => Format -> ps -> AWS ()
+logDebug fmt = whenDebug . logInfo fmt
 
-logName :: String
-logName = "log"
-
-setLogging :: MonadIO m => Bool -> m ()
-setLogging debug = liftIO $ do
-    hSetBuffering stdout LineBuffering
-    hSetBuffering stderr LineBuffering
-    removeAllHandlers
-    hd <- streamHandler stderr prio
-    updateGlobalLogger logName (setLevel prio . setHandlers [hd])
-  where
-    prio = if debug then DEBUG else INFO
+logDebug_ :: Text -> AWS ()
+logDebug_ = whenDebug . logInfo_

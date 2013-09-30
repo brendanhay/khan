@@ -144,8 +144,10 @@ command = Command "app" "Manage Applications."
         r <- sendAsync $ CreateRole trust Nothing role
         k <- sendAsync $ CreateKeyPair role
 
-        checkError (("EntityAlreadyExists" ==) . etCode . erError) =<< wait r
-        either exist write =<< wait k
+        wait r >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
+        wait k >>= either exist write
+
+        -- Write key and upload to special S3 bucket?
 
         send_ $ PutRolePolicy policy role role
         logInfo . Text.unpack $ "Updated policy for role " <> role
@@ -164,28 +166,33 @@ command = Command "app" "Manage Applications."
             logInfo $ "Wrote new KeyPair to " ++ path
 
     deploy Deploy{..} = do
-        -- Check prerequisites
         r <- sendAsync $ GetRole role
         k <- sendAsync $ DescribeKeyPairs [role] []
-        waitAsync_ r >> waitAsync_ k
-        logInfo $ "Found Role and KeyPair for " ++ Text.unpack role
+        a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [name]]
+        s <- sendAsync $ CreateSecurityGroup role role Nothing
 
-        -- Find AMI
-        mi  <- fmap (listToMaybe . djImagesSet) . send $
-            DescribeImages [] [] ["self"] [Filter "name" [name]]
-        ami <- diritImageId <$> noteError "Failed to find any AMIs" mi
+        waitAsync_ r <* logInfo ("Found Role " ++ Text.unpack role)
+        waitAsync_ k <* logInfo ("Found KeyPair " ++ Text.unpack role)
+
+        ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
+            (fmap diritImageId . noteError "Failed to find any matching AMIs")
         logInfo $ "Found AMI " ++ Text.unpack ami
 
-        -- Create versioned Security Group (Exists == OK)
-        checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
-            =<< sendCatch (CreateSecurityGroup role role Nothing)
+        wait s >>= checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
+        logInfo $ "Found Security Group " ++ Text.unpack role
 
-        -- -- Authorise Ingress Rules
-        -- _ <- send $ AuthorizeSecurityGroupIngress Nothing (Just role)
-        --     [ flip (IpPermissionType TCP 8080 8080) []
-        --         [ UserIdGroupPair Nothing Nothing (Just role)
-        --         ]
-        --     ]
+        -- s   <- async $ do
+        --     if 
+
+        --     if isRight res
+        --         then send_ $ AuthorizeSecurityGroupIngress Nothing (Just role)
+        --             [ flip (IpPermissionType TCP 8080 8080) []
+        --                 [ UserIdGroupPair Nothing Nothing (Just role)
+        --                 ]
+        --             ]
+        --         else return res
+
+        -- waitAsync_ s
 
         -- Create versioned LaunchConfiguration (Exists == OK)
         _ <- send $ CreateLaunchConfiguration

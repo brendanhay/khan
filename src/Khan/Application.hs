@@ -108,30 +108,31 @@ instance Validate Deploy where
         check dCooldown "--cooldown must be greater than 0"
         check (defaultVersion == dVersion) "--version must be specified."
 
-defineOptions "Route" $ do
-    textOption "rName" "name" ""
+defineOptions "Cluster" $ do
+    textOption "cName" "name" ""
         "Name of the application."
 
-    textOption "rEnv" "env" defaultEnv
+    textOption "cEnv" "env" defaultEnv
         "Environment to deploy the application into."
 
-    versionOption "rVersion" "version" defaultVersion
+    versionOption "cVersion" "version" defaultVersion
         "Version of the application."
 
-deriving instance Show Route
+deriving instance Show Cluster
 
-instance Discover Route
+instance Discover Cluster
 
-instance Validate Route where
-    validate Route{..} = do
-        check rName "--name must be specified."
-        check rEnv  "--env must be specified."
-        check (defaultVersion == rVersion) "--version must be specified."
+instance Validate Cluster where
+    validate Cluster{..} = do
+        check cName "--name must be specified."
+        check cEnv  "--env must be specified."
+        check (defaultVersion == cVersion) "--version must be specified."
 
 command :: Command
 command = Command "app" "Manage Applications."
     [ subCommand "create" create
     , subCommand "deploy" deploy
+    , subCommand "retire" retire
     , subCommand "info"   info
     , subCommand "route"  route
     ]
@@ -141,16 +142,23 @@ command = Command "app" "Manage Applications."
             <$> Text.readFile aPolicy
             <*> Text.readFile aTrust
 
+        i <- sendAsync $ CreateInstanceProfile role Nothing
         r <- sendAsync $ CreateRole trust Nothing role
         k <- sendAsync $ CreateKeyPair role
 
+        wait i >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
         wait r >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
         wait k >>= either exist write
 
         -- Write key and upload to special S3 bucket?
 
-        send_ $ PutRolePolicy policy role role
-        logInfo . Text.unpack $ "Updated policy for role " <> role
+        a <- sendAsync $ AddRoleToInstanceProfile role role
+        p <- sendAsync $ PutRolePolicy policy role role
+
+        -- etCode = "LimitExceeded",
+        -- etMessage = "Cannot exceed quota for InstanceSessionsPerInstanceProfile: 1"
+        wait a >>= checkError (("LimitExceeded" ==) . etCode . erError)
+        waitAsync_ p <* logInfo ("Updated policy for role " ++ Text.unpack role)
       where
         role = roleName aName aEnv
         path = Text.unpack role ++ ".pem"
@@ -159,13 +167,18 @@ command = Command "app" "Manage Applications."
             checkError
                 (("InvalidKeyPair.Duplicate" ==) . ecCode . head . eerErrors)
                 (Left e)
-            logInfo . Text.unpack $ "KeyPair " <> role <> " exists, not writing."
+            logInfo . Text.unpack $ "KeyPair " <> role <> " exists, not updating."
 
         write k = do
             liftIO . Text.writeFile path $ ckqKeyMaterial k
             logInfo $ "Wrote new KeyPair to " ++ path
 
     deploy Deploy{..} = do
+        g <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
+
+        when ((length . members .  dasgrAutoScalingGroups $ dashrDescribeAutoScalingGroupsResult g) > 0) $
+            throwError $ "Auto Scaling Group " ++ Text.unpack name ++ " already exists."
+
         r <- sendAsync $ GetRole role
         k <- sendAsync $ DescribeKeyPairs [role] []
         a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [name]]
@@ -176,67 +189,69 @@ command = Command "app" "Manage Applications."
 
         ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
             (fmap diritImageId . noteError "Failed to find any matching AMIs")
-        logInfo $ "Found AMI " ++ Text.unpack ami
+        logInfo $ "Found AMI " ++ Text.unpack ami ++ " named " ++ Text.unpack name
 
         wait s >>= checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
         logInfo $ "Found Security Group " ++ Text.unpack role
 
-        -- s   <- async $ do
-        --     if 
-
-        --     if isRight res
-        --         then send_ $ AuthorizeSecurityGroupIngress Nothing (Just role)
-        --             [ flip (IpPermissionType TCP 8080 8080) []
-        --                 [ UserIdGroupPair Nothing Nothing (Just role)
-        --                 ]
-        --             ]
-        --         else return res
-
-        -- waitAsync_ s
-
-        -- Create versioned LaunchConfiguration (Exists == OK)
-        _ <- send $ CreateLaunchConfiguration
+        i <- sendAsync $ AuthorizeSecurityGroupIngress Nothing (Just role)
+            [ flip (IpPermissionType TCP 8080 8080) []
+                [ UserIdGroupPair Nothing Nothing (Just role)
+                ]
+            ]
+        c <- sendAsync $ CreateLaunchConfiguration
             (Members [])
             Nothing
-            (Just role) -- Role
-            ami
+            (Just role)      -- IAM Role
+            ami              -- Image Id
             Nothing
-            dType
+            dType            -- Instance Type
             Nothing
-            Nothing -- (Just keypair)
-            name -- Versioned Name
+            (Just role)      -- Key Pair Name
+            name             -- Launch Configuration Name
             Nothing
-            (Members []) -- securityGroups
+            (Members [role]) -- Security Groups
             Nothing
-            Nothing
+            Nothing          -- User Data
 
+        wait i >>= checkError (("InvalidPermission.Duplicate" ==) . ecCode . head . eerErrors)
+        logInfo "Updated Security Group rules"
+
+        wait c >>= checkError (("AlreadyExists" ==) . aseCode . aserError)
         logInfo $ "Created Launch Configuration " ++ Text.unpack name
 
-        -- Create ASG (Exists == Error!)
-        -- let a = CreateAutoScalingGroup
-        --             name -- Versioned Name
-        --             (Members dZones)
-        --             (Just dCooldown)
-        --             (Just dCapacity)
-        --             (Just dGrace)
-        --             (Just "EC2")
-        --             launchConfigName
-        --             (Members [])
-        --             dMin
-        --             dMax
-        --             Nothing
-        --             (Members tags)
-        --             (Members [])
-        --             Nothing
-
-        -- logInfo $ show a
+        send_ $ CreateAutoScalingGroup
+            name -- Versioned Name
+            (Members dZones)
+            (Just dCooldown)
+            (Just dCapacity)
+            (Just dGrace)
+            (Just "EC2")
+            name
+            (Members [])
+            dMax
+            dMin
+            Nothing
+            (Members tags)
+            (Members [])
+            Nothing
+        logInfo $ "Created Auto Scaling Group " ++ Text.unpack name
       where
         role = roleName dName dEnv
-        name = versionName role dVersion
+        name = versionName dName dVersion
+        tags = [ Tag "application" (Just True) (Just name) (Just "auto-scaling-group") (Just dName)
+               , Tag "version" (Just True) (Just name) (Just "auto-scaling-group") (Just $ safeVersion dVersion)
+               , Tag "name" (Just True) (Just name) (Just "auto-scaling-group") (Just name)
+               ]
 
-    info App{..} = return ()
+    retire Cluster{..} = return ()
+        -- Scale down asg
+        -- Delete asg
+        -- Delete launch config
 
-    route Route{..} = return ()
+    info Cluster{..} = return ()
+
+    route Cluster{..} = return ()
 
 roleName :: Text -> Text -> Text
 roleName name env = Text.concat [name, "-", env]

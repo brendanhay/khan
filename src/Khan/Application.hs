@@ -66,7 +66,7 @@ defineOptions "Deploy" $ do
     versionOption "dVersion" "version" defaultVersion
         "Version of the application."
 
-    stringOption "dZones" "zones" "abcd"
+    stringOption "dZones" "zones" "abc"
          "Availability zones suffixes in which instances are provisioned."
 
     integerOption "dGrace" "grace" 20
@@ -100,7 +100,7 @@ instance Validate Deploy where
         check dMax      "--max must be greater than 0."
         check dCapacity "--desired must be greater than 0."
         check dCooldown "--cooldown must be greater than 0"
-        check (Within dZones "abcdef")     "--zones must be specified."
+        check (Within dZones "abcde") "--zones must be within [a-e]."
         check (defaultVersion == dVersion) "--version must be specified."
 
 defineOptions "Cluster" $ do
@@ -248,8 +248,6 @@ command = Command "app" "Manage Applications."
             . listToMaybe . members .  dasgrAutoScalingGroups $
                 dashrDescribeAutoScalingGroupsResult g
 
-        liftIO $ print grp
-
         -- send_ $ UpdateAutoScalingGroup
         --     name             -- Name
         --     (Members dZones) -- Zones
@@ -263,7 +261,7 @@ command = Command "app" "Manage Applications."
         --     Nothing
         --     (Members [])
         --     Nothing
-        -- logInfo $ "Updated Auto Scaling Group " ++ Text.unpack name
+        logInfo "Updated Auto Scaling Group {}" [name]
       where
         name = versionName role dVersion
         role = roleName dName dEnv

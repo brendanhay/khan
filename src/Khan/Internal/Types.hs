@@ -55,7 +55,7 @@ instance Invalid [a] where
 data Within a = Within [a] [a]
 
 instance Eq a => Invalid (Within a) where
-    invalid (Within xs ys) = null $ xs \\ ys
+    invalid (Within xs ys) = not . null $ xs \\ ys
 
 data RoutingPolicy
     = Failover

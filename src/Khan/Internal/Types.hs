@@ -20,7 +20,7 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Attoparsec.Text
 import           Data.Foldable                (Foldable, toList)
-import           Data.List                    (intercalate)
+import           Data.List                    ((\\), intercalate)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
 import           Data.Version
@@ -51,6 +51,11 @@ instance Invalid Integer where
 
 instance Invalid [a] where
     invalid = null
+
+data Within a = Within [a] [a]
+
+instance Eq a => Invalid (Within a) where
+    invalid (Within xs ys) = null $ xs \\ ys
 
 data RoutingPolicy
     = Failover

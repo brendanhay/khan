@@ -66,8 +66,8 @@ defineOptions "Deploy" $ do
     versionOption "dVersion" "version" defaultVersion
         "Version of the application."
 
-    zonesOption "dZones" "zones"
-        "Availability zones in which instances are provisioned. separator: ,"
+    stringOption "dZones" "zones" "abcd"
+         "Availability zones suffixes in which instances are provisioned."
 
     integerOption "dGrace" "grace" 20
         "Seconds until healthchecks are activated."
@@ -95,12 +95,12 @@ instance Validate Deploy where
     validate Deploy{..} = do
         check dName     "--name must be specified."
         check dEnv      "--env must be specified."
-        check dZones    "--zone must be specified at least once."
         check dGrace    "--grace must be greater than 0."
         check dMin      "--min must be greater than 0."
         check dMax      "--max must be greater than 0."
         check dCapacity "--desired must be greater than 0."
         check dCooldown "--cooldown must be greater than 0"
+        check (Within dZones "abcdef")     "--zones must be specified."
         check (defaultVersion == dVersion) "--version must be specified."
 
 defineOptions "Cluster" $ do
@@ -217,19 +217,21 @@ command = Command "app" "Manage Applications."
         wait c >>= checkError (("AlreadyExists" ==) . aseCode . aserError)
         logInfo "Created Launch Configuration {}" [name]
 
+        reg <- currentRegion
+
         send_ $ CreateAutoScalingGroup
-            name                        -- Name
-            (Members dZones)            -- Zones
-            (Just dCooldown)            -- Default Cooldown
-            (Just dCapacity)            -- Desired Capacity
-            (Just dGrace)               -- Grace Period
-            (Just "EC2")                -- Health Check Type: EC2 | ELB
-            name                        -- Launch Configuration Name
+            name                            -- Name
+            (Members $ map (AZ reg) dZones) -- Zones
+            (Just dCooldown)                -- Default Cooldown
+            (Just dCapacity)                -- Desired Capacity
+            (Just dGrace)                   -- Grace Period
+            (Just "EC2")                    -- Health Check Type: EC2 | ELB
+            name                            -- Launch Configuration Name
             (Members [])
             dMax
             dMin
             Nothing
-            (Members [tag "Name" name]) -- Tags
+            (Members [tag "Name" name])     -- Tags
             (Members [])
             Nothing
         logInfo "Created Auto Scaling Group {}" [name]

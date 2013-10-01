@@ -12,8 +12,12 @@
 
 module Khan.Internal.Log
     (
-    -- * Variadic Format
-      logInfo
+    -- * Variadic AWS Errors
+      throwErrorF
+    , noteErrorF
+
+    -- * Variadic Formatters
+    , logInfo
     , logError
     , logDebug
 
@@ -33,12 +37,19 @@ import Data.Text               (Text)
 import Data.Text.Format
 import Data.Text.Format.Params
 import Data.Text.IO            (hPutStrLn)
+import Data.Text.Lazy          (unpack)
 import Network.AWS
 import System.IO               (stdout, stderr)
 
+throwErrorF :: Params ps => Format -> ps -> AWS a
+throwErrorF f = throwError . unpack . format f
+
+-- noteErrorF :: Params ps => Format -> ps -> AWS a
+noteErrorF f ps = noteError (unpack $ format f ps)
+
 logInfo, logError :: (MonadIO m, Params ps) => Format -> ps -> m ()
-logInfo  s = hprint stdout (s <> "\n")
-logError s = hprint stderr (s <> "\n")
+logInfo  f = hprint stdout (f <> "\n")
+logError f = hprint stderr (f <> "\n")
 
 logInfo_, logError_ :: MonadIO m => Text -> m ()
 logInfo_  = liftIO . hPutStrLn stdout

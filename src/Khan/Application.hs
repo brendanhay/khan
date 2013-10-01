@@ -17,9 +17,11 @@
 module Khan.Application (command) where
 
 import           Control.Applicative
+import           Control.Concurrent      (threadDelay)
 import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
+import           Data.Monoid
 import           Data.Text               (Text)
 import qualified Data.Text               as Text
 import qualified Data.Text.IO            as Text
@@ -30,7 +32,19 @@ import           Network.AWS.AutoScaling hiding (Filter)
 import           Network.AWS.EC2
 import           Network.AWS.IAM
 import           Network.AWS.Internal
-import           Text.Printf
+
+data ASG = ASG
+    { name  :: Text
+    , image :: Text
+    , role  :: Text
+    }
+
+versioned :: Text -> Text -> Version -> ASG
+versioned app env ver = ASG name image role
+  where
+    name  = Text.concat [role, "_", safeVersion ver]
+    image = Text.concat [app, "_", safeVersion ver]
+    role  = Text.concat [app,  "-", env]
 
 defineOptions "App" $ do
     textOption "aName" "name" ""
@@ -207,8 +221,9 @@ create App{..} = do
     wait a >>= checkError (("LimitExceeded" ==) . etCode . erError)
     waitAsync_ p <* logInfo "Updated policy for role {}" [role]
   where
-    role = roleName aName aEnv
-    path = Text.unpack role ++ ".pem"
+    ASG{..} = versioned aName aEnv defaultVersion
+
+    path    = Text.unpack $ role <> ".pem"
 
     exist e = do
         checkError
@@ -221,17 +236,19 @@ create App{..} = do
         logInfo "Wrote new KeyPair to {}" [path]
 
 deploy :: Deploy -> AWS ()
-deploy Deploy{..} = do
-    g <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
+deploy d@Deploy{..} = do
+    g <- findGroup name
 
-    -- FIXME: Check if a delete is in progress and block
+    when (Just "STATSDSDDS!" == join (asgStatus <$> g)) $ do
+        logInfo "Waiting for a previous deletion of Auto Scaling Group {} to complete." [name]
+        liftIO $ threadDelay 5000000
+        deploy d
 
-    when (not . null . members .  dasgrAutoScalingGroups $ dashrDescribeAutoScalingGroupsResult g) .
-        throwError . printf "Auto Scaling Group %s already exists." $ Text.unpack name
+    when (isJust g) $ throwErrorF "Auto Scaling Group {} already exists." [name]
 
     r <- sendAsync $ GetRole role
     k <- sendAsync $ DescribeKeyPairs [role] []
-    a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [image]]
+    a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [name]]
     s <- sendAsync $ CreateSecurityGroup role role Nothing
 
     waitAsync_ r <* logInfo "Found Role {}" [role]
@@ -239,15 +256,16 @@ deploy Deploy{..} = do
 
     ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
         (fmap diritImageId . noteError "Failed to find any matching AMIs")
-    logInfo "Found AMI {} named {}" [ami, image]
+    logInfo "Found AMI {} named {}" [ami, name]
 
     wait s >>= checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
     logInfo "Found Security Group {}" [role]
 
     i <- sendAsync $ AuthorizeSecurityGroupIngress Nothing (Just role)
-        [ (IpPermissionType TCP 8080 8080)
+        [ IpPermissionType TCP 8080 8080
             [UserIdGroupPair Nothing Nothing (Just role)] []
         ]
+
     c <- sendAsync $ CreateLaunchConfiguration
         (Members [])
         Nothing
@@ -286,42 +304,43 @@ deploy Deploy{..} = do
         (Members [tag "Name" name])     -- Tags
         (Members [])
         Nothing
+
     logInfo "Created Auto Scaling Group {}" [name]
 
     -- Create and update level2 'name' DNS SRV record
 
     -- Health checks, monitoring, statistics
   where
-    image = versionName dName dVersion
-    name  = versionName role dVersion
-    role  = roleName dName dEnv
+    ASG{..} = versioned dName dEnv dVersion
 
-    tag k v = Tag k (Just True) (Just name) (Just "auto-scaling-group") (Just v)
+    tag k v = Tag k
+       (Just True)
+       (Just name)
+       (Just "auto-scaling-group")
+       (Just v)
 
 scale :: Scale -> AWS ()
 scale Scale{..} = do
-    g   <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
-    grp <- noteError (printf "Auto Scaling Group %s doesn't exist." $ Text.unpack name)
-        . listToMaybe . members .  dasgrAutoScalingGroups $
-            dashrDescribeAutoScalingGroupsResult g
+    AutoScalingGroup{..} <- findGroup name >>=
+        noteErrorF "Auto Scaling Group %s doesn't exist." [name]
 
-    -- send_ $ UpdateAutoScalingGroup
-    --     name             -- Name
-    --     (Members dZones) -- Zones
-    --     (Just dCooldown) -- Default Cooldown
-    --     (Just dDesired) -- Desired Capacity
-    --     (Just dGrace)    -- Grace Period
-    --     (Just "EC2")     -- Health Check Type: EC2 | ELB
-    --     (Just name)      -- Launch Configuration Name
-    --     (Just dMax)
-    --     (Just dMin)
-    --     Nothing
-    --     (Members [])
-    --     Nothing
+    send_ $ UpdateAutoScalingGroup
+        name
+        (Members asgAvailabilityZones)
+        sCooldown
+        sDesired
+        sGrace
+        Nothing
+        Nothing
+        sMax
+        sMin
+        Nothing
+        (Members asgTerminationPolicies)
+        Nothing
+
     logInfo "Updated Auto Scaling Group {}" [name]
   where
-    name = versionName role sVersion
-    role = roleName sName sEnv
+    ASG{..} = versioned sName sEnv sVersion
 
 retire :: Cluster -> AWS ()
 retire Cluster{..} = do
@@ -330,8 +349,7 @@ retire Cluster{..} = do
     send_ $ DeleteLaunchConfiguration name
     logInfo "Deleted Launch Configuration {}" [name]
   where
-    name = versionName role cVersion
-    role = roleName cName cEnv
+    ASG{..} = versioned cName cEnv cVersion
 
 info :: Cluster -> AWS ()
 info Cluster{..} = return ()
@@ -339,8 +357,7 @@ info Cluster{..} = return ()
 route :: Cluster -> AWS ()
 route Cluster{..} = return ()
 
-roleName :: Text -> Text -> Text
-roleName name env = Text.concat [name, "-", env]
-
-versionName :: Text -> Version -> Text
-versionName name ver = Text.concat [name, "_", safeVersion ver]
+findGroup :: Text -> AWS (Maybe AutoScalingGroup)
+findGroup name = fmap
+    (listToMaybe . members . dasgrAutoScalingGroups . dashrDescribeAutoScalingGroupsResult)
+    (send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing)

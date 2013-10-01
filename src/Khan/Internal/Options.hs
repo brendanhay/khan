@@ -23,6 +23,7 @@ module Khan.Internal.Options
     , stringOption
     , intOption
     , integerOption
+    , maybeIntegerOption
     , boolOption
 
     -- * Option Types
@@ -83,6 +84,15 @@ intOption name flag def = Opts.intOption name flag def
 integerOption :: Opt Integer
 integerOption name flag def = Opts.integerOption name flag def
     . defaultText (show def)
+
+maybeIntegerOption :: Opt Integer
+maybeIntegerOption name flag (show -> def) desc =
+    option name $ \o -> o
+        { optionLongFlags   = [flag]
+        , optionDefault     = def
+        , optionType        = optionTypeMaybe optionTypeInteger
+        , optionDescription = defaultText def desc
+        }
 
 boolOption :: Opt Bool
 boolOption name flag def = Opts.boolOption name flag def

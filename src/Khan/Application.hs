@@ -20,13 +20,13 @@ import           Control.Applicative
 import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.Text                (Text)
-import qualified Data.Text                as Text
-import qualified Data.Text.IO             as Text
+import           Data.Text               (Text)
+import qualified Data.Text               as Text
+import qualified Data.Text.IO            as Text
 import           Data.Version
 import           Khan.Internal
 import           Network.AWS
-import           Network.AWS.AutoScaling  hiding (Filter)
+import           Network.AWS.AutoScaling hiding (Filter)
 import           Network.AWS.EC2
 import           Network.AWS.IAM
 import           Network.AWS.Internal
@@ -98,10 +98,47 @@ instance Validate Deploy where
         check dGrace    "--grace must be greater than 0."
         check dMin      "--min must be greater than 0."
         check dMax      "--max must be greater than 0."
-        check dCapacity "--desired must be greater than 0."
+        check dDesired  "--desired must be greater than 0."
         check dCooldown "--cooldown must be greater than 0"
-        check (Within dZones "abcde") "--zones must be within [a-e]."
+
+        check (not $ dMin < dMax)      "--min must be less than --max."
+        check (not $ dDesired >= dMin) "--desired must be greater than or equal to --min."
+        check (not $ dDesired <= dMax) "--desired must be less than or equal to --max."
+
+        check (Within dZones "abcde")      "--zones must be within [a-e]."
         check (defaultVersion == dVersion) "--version must be specified."
+
+defineOptions "Scale" $ do
+    textOption "sName" "name" ""
+        "Name of the application."
+
+    textOption "sEnv" "env" defaultEnv
+        "Environment to deploy the application into."
+
+    versionOption "sVersion" "version" defaultVersion
+        "Version of the application."
+
+    integerOption "sGrace" "grace" 20
+        "Seconds until healthchecks are activated."
+
+    integerOption "sMin" "min" 1
+        "Minimum number of instances."
+
+    integerOption "sMax" "max" 20
+        "Maximum number of instances."
+
+    integerOption "sCapacity" "desired" 2
+        "Desired number of instances."
+
+    integerOption "sCooldown" "cooldown" 60
+        "Seconds between scaling activities."
+
+deriving instance Show Scale
+
+instance Discover Scale
+
+instance Validate Scale
+--    validate Scale{..} = 
 
 defineOptions "Cluster" $ do
     textOption "cName" "name" ""
@@ -223,7 +260,7 @@ command = Command "app" "Manage Applications."
             name                            -- Name
             (Members $ map (AZ reg) dZones) -- Zones
             (Just dCooldown)                -- Default Cooldown
-            (Just dCapacity)                -- Desired Capacity
+            (Just dDesired)                 -- Desired Capacity
             (Just dGrace)                   -- Grace Period
             (Just "EC2")                    -- Health Check Type: EC2 | ELB
             name                            -- Launch Configuration Name
@@ -235,6 +272,10 @@ command = Command "app" "Manage Applications."
             (Members [])
             Nothing
         logInfo "Created Auto Scaling Group {}" [name]
+
+        -- Create and update level2 'name' DNS SRV record
+
+        -- Health checks, monitoring, statistics
       where
         image = versionName dName dVersion
         name  = versionName role dVersion
@@ -242,7 +283,7 @@ command = Command "app" "Manage Applications."
 
         tag k v = Tag k (Just True) (Just name) (Just "auto-scaling-group") (Just v)
 
-    scale Deploy{..} = do
+    scale Scale{..} = do
         g   <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
         grp <- noteError (printf "Auto Scaling Group %s doesn't exist." $ Text.unpack name)
             . listToMaybe . members .  dasgrAutoScalingGroups $
@@ -252,7 +293,7 @@ command = Command "app" "Manage Applications."
         --     name             -- Name
         --     (Members dZones) -- Zones
         --     (Just dCooldown) -- Default Cooldown
-        --     (Just dCapacity) -- Desired Capacity
+        --     (Just dDesired) -- Desired Capacity
         --     (Just dGrace)    -- Grace Period
         --     (Just "EC2")     -- Health Check Type: EC2 | ELB
         --     (Just name)      -- Launch Configuration Name
@@ -263,8 +304,8 @@ command = Command "app" "Manage Applications."
         --     Nothing
         logInfo "Updated Auto Scaling Group {}" [name]
       where
-        name = versionName role dVersion
-        role = roleName dName dEnv
+        name = versionName role sVersion
+        role = roleName sName sEnv
 
     retire Cluster{..} = do
         send_ $ DeleteAutoScalingGroup name (Just True)

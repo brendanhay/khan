@@ -182,156 +182,162 @@ command = Command "app" "Manage Applications."
     , subCommand "info"   info
     , subCommand "route"  route
     ]
+
+create :: App -> AWS ()
+create App{..} = do
+    (policy, trust) <- liftIO $ (,)
+        <$> Text.readFile aPolicy
+        <*> Text.readFile aTrust
+
+    i <- sendAsync $ CreateInstanceProfile role Nothing
+    r <- sendAsync $ CreateRole trust Nothing role
+    k <- sendAsync $ CreateKeyPair role
+
+    wait i >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
+    wait r >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
+    wait k >>= either exist write
+
+    -- Write key and upload to special S3 bucket?
+
+    a <- sendAsync $ AddRoleToInstanceProfile role role
+    p <- sendAsync $ PutRolePolicy policy role role
+
+    -- etCode = "LimitExceeded",
+    -- etMessage = "Cannot exceed quota for InstanceSessionsPerInstanceProfile: 1"
+    wait a >>= checkError (("LimitExceeded" ==) . etCode . erError)
+    waitAsync_ p <* logInfo "Updated policy for role {}" [role]
   where
-    create App{..} = do
-        (policy, trust) <- liftIO $ (,)
-            <$> Text.readFile aPolicy
-            <*> Text.readFile aTrust
+    role = roleName aName aEnv
+    path = Text.unpack role ++ ".pem"
 
-        i <- sendAsync $ CreateInstanceProfile role Nothing
-        r <- sendAsync $ CreateRole trust Nothing role
-        k <- sendAsync $ CreateKeyPair role
+    exist e = do
+        checkError
+            (("InvalidKeyPair.Duplicate" ==) . ecCode . head . eerErrors)
+            (Left e)
+        logInfo "KeyPair {} exists, not updating." [role]
 
-        wait i >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
-        wait r >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
-        wait k >>= either exist write
+    write k = do
+        liftIO . Text.writeFile path $ ckqKeyMaterial k
+        logInfo "Wrote new KeyPair to {}" [path]
 
-        -- Write key and upload to special S3 bucket?
+deploy :: Deploy -> AWS ()
+deploy Deploy{..} = do
+    g <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
 
-        a <- sendAsync $ AddRoleToInstanceProfile role role
-        p <- sendAsync $ PutRolePolicy policy role role
+    -- FIXME: Check if a delete is in progress and block
 
-        -- etCode = "LimitExceeded",
-        -- etMessage = "Cannot exceed quota for InstanceSessionsPerInstanceProfile: 1"
-        wait a >>= checkError (("LimitExceeded" ==) . etCode . erError)
-        waitAsync_ p <* logInfo "Updated policy for role {}" [role]
-      where
-        role = roleName aName aEnv
-        path = Text.unpack role ++ ".pem"
+    when (not . null . members .  dasgrAutoScalingGroups $ dashrDescribeAutoScalingGroupsResult g) .
+        throwError . printf "Auto Scaling Group %s already exists." $ Text.unpack name
 
-        exist e = do
-            checkError
-                (("InvalidKeyPair.Duplicate" ==) . ecCode . head . eerErrors)
-                (Left e)
-            logInfo "KeyPair {} exists, not updating." [role]
+    r <- sendAsync $ GetRole role
+    k <- sendAsync $ DescribeKeyPairs [role] []
+    a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [image]]
+    s <- sendAsync $ CreateSecurityGroup role role Nothing
 
-        write k = do
-            liftIO . Text.writeFile path $ ckqKeyMaterial k
-            logInfo "Wrote new KeyPair to {}" [path]
+    waitAsync_ r <* logInfo "Found Role {}" [role]
+    waitAsync_ k <* logInfo "Found KeyPair {}" [role]
 
-    deploy Deploy{..} = do
-        g <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
+    ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
+        (fmap diritImageId . noteError "Failed to find any matching AMIs")
+    logInfo "Found AMI {} named {}" [ami, image]
 
-        -- FIXME: Check if a delete is in progress and block
+    wait s >>= checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
+    logInfo "Found Security Group {}" [role]
 
-        when (not . null . members .  dasgrAutoScalingGroups $ dashrDescribeAutoScalingGroupsResult g) .
-            throwError . printf "Auto Scaling Group %s already exists." $ Text.unpack name
+    i <- sendAsync $ AuthorizeSecurityGroupIngress Nothing (Just role)
+        [ (IpPermissionType TCP 8080 8080)
+            [UserIdGroupPair Nothing Nothing (Just role)] []
+        ]
+    c <- sendAsync $ CreateLaunchConfiguration
+        (Members [])
+        Nothing
+        (Just role)      -- IAM Role
+        ami              -- Image Id
+        Nothing
+        dType            -- Instance Type
+        Nothing
+        (Just role)      -- Key Pair Name
+        name             -- Launch Configuration Name
+        Nothing
+        (Members [role]) -- Security Groups
+        Nothing
+        Nothing          -- User Data
 
-        r <- sendAsync $ GetRole role
-        k <- sendAsync $ DescribeKeyPairs [role] []
-        a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [image]]
-        s <- sendAsync $ CreateSecurityGroup role role Nothing
+    wait i >>= checkError (("InvalidPermission.Duplicate" ==) . ecCode . head . eerErrors)
+    logInfo_ "Updated Security Group rules"
 
-        waitAsync_ r <* logInfo "Found Role {}" [role]
-        waitAsync_ k <* logInfo "Found KeyPair {}" [role]
+    wait c >>= checkError (("AlreadyExists" ==) . aseCode . aserError)
+    logInfo "Created Launch Configuration {}" [name]
 
-        ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
-            (fmap diritImageId . noteError "Failed to find any matching AMIs")
-        logInfo "Found AMI {} named {}" [ami, image]
+    reg <- currentRegion
 
-        wait s >>= checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
-        logInfo "Found Security Group {}" [role]
+    send_ $ CreateAutoScalingGroup
+        name                            -- Name
+        (Members $ map (AZ reg) dZones) -- Zones
+        (Just dCooldown)                -- Default Cooldown
+        (Just dDesired)                 -- Desired Capacity
+        (Just dGrace)                   -- Grace Period
+        (Just "EC2")                    -- Health Check Type: EC2 | ELB
+        name                            -- Launch Configuration Name
+        (Members [])
+        dMax
+        dMin
+        Nothing
+        (Members [tag "Name" name])     -- Tags
+        (Members [])
+        Nothing
+    logInfo "Created Auto Scaling Group {}" [name]
 
-        i <- sendAsync $ AuthorizeSecurityGroupIngress Nothing (Just role)
-            [ (IpPermissionType TCP 8080 8080)
-                [UserIdGroupPair Nothing Nothing (Just role)] []
-            ]
-        c <- sendAsync $ CreateLaunchConfiguration
-            (Members [])
-            Nothing
-            (Just role)      -- IAM Role
-            ami              -- Image Id
-            Nothing
-            dType            -- Instance Type
-            Nothing
-            (Just role)      -- Key Pair Name
-            name             -- Launch Configuration Name
-            Nothing
-            (Members [role]) -- Security Groups
-            Nothing
-            Nothing          -- User Data
+    -- Create and update level2 'name' DNS SRV record
 
-        wait i >>= checkError (("InvalidPermission.Duplicate" ==) . ecCode . head . eerErrors)
-        logInfo_ "Updated Security Group rules"
+    -- Health checks, monitoring, statistics
+  where
+    image = versionName dName dVersion
+    name  = versionName role dVersion
+    role  = roleName dName dEnv
 
-        wait c >>= checkError (("AlreadyExists" ==) . aseCode . aserError)
-        logInfo "Created Launch Configuration {}" [name]
+    tag k v = Tag k (Just True) (Just name) (Just "auto-scaling-group") (Just v)
 
-        reg <- currentRegion
+scale :: Scale -> AWS ()
+scale Scale{..} = do
+    g   <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
+    grp <- noteError (printf "Auto Scaling Group %s doesn't exist." $ Text.unpack name)
+        . listToMaybe . members .  dasgrAutoScalingGroups $
+            dashrDescribeAutoScalingGroupsResult g
 
-        send_ $ CreateAutoScalingGroup
-            name                            -- Name
-            (Members $ map (AZ reg) dZones) -- Zones
-            (Just dCooldown)                -- Default Cooldown
-            (Just dDesired)                 -- Desired Capacity
-            (Just dGrace)                   -- Grace Period
-            (Just "EC2")                    -- Health Check Type: EC2 | ELB
-            name                            -- Launch Configuration Name
-            (Members [])
-            dMax
-            dMin
-            Nothing
-            (Members [tag "Name" name])     -- Tags
-            (Members [])
-            Nothing
-        logInfo "Created Auto Scaling Group {}" [name]
+    -- send_ $ UpdateAutoScalingGroup
+    --     name             -- Name
+    --     (Members dZones) -- Zones
+    --     (Just dCooldown) -- Default Cooldown
+    --     (Just dDesired) -- Desired Capacity
+    --     (Just dGrace)    -- Grace Period
+    --     (Just "EC2")     -- Health Check Type: EC2 | ELB
+    --     (Just name)      -- Launch Configuration Name
+    --     (Just dMax)
+    --     (Just dMin)
+    --     Nothing
+    --     (Members [])
+    --     Nothing
+    logInfo "Updated Auto Scaling Group {}" [name]
+  where
+    name = versionName role sVersion
+    role = roleName sName sEnv
 
-        -- Create and update level2 'name' DNS SRV record
+retire :: Cluster -> AWS ()
+retire Cluster{..} = do
+    send_ $ DeleteAutoScalingGroup name (Just True)
+    logInfo "Delete of Auto Scaling Group {} in progress" [name]
+    send_ $ DeleteLaunchConfiguration name
+    logInfo "Deleted Launch Configuration {}" [name]
+  where
+    name = versionName role cVersion
+    role = roleName cName cEnv
 
-        -- Health checks, monitoring, statistics
-      where
-        image = versionName dName dVersion
-        name  = versionName role dVersion
-        role  = roleName dName dEnv
+info :: Cluster -> AWS ()
+info Cluster{..} = return ()
 
-        tag k v = Tag k (Just True) (Just name) (Just "auto-scaling-group") (Just v)
-
-    scale Scale{..} = do
-        g   <- send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing
-        grp <- noteError (printf "Auto Scaling Group %s doesn't exist." $ Text.unpack name)
-            . listToMaybe . members .  dasgrAutoScalingGroups $
-                dashrDescribeAutoScalingGroupsResult g
-
-        -- send_ $ UpdateAutoScalingGroup
-        --     name             -- Name
-        --     (Members dZones) -- Zones
-        --     (Just dCooldown) -- Default Cooldown
-        --     (Just dDesired) -- Desired Capacity
-        --     (Just dGrace)    -- Grace Period
-        --     (Just "EC2")     -- Health Check Type: EC2 | ELB
-        --     (Just name)      -- Launch Configuration Name
-        --     (Just dMax)
-        --     (Just dMin)
-        --     Nothing
-        --     (Members [])
-        --     Nothing
-        logInfo "Updated Auto Scaling Group {}" [name]
-      where
-        name = versionName role sVersion
-        role = roleName sName sEnv
-
-    retire Cluster{..} = do
-        send_ $ DeleteAutoScalingGroup name (Just True)
-        logInfo "Delete of Auto Scaling Group {} in progress" [name]
-        send_ $ DeleteLaunchConfiguration name
-        logInfo "Deleted Launch Configuration {}" [name]
-      where
-        name = versionName role cVersion
-        role = roleName cName cEnv
-
-    info Cluster{..} = return ()
-
-    route Cluster{..} = return ()
+route :: Cluster -> AWS ()
+route Cluster{..} = return ()
 
 roleName :: Text -> Text -> Text
 roleName name env = Text.concat [name, "-", env]

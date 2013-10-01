@@ -78,7 +78,7 @@ defineOptions "Deploy" $ do
     integerOption "dMax" "max" 20
         "Maximum number of instances."
 
-    integerOption "dCapacity" "desired" 2
+    integerOption "dDesired" "desired" 2
         "Desired number of instances."
 
     integerOption "dCooldown" "cooldown" 60
@@ -118,27 +118,40 @@ defineOptions "Scale" $ do
     versionOption "sVersion" "version" defaultVersion
         "Version of the application."
 
-    integerOption "sGrace" "grace" 20
+    maybeIntegerOption "sGrace" "grace" 20
         "Seconds until healthchecks are activated."
 
-    integerOption "sMin" "min" 1
+    maybeIntegerOption "sMin" "min" 1
         "Minimum number of instances."
 
-    integerOption "sMax" "max" 20
+    maybeIntegerOption "sMax" "max" 20
         "Maximum number of instances."
 
-    integerOption "sCapacity" "desired" 2
+    maybeIntegerOption "sDesired" "desired" 2
         "Desired number of instances."
 
-    integerOption "sCooldown" "cooldown" 60
+    maybeIntegerOption "sCooldown" "cooldown" 60
         "Seconds between scaling activities."
 
 deriving instance Show Scale
 
 instance Discover Scale
 
-instance Validate Scale
---    validate Scale{..} = 
+instance Validate Scale where
+    validate Scale{..} = do
+        check sName     "--name must be specified."
+        check sEnv      "--env must be specified."
+        check sGrace    "--grace must be greater than 0."
+        check sMin      "--min must be greater than 0."
+        check sMax      "--max must be greater than 0."
+        check sDesired  "--desired must be greater than 0."
+        check sCooldown "--cooldown must be greater than 0"
+
+        check (not $ sMin < sMax)      "--min must be less than --max."
+        check (not $ sDesired >= sMin) "--desired must be greater than or equal to --min."
+        check (not $ sDesired <= sMax) "--desired must be less than or equal to --max."
+
+        check (defaultVersion == sVersion) "--version must be specified."
 
 defineOptions "Cluster" $ do
     textOption "cName" "name" ""

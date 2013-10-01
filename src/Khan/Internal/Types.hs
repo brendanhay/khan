@@ -49,8 +49,13 @@ instance Invalid Text where
 instance Invalid Integer where
     invalid = (< 1)
 
-instance Invalid [a] where
-    invalid = null
+instance Invalid a => Invalid [a] where
+    invalid [] = True
+    invalid xs = invalid `any` xs
+
+instance Invalid a => Invalid (Maybe a) where
+    invalid (Just x) = invalid x
+    invalid Nothing  = False
 
 data Within a = Within [a] [a]
 

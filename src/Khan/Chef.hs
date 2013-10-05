@@ -43,9 +43,6 @@ defineOptions "Create" $ do
     integerOption "cMax" "max" 1
         "Maximum number of instances to launch."
 
-    textOption "cKey" "key" ""
-        "Private key name."
-
     textsOption "cGroups" "groups" []
         "Security groups."
 
@@ -54,9 +51,6 @@ defineOptions "Create" $ do
 
     instanceTypeOption "cType" "type" M1_Small
         "Instance's type."
-
-    textsOption "cProfiles" "profiles" []
-        "IAM profiles."
 
     boolOption "cOptimised" "optimised" False
         "EBS optimisation."
@@ -71,24 +65,21 @@ defineOptions "Create" $ do
 deriving instance Show Create
 
 instance Discover Create where
-    discover c | invalid (cRole c) = return c
-    discover c@Create{..} = do
-        logInfo "Looking for AMIs matching: {}" [Text.intercalate ", " images]
-        ami <- (listToMaybe . djImagesSet) <$>
-            send (DescribeImages [] [] ["self"] [Filter "tag:Name" images]) >>=
-            noteError "Failed to find any AMIs"
-        reg <- currentRegion
-        return $! c { cImage = diritImageId ami, cKey = key reg, cProfiles = iam }
+    discover c@Create{..}
+        | invalid cRole        = return c
+        | not $ invalid cImage = return c
+        | otherwise            = findImage
        where
-         images = [cRole, "base"]
+         findImage = do
+            logInfo "Looking for AMIs matching: {}" [options]
+            ami <- (listToMaybe . djImagesSet) <$>
+                send (DescribeImages [] [] ["self"] filters) >>=
+                noteError "Failed to find any AMIs"
+            return $! c { cImage = diritImageId ami }
 
-         key reg = if Text.null cKey
-             then Text.pack ("khan-" ++ show reg)
-             else cKey
-
-         iam = if null cProfiles
-             then [Text.concat [cRole, "-", cEnv]]
-             else cProfiles
+         options = Text.intercalate " | " images
+         filters = [Filter "tag:Name" images]
+         images  = [cRole, "base"]
 
 instance Validate Create where
     validate Create{..} = do
@@ -98,7 +89,6 @@ instance Validate Create where
         check cImage  "--image must be specified."
         check cMin    "--min must be greater than 0."
         check cMax    "--max must be greater than 0."
-        check cKey    "--key must be specified."
         check (not $ cMin <= cMax) "--min must be less than or equal to --max."
 
 defineOptions "Target" $

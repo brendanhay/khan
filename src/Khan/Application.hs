@@ -34,13 +34,14 @@ import           Network.AWS.IAM
 import           Network.AWS.Internal
 
 data ASG = ASG
-    { name  :: Text
-    , image :: Text
-    , role  :: Text
+    { name  :: !Text
+    , image :: !Text
+    , role  :: !Text
+    , key   :: !Text
     }
 
 versioned :: Text -> Text -> Version -> ASG
-versioned app env ver = ASG name image role
+versioned app env ver = ASG name image role env
   where
     name  = Text.concat [role, "_", safeVersion ver]
     image = Text.concat [app, "_", safeVersion ver]
@@ -205,7 +206,7 @@ create App{..} = do
 
     i <- sendAsync $ CreateInstanceProfile role Nothing
     r <- sendAsync $ CreateRole trust Nothing role
-    k <- sendAsync $ CreateKeyPair role
+    k <- sendAsync $ CreateKeyPair key
 
     wait i >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
     wait r >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
@@ -223,17 +224,17 @@ create App{..} = do
   where
     ASG{..} = versioned aName aEnv defaultVersion
 
-    path    = Text.unpack $ role <> ".pem"
-
     exist e = do
         checkError
             (("InvalidKeyPair.Duplicate" ==) . ecCode . head . eerErrors)
             (Left e)
-        logInfo "KeyPair {} exists, not updating." [role]
+        logInfo "KeyPair {} exists, not updating." [key]
 
     write k = do
         liftIO . Text.writeFile path $ ckqKeyMaterial k
         logInfo "Wrote new KeyPair to {}" [path]
+
+    path = Text.unpack $ key <> ".pem"
 
 deploy :: Deploy -> AWS ()
 deploy d@Deploy{..} = do
@@ -247,12 +248,12 @@ deploy d@Deploy{..} = do
     when (isJust g) $ throwErrorF "Auto Scaling Group {} already exists." [name]
 
     r <- sendAsync $ GetRole role
-    k <- sendAsync $ DescribeKeyPairs [role] []
+    k <- sendAsync $ DescribeKeyPairs [key] []
     a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [image]]
     s <- sendAsync $ CreateSecurityGroup role role Nothing
 
     waitAsync_ r <* logInfo "Found Role {}" [role]
-    waitAsync_ k <* logInfo "Found KeyPair {}" [role]
+    waitAsync_ k <* logInfo "Found KeyPair {}" [key]
 
     ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
         (fmap diritImageId . noteError "Failed to find any matching AMIs")
@@ -274,7 +275,7 @@ deploy d@Deploy{..} = do
         Nothing
         dType            -- Instance Type
         Nothing
-        (Just role)      -- Key Pair Name
+        (Just key)      -- Key Pair Name
         name             -- Launch Configuration Name
         Nothing
         (Members [role]) -- Security Groups

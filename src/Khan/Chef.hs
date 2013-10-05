@@ -74,13 +74,10 @@ instance Discover Create where
     discover c | invalid (cRole c) = return c
     discover c@Create{..} = do
         logInfo "Looking for AMIs matching: {}" [Text.intercalate ", " images]
-
         ami <- (listToMaybe . djImagesSet) <$>
             send (DescribeImages [] [] ["self"] [Filter "tag:Name" images]) >>=
             noteError "Failed to find any AMIs"
-
         reg <- currentRegion
-
         return $! c { cImage = diritImageId ami, cKey = key reg, cProfiles = iam }
        where
          images = [cRole, "base"]

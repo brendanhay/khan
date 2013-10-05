@@ -59,9 +59,6 @@ defineOptions "Khan" $ do
     boolOption "kDebug" "debug" False
         "Log debug output."
 
-    boolOption "kDiscover" "discover" True
-        "Populate options from EC2 tags and metadata (if possible)."
-
     maybeTextOption "kRole" "iam-role" Text.empty
         "IAM role - if specified takes precendence over access/secret keys."
 
@@ -76,31 +73,30 @@ defineOptions "Khan" $ do
 
 deriving instance Show Khan
 
-initialise :: MonadIO m => Khan -> EitherT Error m Khan
+initialise :: (Applicative m, MonadIO m) => Khan -> EitherT Error m Khan
 initialise k@Khan{..}
     | isJust kRole = right k
     | validKeys k  = right k
-    | otherwise    = lookupKeys
+    | otherwise    = lookupKeys >>= getRegion
   where
     lookupKeys = fmapLT toError . syncIO $ do
         acc <- env accessKey kAccess
         sec <- env secretKey kSecret
         return $! k { kAccess = acc, kSecret = sec }
-
-    env k' v
-        | null v    = fromMaybe "" <$> lookupEnv k'
-        | otherwise = return v
-
-instance Discover Khan where
-    discover k@Khan{..} = liftEitherT $ do
-        ec2 <- doesMetadataExist
-        if ec2 then getRegion else return k
       where
-        getRegion = do
-            az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
-            reg <- fmapLT toError $
-                tryRead ("Failed to read region from: " ++ az) az
-            return $! k { kRegion = reg }
+        env k' v
+            | null v    = fromMaybe "" <$> lookupEnv k'
+            | otherwise = return v
+
+    getRegion k' = do
+        ec2 <- doesMetadataExist
+        if ec2
+            then do
+                az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
+                reg <- fmapLT toError $
+                    tryRead ("Failed to read region from: " ++ az) az
+                return $! k' { kRegion = reg }
+            else return k'
 
 instance Validate Khan where
     validate Khan{..} = do
@@ -138,13 +134,10 @@ subCommand name action = Options.subcommand name run
         logInfo "Setting region to {}..." [Shown kRegion]
         env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
         res <- lift . runAWS env $ do
-            opts <- disco kDiscover o
+            opts <- logDebug_ "Performing discovery..." >> discover o
             liftEitherT $ validate opts
             action opts
         hoistEither res
-
-    disco True  = (logDebug_ "Performing discovery..." >>) . discover
-    disco False = (logDebug_ "Skipping discovery..."   >>) . return
 
     creds Khan{..}
         | Just r <- kRole = FromRole $! encodeUtf8 r

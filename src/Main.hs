@@ -13,6 +13,8 @@ module Main (main) where
 import           Khan.Internal
 
 import qualified Khan.Application as Application
+import qualified Khan.Instance    as Instance
+import qualified Khan.Chef        as Chef
 
 -- import qualified Khan.Artifact    as Artifact
 -- import qualified Khan.DNS         as DNS
@@ -22,12 +24,13 @@ import qualified Khan.Application as Application
 
 main :: IO ()
 main = runProgram
-
-    -- Workflow
     [ Application.command
+    , Instance.command
     ]
 
-    []
+    [ Chef.command
+    ]
+
     -- -- Low Level
     -- [ Artifact.command
     -- , DNS.command

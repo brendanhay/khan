@@ -32,7 +32,6 @@ module Khan.Internal.Log
 
 import Control.Monad.IO.Class
 import Data.Monoid
-import Data.String
 import Data.Text               (Text)
 import Data.Text.Format
 import Data.Text.Format.Params
@@ -44,7 +43,7 @@ import System.IO               (stdout, stderr)
 throwErrorF :: Params ps => Format -> ps -> AWS a
 throwErrorF f = throwError . unpack . format f
 
--- noteErrorF :: Params ps => Format -> ps -> AWS a
+noteErrorF :: Params ps => Format -> ps -> Maybe a -> AWS a
 noteErrorF f ps = noteError (unpack $ format f ps)
 
 logInfo, logError :: (MonadIO m, Params ps) => Format -> ps -> m ()

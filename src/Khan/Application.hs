@@ -239,16 +239,16 @@ deploy :: Deploy -> AWS ()
 deploy d@Deploy{..} = do
     g <- findGroup name
 
-    when (Just "STATSDSDDS!" == join (asgStatus <$> g)) $ do
-        logInfo "Waiting for a previous deletion of Auto Scaling Group {} to complete." [name]
-        liftIO $ threadDelay 5000000
+    when (Just "Delete in progress" == join (asgStatus <$> g)) $ do
+        logInfo "Waiting for previous deletion of Auto Scaling Group {}" [name]
+        liftIO . threadDelay $ 10 * 1000000
         deploy d
 
     when (isJust g) $ throwErrorF "Auto Scaling Group {} already exists." [name]
 
     r <- sendAsync $ GetRole role
     k <- sendAsync $ DescribeKeyPairs [role] []
-    a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [name]]
+    a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [image]]
     s <- sendAsync $ CreateSecurityGroup role role Nothing
 
     waitAsync_ r <* logInfo "Found Role {}" [role]
@@ -256,7 +256,7 @@ deploy d@Deploy{..} = do
 
     ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
         (fmap diritImageId . noteError "Failed to find any matching AMIs")
-    logInfo "Found AMI {} named {}" [ami, name]
+    logInfo "Found AMI {} named {}" [ami, image]
 
     wait s >>= checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
     logInfo "Found Security Group {}" [role]

@@ -59,8 +59,8 @@ defineOptions "Khan" $ do
     boolOption "kDebug" "debug" False
         "Log debug output."
 
-    boolOption "kDiscovery" "discovery" False
-        "Populate options from EC2 metadata and tags."
+    boolOption "kDiscover" "discover" True
+        "Populate options from EC2 tags and metadata (if possible)."
 
     maybeTextOption "kRole" "iam-role" Text.empty
         "IAM role - if specified takes precendence over access/secret keys."
@@ -93,14 +93,17 @@ initialise k@Khan{..}
 
 instance Discover Khan where
     discover k@Khan{..} = liftEitherT $ do
-        az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
-        reg <- fmapLT toError $ tryRead ("Failed to read region from: " ++ az) az
-        return $! k { kRegion = reg }
+        ec2 <- doesMetadataExist
+        if ec2 then getRegion else return k
+      where
+        getRegion = do
+            az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
+            reg <- fmapLT toError $
+                tryRead ("Failed to read region from: " ++ az) az
+            return $! k { kRegion = reg }
 
 instance Validate Khan where
     validate Khan{..} = do
-        check (kDiscovery && role)
-            "--iam-role must be specified in order to use --discovery."
         check (null kAccess && role) $ msg "--access-key" accessKey
         check (null kSecret && role) $ msg "--secret-key" secretKey
       where
@@ -135,7 +138,7 @@ subCommand name action = Options.subcommand name run
         logInfo "Setting region to {}..." [Shown kRegion]
         env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
         res <- lift . runAWS env $ do
-            opts <- disco kDiscovery o
+            opts <- disco kDiscover o
             liftEitherT $ validate opts
             action opts
         hoistEither res
@@ -178,8 +181,8 @@ runProgram wflow metal = do
 
     help msg = do
         putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
-        putStrLn $ unlines ("Workflow:" : map desc wflow ++ [""])
-        putStrLn $ unlines ("Low Level:" : map desc metal ++ [""])
+        putStrLn $ unlines ("Ephemeral:" : map desc wflow ++ [""])
+        putStrLn $ unlines ("Persistent:" : map desc metal ++ [""])
         putStrLn msg
         exitFailure
 

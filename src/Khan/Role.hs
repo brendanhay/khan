@@ -28,7 +28,6 @@ import qualified Data.Text.IO            as Text
 import           Data.Version
 import           Khan.Groups
 import           Khan.Internal
-import           Khan.Keys
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
 import           Network.AWS.EC2
@@ -93,13 +92,13 @@ command = Command "role" "Manage IAM Roles."
         i <- sendAsync $ CreateInstanceProfile role Nothing
         r <- sendAsync $ CreateRole trust Nothing role
 
-        wait i >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
-        wait r >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
+        wait i >>= verifyIAM "EntityAlreadyExists"
+        wait r >>= verifyIAM "EntityAlreadyExists"
 
         a <- sendAsync $ AddRoleToInstanceProfile role role
         p <- sendAsync $ PutRolePolicy policy role role
 
-        wait a >>= checkError (("LimitExceeded" ==) . etCode . erError)
+        wait a >>= verifyIAM "LimitExceeded"
         waitAsync_ p <* logInfo "Updated policy for role {}" [role]
       where
         role = Text.concat [rName, "-", rEnv]

@@ -12,6 +12,7 @@ module Khan.Internal
     ( module Internal
     ) where
 
+import Khan.Internal.AWS     as Internal
 import Khan.Internal.Log     as Internal
 import Khan.Internal.Options as Internal
 import Khan.Internal.Program as Internal

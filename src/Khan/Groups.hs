@@ -21,24 +21,3 @@ import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.EC2
 import           System.Directory
-
-sshGroup :: Text
-sshGroup = "ssh"
-
-sshPort :: Integer
-sshPort = 22
-
-createGroup :: Text -> Maybe Integer -> AWS ()
-createGroup name port = create >> authorise port
-  where
-    create = check "InvalidGroup.Duplicate" =<<
-        sendCatch (CreateSecurityGroup name name Nothing)
-
-    authorise Nothing  = return ()
-    authorise (Just n) = check "InvalidPermission.Duplicate" =<<
-        sendCatch (AuthorizeSecurityGroupIngress Nothing (Just name)
-            [ IpPermissionType TCP n n
-                [UserIdGroupPair Nothing Nothing (Just name)] []
-            ])
-
-    check k = checkError ((k ==) . ecCode . head . eerErrors)

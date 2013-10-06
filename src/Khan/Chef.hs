@@ -22,9 +22,7 @@ import           Control.Monad.IO.Class
 import           Data.Monoid
 import qualified Data.Text              as Text
 import qualified Data.Text.IO           as Text
-import           Khan.Groups
 import           Khan.Internal
-import           Khan.Keys
 import           Network.AWS
 import           Network.AWS.EC2
 

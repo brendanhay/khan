@@ -27,7 +27,6 @@ import qualified Data.Text.IO            as Text
 import           Data.Version
 import           Khan.Groups
 import           Khan.Internal
-import           Khan.Keys
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
 import           Network.AWS.EC2
@@ -213,7 +212,7 @@ deploy d@Deploy{..} = do
         Nothing
         Nothing          -- User Data
 
-    wait c >>= checkError (("AlreadyExists" ==) . aseCode . aserError)
+    wait c >>= verifyAS "AlreadyExists"
     logInfo "Created Launch Configuration {}" [name]
 
     reg <- currentRegion

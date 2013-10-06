@@ -19,8 +19,12 @@ module Khan.Chef (command) where
 import           Control.Applicative
 import           Control.Error
 import           Control.Monad.IO.Class
+import           Data.Monoid
 import qualified Data.Text              as Text
+import qualified Data.Text.IO           as Text
+import           Khan.Groups
 import           Khan.Internal
+import           Khan.Keys
 import           Network.AWS
 import           Network.AWS.EC2
 
@@ -46,7 +50,7 @@ defineOptions "Create" $ do
     textsOption "cGroups" "groups" []
         "Security groups."
 
-    maybeTextOption "cData" "user-data" ""
+    stringOption "cData" "user-data" "./config/user-data"
         "Path to user data file."
 
     instanceTypeOption "cType" "type" M1_Small
@@ -90,6 +94,7 @@ instance Validate Create where
         check cMin    "--min must be greater than 0."
         check cMax    "--max must be greater than 0."
         check (not $ cMin <= cMax) "--min must be less than or equal to --max."
+        checkPath cData $ cData ++ " specified by --user-data must exist."
 
 defineOptions "Target" $
     textOption "tName" "name" ""
@@ -107,9 +112,37 @@ command = Command "chef" "Manage Chef EC2 Instances."
     , subCommand "delete" delete
     ]
   where
-    create c@Create{..} = liftIO (print c)
-        -- DescribeKeys
-        -- If it khan-{region} doesn't exist create'
+    create Create{..} = do
+        createGroup sshGroup (Just sshPort)
+        createGroup role Nothing
+        createKey key
+
+        u <- liftIO $ Text.readFile cData
+
+        r <- send $ RunInstances
+            cImage
+            cMin
+            cMax
+            (Just key)
+            []               -- Group Ids
+            [sshGroup, role] -- Group Names
+            (Just u)         -- User Data
+            (Just cType)
+            Nothing
+            Nothing
+            Nothing
+            []               -- Block Devices
+            (Just $ MonitoringInstanceType True)
+            Nothing
+            Nothing          -- FIXME: Disable API Termination
+            (Just "stop")    -- Shutdown Behaviour
+            Nothing          -- Private IP
+            Nothing          -- Client Token
+            []               -- NICs
+            [IamInstanceProfileRequestType Nothing (Just role)]
+            (Just cOptimised)
+
+        liftIO $ print r
 
         -- Launch Instance
 --        RunInstances
@@ -117,6 +150,9 @@ command = Command "chef" "Manage Chef EC2 Instances."
         -- Wait for SSH for each one
 
         -- Login one at a time and invoke chef
+      where
+        role = cRole <> "-" <> cEnv
+        key  = cEnv
 
     run Target{..} = return ()
 

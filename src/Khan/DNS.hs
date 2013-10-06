@@ -109,7 +109,7 @@ instance Validate Search where
 command :: Command
 command = Command "dns" "Manage DNS Records."
     [ subCommand "create" $ modify CreateAction
-    , subCommand "remove" $ modify DeleteAction
+    , subCommand "delete" $ modify DeleteAction
     , subCommand "search" search
     ]
   where
@@ -130,10 +130,9 @@ command = Command "dns" "Manage DNS Records."
         zid <- findZoneId sZone
         runEffect $ for (paginate $ start zid) (liftIO . display)
       where
-        display (matching -> rrs) = do
+        display (matching -> rrs) = unless (null rrs) $ do
             mapM_ (logInfo_ . ppShow) rrs
-            unless (null rrs) $
-                logInfo_ "Press enter to continue..." >> void getLine
+            logInfo_ "Press enter to continue..." >> void getLine
 
         start zid = ListResourceRecordSets zid Nothing Nothing Nothing results
 

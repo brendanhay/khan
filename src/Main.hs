@@ -19,7 +19,7 @@ import qualified Khan.Chef        as Chef
 -- import qualified Khan.Artifact    as Artifact
 -- import qualified Khan.DNS         as DNS
 -- import qualified Khan.Metadata    as Metadata
--- import qualified Khan.Role        as Role
+import qualified Khan.Role        as Role
 -- import qualified Khan.Security    as Security
 
 main :: IO ()
@@ -29,6 +29,7 @@ main = runProgram
     ]
 
     [ Chef.command
+    , Role.command
     ]
 
     -- -- Low Level

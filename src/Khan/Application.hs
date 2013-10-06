@@ -21,12 +21,13 @@ import           Control.Concurrent      (threadDelay)
 import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.Monoid
 import           Data.Text               (Text)
 import qualified Data.Text               as Text
 import qualified Data.Text.IO            as Text
 import           Data.Version
+import           Khan.Groups
 import           Khan.Internal
+import           Khan.Keys
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
 import           Network.AWS.EC2
@@ -45,31 +46,7 @@ versioned app env ver = ASG name image role env
   where
     name  = Text.concat [role, "_", safeVersion ver]
     image = Text.concat [app, "_", safeVersion ver]
-    role  = Text.concat [app,  "-", env]
-
-defineOptions "App" $ do
-    textOption "aName" "name" ""
-        "Name of the application."
-
-    textOption "aEnv" "env" defaultEnv
-        "Environment of the application."
-
-    stringOption "aPolicy" "policy" "./role-policy.json"
-        "Role policy file."
-
-    stringOption "aTrust" "trust" "./trust-relationship.json"
-        "Trust relationship file."
-
-deriving instance Show App
-
-instance Discover App
-
-instance Validate App where
-    validate App{..} = do
-        check aName "--name must be specified."
-        check aEnv  "--env must be specified."
-        checkPath aPolicy $ aPolicy ++ " specified by --policy must exist."
-        checkPath aTrust  $ aTrust ++ " specified by --trust must exist."
+    role  = Text.concat [app, "-", env]
 
 defineOptions "Deploy" $ do
     textOption "dName" "name" ""
@@ -190,51 +167,12 @@ instance Validate Cluster where
 
 command :: Command
 command = Command "app" "Manage Applications."
-    [ subCommand "create" create
-    , subCommand "deploy" deploy
+    [ subCommand "deploy" deploy
     , subCommand "scale"  scale
     , subCommand "retire" retire
     , subCommand "info"   info
     , subCommand "route"  route
     ]
-
-create :: App -> AWS ()
-create App{..} = do
-    (policy, trust) <- liftIO $ (,)
-        <$> Text.readFile aPolicy
-        <*> Text.readFile aTrust
-
-    i <- sendAsync $ CreateInstanceProfile role Nothing
-    r <- sendAsync $ CreateRole trust Nothing role
-    k <- sendAsync $ CreateKeyPair key
-
-    wait i >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
-    wait r >>= checkError (("EntityAlreadyExists" ==) . etCode . erError)
-    wait k >>= either exist write
-
-    -- Write key and upload to special S3 bucket?
-
-    a <- sendAsync $ AddRoleToInstanceProfile role role
-    p <- sendAsync $ PutRolePolicy policy role role
-
-    -- etCode = "LimitExceeded",
-    -- etMessage = "Cannot exceed quota for InstanceSessionsPerInstanceProfile: 1"
-    wait a >>= checkError (("LimitExceeded" ==) . etCode . erError)
-    waitAsync_ p <* logInfo "Updated policy for role {}" [role]
-  where
-    ASG{..} = versioned aName aEnv defaultVersion
-
-    exist e = do
-        checkError
-            (("InvalidKeyPair.Duplicate" ==) . ecCode . head . eerErrors)
-            (Left e)
-        logInfo "KeyPair {} exists, not updating." [key]
-
-    write k = do
-        liftIO . Text.writeFile path $ ckqKeyMaterial k
-        logInfo "Wrote new KeyPair to {}" [path]
-
-    path = Text.unpack $ key <> ".pem"
 
 deploy :: Deploy -> AWS ()
 deploy d@Deploy{..} = do
@@ -247,25 +185,18 @@ deploy d@Deploy{..} = do
 
     when (isJust g) $ throwErrorF "Auto Scaling Group {} already exists." [name]
 
+    k <- async $ createKey key
+    s <- async $ createGroup role (Just 8080)
     r <- sendAsync $ GetRole role
-    k <- sendAsync $ DescribeKeyPairs [key] []
     a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [image]]
-    s <- sendAsync $ CreateSecurityGroup role role Nothing
 
+    wait k
+    wait s <* logInfo "Found Security Group {}" [role]
     waitAsync_ r <* logInfo "Found Role {}" [role]
-    waitAsync_ k <* logInfo "Found KeyPair {}" [key]
 
     ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
         (fmap diritImageId . noteError "Failed to find any matching AMIs")
     logInfo "Found AMI {} named {}" [ami, image]
-
-    wait s >>= checkError (("InvalidGroup.Duplicate" ==) . ecCode . head . eerErrors)
-    logInfo "Found Security Group {}" [role]
-
-    i <- sendAsync $ AuthorizeSecurityGroupIngress Nothing (Just role)
-        [ IpPermissionType TCP 8080 8080
-            [UserIdGroupPair Nothing Nothing (Just role)] []
-        ]
 
     c <- sendAsync $ CreateLaunchConfiguration
         (Members [])
@@ -281,9 +212,6 @@ deploy d@Deploy{..} = do
         (Members [role]) -- Security Groups
         Nothing
         Nothing          -- User Data
-
-    wait i >>= checkError (("InvalidPermission.Duplicate" ==) . ecCode . head . eerErrors)
-    logInfo_ "Updated Security Group rules"
 
     wait c >>= checkError (("AlreadyExists" ==) . aseCode . aserError)
     logInfo "Created Launch Configuration {}" [name]

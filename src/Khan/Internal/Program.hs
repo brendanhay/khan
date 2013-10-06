@@ -68,7 +68,7 @@ defineOptions "Khan" $ do
     stringOption "kSecret" "secret-key" ""
         "AWS secret key."
 
-    regionOption "kRegion" "region" Ireland
+    regionOption "kRegion" "region" NorthCalifornia
         "Region to operate in."
 
 deriving instance Show Khan
@@ -77,7 +77,7 @@ initialise :: (Applicative m, MonadIO m) => Khan -> EitherT Error m Khan
 initialise k@Khan{..}
     | isJust kRole = right k
     | validKeys k  = right k
-    | otherwise    = lookupKeys >>= getRegion
+    | otherwise    = lookupKeys
   where
     lookupKeys = fmapLT toError . syncIO $ do
         acc <- env accessKey kAccess
@@ -87,16 +87,6 @@ initialise k@Khan{..}
         env k' v
             | null v    = fromMaybe "" <$> lookupEnv k'
             | otherwise = return v
-
-    getRegion k' = do
-        ec2 <- doesMetadataExist
-        if ec2
-            then do
-                az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
-                reg <- fmapLT toError $
-                    tryRead ("Failed to read region from: " ++ az) az
-                return $! k' { kRegion = reg }
-            else return k'
 
 instance Validate Khan where
     validate Khan{..} = do
@@ -129,7 +119,7 @@ subCommand :: (Show a, Options a, Discover a, Validate a)
 subCommand name action = Options.subcommand name run
   where
     run k o _ = do
-        khan@Khan{..} <- initialise k
+        khan@Khan{..} <- initialise =<< regionalise k
         validate khan
         logInfo "Setting region to {}..." [Shown kRegion]
         env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
@@ -142,6 +132,14 @@ subCommand name action = Options.subcommand name run
     creds Khan{..}
         | Just r <- kRole = FromRole $! encodeUtf8 r
         | otherwise       = FromKeys (BS.pack kAccess) (BS.pack kSecret)
+
+    regionalise k
+        | isNothing (kRole k) = return k
+        | otherwise = do
+              az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
+              reg <- fmapLT toError $
+                  tryRead ("Failed to read region from: " ++ az) az
+              return $! k { kRegion = reg }
 
 data Command = Command
     { cmdName :: String

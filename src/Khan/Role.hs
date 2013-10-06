@@ -62,12 +62,21 @@ instance Validate Role where
         checkPath rPolicy $ rPolicy ++ " specified by --policy must exist."
         checkPath rTrust $ rTrust ++ " specified by --trust must exist."
 
-defineOptions "Search" $ return ()
+defineOptions "Search" $ do
+    integerOption "sMax" "max" 8
+        "Pagination window size."
+
+    textOption "sPath" "path" "/"
+        "IAM path prefix to filter by."
 
 deriving instance Show Search
 
 instance Discover Search
-instance Validate Search
+
+instance Validate Search where
+    validate Search{..} = do
+        check sMax "--max must be greather than 0."
+        check sPath    "--path must be specified."
 
 command :: Command
 command = Command "role" "Manage IAM Roles."
@@ -99,12 +108,11 @@ command = Command "role" "Manage IAM Roles."
 
     search Search{..} = runEffect $ for (paginate start) (liftIO . display)
       where
-        start = ListRoles Nothing Nothing Nothing
+        start = ListRoles Nothing (Just sMax) (Just sPath)
 
         display (toList . lrrRoles . lrrListRolesResult -> rs) =
             unless (null rs) $ do
                 mapM_ (logInfo_ . Text.pack . ppShow) rs
                 logInfo_ "Press enter to continue..." >> void getLine
-
 
 -- Centralise name concat into Formatters.hs

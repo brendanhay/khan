@@ -89,7 +89,7 @@ defineOptions "Search" $ do
     textOption "sZone" "zone" ""
         "Name of the hosted zone to inspect."
 
-    intOption "sResults" "max" 4
+    integerOption "sMax" "max" 4
         "Pagination window size."
 
     textsOption "sNames" "name" []
@@ -134,9 +134,7 @@ command = Command "dns" "Manage DNS Records."
             mapM_ (logInfo_ . ppShow) rrs
             logInfo_ "Press enter to continue..." >> void getLine
 
-        start zid = ListResourceRecordSets zid Nothing Nothing Nothing results
-
-        results = Just $ fromIntegral sResults
+        start zid = ListResourceRecordSets zid Nothing Nothing Nothing (Just sMax)
 
         matching (lrrsrResourceRecordSets -> rr)
             | null sNames && null sValues = rr

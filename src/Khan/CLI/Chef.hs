@@ -86,7 +86,7 @@ instance Discover Launch where
             logInfo "Looking for AMIs matching: {}" [options]
             ami <- (listToMaybe . djImagesSet) <$>
                 send (DescribeImages [] [] ["self"] filters) >>=
-                noteError "Failed to find any AMIs"
+                noteError "Failed to find any matching AMIs"
             return $! l { lImage = diritImageId ami }
 
          options = Text.intercalate " | " images

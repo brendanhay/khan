@@ -36,6 +36,5 @@ main = runProgram
         , Group.cli
         , Metadata.cli
         , Profile.cli
-    --  , Artifact.cli
         ]
     ]

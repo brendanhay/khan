@@ -68,8 +68,8 @@ defineOptions "Record" $ do
 
 deriving instance Show Record
 
-instance Discover Record where
-    discover = return
+instance Discover Record
+--    discover = return
         -- get zone from tag
         -- get domain from tag
         -- get policy from tag

@@ -30,7 +30,8 @@ executable khan
     ghc-options:       -Wall -rtsopts -threaded
 
     build-depends:
-        amazonka
+        aeson
+      , amazonka
       , async
       , attoparsec
       , base              >= 4.6 && < 5

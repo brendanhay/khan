@@ -72,6 +72,9 @@ defineOptions "Khan" $ do
     regionOption "kRegion" "region" NorthCalifornia
         "Region to operate in."
 
+    boolOption "kDisco" "disco" False
+        "Auto-discover command line parameters."
+
 deriving instance Show Khan
 
 initialise :: (Applicative m, MonadIO m) => Khan -> EitherT Error m Khan
@@ -173,14 +176,10 @@ subCommand name action = Options.subcommand name run
         logInfo "Setting region to {}..." [Shown kRegion]
         env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
         res <- lift . runAWS env $ do
-            opts <- logDebug_ "Performing discovery..." >> discover o
+            opts <- disco kDisco o
             liftEitherT $ validate opts
             action opts
         hoistEither res
-
-    creds Khan{..}
-        | Just r <- kRole = FromRole $! encodeUtf8 r
-        | otherwise       = FromKeys (BS.pack kAccess) (BS.pack kSecret)
 
     regionalise k
         | isNothing (kRole k) = return k
@@ -189,3 +188,10 @@ subCommand name action = Options.subcommand name run
               reg <- fmapLT toError $
                   tryRead ("Failed to read region from: " ++ az) az
               return $! k { kRegion = reg }
+
+    creds Khan{..}
+        | Just r <- kRole = FromRole $! encodeUtf8 r
+        | otherwise       = FromKeys (BS.pack kAccess) (BS.pack kSecret)
+
+    disco True  = (logDebug_ "Performing discovery..." >>) . discover
+    disco False = (logDebug_ "Skipping discovery..." >>) . return

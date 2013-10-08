@@ -51,7 +51,7 @@ instance Naming Role where
 
 cli :: Command
 cli = Command "profile" "Manage IAM Roles and Profiles."
-    [ subCommand "show"   info
+    [ subCommand "info"   info
     , subCommand "create" create
     , subCommand "delete" delete
     ]

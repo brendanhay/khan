@@ -2,7 +2,6 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
 
 -- Module      : Khan.CLI.Metadata
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -17,39 +16,50 @@
 module Khan.CLI.Metadata (cli) where
 
 import           Control.Applicative
-import           Control.Error
-import qualified Data.ByteString.Char8    as BS
-import           Data.Text.Encoding
+import qualified Data.Text.Encoding       as Text
+import           Data.Text.Format
 import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 import           Text.Show.Pretty
-import qualified Khan.AWS.AutoScaling   as AutoScaling
-import qualified Khan.AWS.EC2           as EC2
-import qualified Khan.AWS.IAM           as IAM
 
-defineOptions "Describe" $
-    textOption "dInstanceId" "instance-id" ""
+defineOptions "Tags" $
+    textOption "dInstance" "instance-id" ""
         "Id of the instance to describe."
 
-deriving instance Show Describe
+deriving instance Show Tags
 
-instance Discover Describe where
-    discover d = liftEitherT $ do
-        iid <- decodeUtf8 <$> metadata InstanceId
-        return $! d { dInstanceId = iid }
+instance Discover Tags where
+    discover d
+        | not $ invalid (dInstance d) = return d
+        | otherwise = liftEitherT $ do
+            iid <- Text.decodeUtf8 <$> metadata InstanceId
+            return $! d { dInstance = iid }
 
-instance Validate Describe where
-    validate Describe{..} =
-        check dInstanceId "--instance-id must be specified."
+instance Validate Tags where
+    validate Tags{..} =
+        check dInstance "--instance-id must be specified."
+
+defineOptions "Local" $
+    textOption "dPath" "path" ""
+        "Metadata path to retrieve."
+
+deriving instance Show Local
+
+instance Discover Local
+
+instance Validate Local where
+    validate Local{..} =
+        check dPath "--path must be specified."
 
 cli :: Command
 cli = Command "metadata" "Manage Instance Metadata."
-    [ subCommand "describe" describe
+    [ subCommand "tags"  tags
     ]
-  where
-    describe d@Describe{..} = do
-        logInfo $ "Describing instance " ++ show d ++ "..."
-        res <- send $ DescribeTags [TagResourceId [dInstanceId]]
-        logInfo $ ppShow res
+
+tags :: Tags -> AWS ()
+tags Tags{..} = do
+    logInfo "Describing instance {}" [dInstance]
+    send (DescribeTags [TagResourceId [dInstance]]) >>=
+        logInfo "{}" . Only . ppShow

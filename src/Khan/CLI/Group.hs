@@ -45,7 +45,7 @@ instance Naming Group where
 
 cli :: Command
 cli = Command "group" "Manage security groups and rules."
-    [ subCommand "show"   info
+    [ subCommand "info"   info
     , subCommand "update" update
     , subCommand "delete" delete
     ]

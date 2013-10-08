@@ -178,15 +178,14 @@ deploy d@Deploy{..} = do
 
     when (isJust j) $ throwErrorF "Auto Scaling Group {} already exists." [appName]
 
-    r <- async $ IAM.findRole d
     k <- async $ EC2.createKey d
+    r <- async $ IAM.findRole d
     s <- async $ EC2.updateGroup (sshGroup dEnv) sshRules
     g <- async $ EC2.updateGroup d dRules
     a <- async $ EC2.findImage d
 
-    wait_ r <* logInfo "Found Role {}" [roleName]
     wait_ k
-
+    wait_ r <* logInfo "Found IAM Profile {}" [profileName]
     wait_ s <* logInfo "Found SSH Group {}" [sshGroup dEnv]
     wait_ g <* logInfo "Found App Group {}" [groupName]
 

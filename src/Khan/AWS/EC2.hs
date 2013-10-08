@@ -50,12 +50,12 @@ createKey (names -> Names{..}) =
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
 findGroup (names -> Names{..}) = do
     logInfo "Searching for group {}" [groupName]
-    mg <- fmap group . sendCatch $ DescribeSecurityGroups [groupName] [] []
+    mg <- fmap groupMay . sendCatch $ DescribeSecurityGroups [groupName] [] []
     when (isNothing mg) $ logInfo "Unable to find group {}" [groupName]
     return mg
   where
-    group (Right x) = headMay . toList $ dshrSecurityGroupInfo x
-    group (Left  _) = Nothing
+    groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
+    groupMay (Left  _) = Nothing
 
 updateGroup :: Naming a => a -> [IpPermissionType] -> AWS ()
 updateGroup (names -> n@Names{..}) rules =
@@ -137,9 +137,9 @@ tagInstances :: Naming a => a -> [Text] -> AWS ()
 tagInstances (names -> Names{..}) ids = do
     logInfo_ "Tagging instances with Group, Role, and Env..."
     send_ $ CreateTags ids
-        [ ResourceTagSetItemType "Group" groupName
+        [ ResourceTagSetItemType "Env" envName
         , ResourceTagSetItemType "Role" roleName
-        , ResourceTagSetItemType "Env" envName
+        , ResourceTagSetItemType "Profile" profileName
         ]
 
 waitForInstances :: [Text] -> AWS ()

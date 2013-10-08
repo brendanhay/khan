@@ -14,27 +14,12 @@
 
 module Khan.Internal.AWS where
 
-import           Control.Applicative
-import           Control.Arrow           ((***))
-import           Control.Concurrent      (threadDelay)
-import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Data.Foldable           (toList)
-import           Data.List               ((\\), partition)
-import           Data.Monoid
-import           Data.Text               (Text)
-import qualified Data.Text               as Text
-import qualified Data.Text.IO            as Text
-import           Khan.Internal.Log
-import           Khan.Internal.Types
-import           Network.AWS
-import           Network.AWS.AutoScaling hiding (Filter)
-import           Network.AWS.EC2
-import           Network.AWS.IAM
-import           Network.AWS.Internal
-import           Prelude                 hiding (min, max)
-import           System.Directory
+import Data.Monoid
+import Data.Text               (Text)
+import Network.AWS
+import Network.AWS.AutoScaling
+import Network.AWS.EC2
+import Network.AWS.IAM
 
 policyPath :: FilePath
 policyPath = "./config/role-policy.json"
@@ -43,7 +28,7 @@ trustPath :: FilePath
 trustPath = "./config/trust-relationship.json"
 
 sshGroup :: Text -> Text
-sshGroup = mappend "ssh-"
+sshGroup = (<> "-ssh")
 
 sshRules :: [IpPermissionType]
 sshRules = [IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]]

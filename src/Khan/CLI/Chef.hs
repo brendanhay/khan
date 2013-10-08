@@ -134,7 +134,7 @@ launch l@Launch{..} = do
     s <- async $ EC2.updateGroup (sshGroup lEnv) sshRules
     g <- async $ EC2.updateGroup l lRules
 
-    wait_ i <* logInfo "Found IAM Profile {}" [roleName]
+    wait_ i <* logInfo "Found IAM Profile {}" [profileName]
     wait_ k <* logInfo "Found KeyPair {}" [keyName]
     wait_ s <* logInfo "Found SSH Group {}" [sshGroup lEnv]
     wait_ g <* logInfo "Found Role Group {}" [groupName]
@@ -150,11 +150,8 @@ launch l@Launch{..} = do
 
     liftIO $ print rs
 
-    -- forM_ ids $ \m -> do
-    --     logInfo "Running User Data on {}..." [m]
-    --     ud <- liftAWS $ metadata UserData
-
---    logInfo "Triggering chef-client runs on {}..." [Text.intercalate ", " ids]
+    -- SSH into machine, wget Khan
+    -- run setup
   where
     Names{..} = names l
 

@@ -29,6 +29,7 @@ module Khan.Internal.Program
     , checkIO
     , checkPath
     , runProgram
+    , group
     , subCommand
     ) where
 
@@ -46,7 +47,7 @@ import           Khan.Internal.Options
 import           Khan.Internal.Types
 import           Network.AWS
 import           Network.AWS.EC2.Metadata
-import           Options                   hiding (boolOption, stringOption)
+import           Options                   hiding (group, boolOption, stringOption)
 import           System.Directory
 import           System.Environment
 import           System.Exit
@@ -110,6 +111,54 @@ checkIO io e = liftIO io >>= (`check` e)
 checkPath :: MonadIO m => FilePath -> String -> EitherT Error m ()
 checkPath p = checkIO (not <$> doesFileExist p)
 
+data Command = Command
+    { cmdName :: String
+    , cmdDesc :: String
+    , cmdSubs :: [SubCommand]
+    }
+
+runProgram :: [(String, [Command])] -> IO ()
+runProgram specs = do
+    args <- getArgs
+    case args of
+        []          -> help "Additional subcommand required."
+        (name:rest) -> maybe (help $ "Unknown subcommand \"" ++ name ++ "\".")
+            (run rest . cmdSubs) $ find ((== name) . cmdName) cmds
+  where
+    cmds = concatMap snd specs
+
+    run argv subs =
+        let parsed = parseSubcommand subs argv
+        in case parsedSubcommand parsed of
+            Just cmd -> runScript $ fmapLT awsError cmd <* logInfo_ "Exiting..."
+            Nothing  -> case parsedError parsed of
+                Just ex -> do
+                    putStrLn $ parsedHelp parsed
+                    putStrLn ex
+                    exitFailure
+                Nothing -> do
+                    putStrLn $ parsedHelp parsed
+                    exitSuccess
+
+    help msg = do
+        putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
+        forM_ specs $ \(k, cs) -> putStrLn . unlines $ k : map desc cs
+        putStrLn msg
+        exitFailure
+
+    desc Command{..} = concat
+        [ "  "
+        , cmdName
+        , replicate (28 - length cmdName) ' '
+        , cmdDesc
+        ]
+
+    awsError (Error s) = s
+    awsError (Ex e)    = show e
+
+group :: String -> [Command] -> (String, [Command])
+group = (,)
+
 type SubCommand = Subcommand Khan (EitherT Error IO ())
 
 subCommand :: (Show a, Options a, Discover a, Validate a)
@@ -140,45 +189,3 @@ subCommand name action = Options.subcommand name run
               reg <- fmapLT toError $
                   tryRead ("Failed to read region from: " ++ az) az
               return $! k { kRegion = reg }
-
-data Command = Command
-    { cmdName :: String
-    , cmdDesc :: String
-    , cmdSubs :: [SubCommand]
-    }
-
-runProgram :: [Command] -> [Command] -> IO ()
-runProgram wflow metal = do
-    args <- getArgs
-    case args of
-        []          -> help "Additional subcommand required."
-        (name:rest) -> maybe (help $ "Unknown subcommand \"" ++ name ++ "\".")
-            (run rest . cmdSubs) $ find ((== name) . cmdName) cmds
-  where
-    cmds = wflow ++ metal
-
-    run argv subs =
-        let parsed = parseSubcommand subs argv
-        in case parsedSubcommand parsed of
-            Just cmd -> runScript $ fmapLT awsError cmd <* logInfo_ "Exiting..."
-            Nothing  -> case parsedError parsed of
-                Just ex -> do
-                    putStrLn $ parsedHelp parsed
-                    putStrLn ex
-                    exitFailure
-                Nothing -> do
-                    putStrLn $ parsedHelp parsed
-                    exitSuccess
-
-    help msg = do
-        putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
-        putStrLn $ unlines ("Ephemeral:" : map desc wflow ++ [""])
-        putStrLn $ unlines ("Persistent:" : map desc metal ++ [""])
-        putStrLn msg
-        exitFailure
-
-    desc Command{..} =
-        "  " ++ cmdName ++ replicate (28 - length cmdName) ' ' ++ cmdDesc
-
-    awsError (Error s) = s
-    awsError (Ex e)    = show e

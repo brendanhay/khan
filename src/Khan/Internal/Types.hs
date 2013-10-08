@@ -67,13 +67,13 @@ instance Eq a => Invalid (Within a) where
     invalid (Within xs ys) = not . null $ xs \\ ys
 
 data Names = Names
-    { envName     :: Text
-    , keyName     :: Text
-    , roleName    :: Text
-    , profileName :: Text
-    , groupName   :: Text
-    , imageName   :: Text
-    , appName     :: Text
+    { envName     :: !Text
+    , keyName     :: !Text
+    , roleName    :: !Text
+    , profileName :: !Text
+    , groupName   :: !Text
+    , imageName   :: !Text
+    , appName     :: !Text
     }
 
 class Naming a where
@@ -86,20 +86,20 @@ instance Naming Text where
     names t = Names t t t t t t t
 
 unversioned :: Text -> Text -> Names
-unversioned role env = versioned role env defaultVersion
+unversioned name env = versioned name env defaultVersion
 
 versioned :: Text -> Text -> Version -> Names
-versioned role env ver = Names
+versioned name env ver = Names
     { envName     = env
-    , keyName     = "khan-" <> env
-    , roleName    = role
-    , profileName = roleEnv
-    , groupName   = roleEnv
-    , imageName   = Text.concat [role, "_", safeVersion ver]
-    , appName     = Text.concat [role, "-", env, "_", safeVersion ver]
+    , keyName     = env <> "-khan"
+    , roleName    = name
+    , profileName = nameEnv
+    , groupName   = nameEnv
+    , imageName   = Text.concat [name, "_", safeVersion ver]
+    , appName     = Text.concat [name, "-", env, "_", safeVersion ver]
     }
   where
-    roleEnv = Text.concat [role, "-", env]
+    nameEnv = Text.concat [env, "-", name]
 
 data RoutingPolicy
     = Failover

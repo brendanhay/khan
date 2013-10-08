@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.CLI.Role
+-- Module      : Khan.CLI.Profile
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Role (cli) where
+module Khan.CLI.Profile (cli) where
 
 import           Control.Monad.IO.Class
 import qualified Khan.AWS.IAM           as IAM
@@ -50,7 +50,7 @@ instance Naming Role where
     names Role{..} = unversioned rName rEnv
 
 cli :: Command
-cli = Command "role" "Manage IAM Roles."
+cli = Command "profile" "Manage IAM Roles and Profiles."
     [ subCommand "show"   info
     , subCommand "create" create
     , subCommand "delete" delete

@@ -22,11 +22,8 @@ import           Network.AWS
 import           Network.AWS.IAM
 
 findRole :: Naming a => a -> AWS Role
-findRole = fmap (grrRole . grrGetRoleResult)
-     . send
-     . GetRole
-     . groupName
-     . names
+findRole = fmap (grrRole . grrGetRoleResult) .
+    send . GetRole . groupName . names
 
 updateRole :: Naming a => a -> FilePath -> FilePath -> AWS ()
 updateRole (names -> Names{..}) ppath tpath = do
@@ -34,14 +31,14 @@ updateRole (names -> Names{..}) ppath tpath = do
         <$> Text.readFile ppath
         <*> Text.readFile tpath
 
-    i <- sendAsync $ CreateInstanceProfile roleName Nothing
-    r <- sendAsync $ CreateRole trust Nothing roleName
+    i <- sendAsync $ CreateInstanceProfile profileName Nothing
+    r <- sendAsync $ CreateRole trust Nothing profileName
 
     wait i >>= verifyIAM "EntityAlreadyExists"
     wait r >>= verifyIAM "EntityAlreadyExists"
 
-    a <- sendAsync $ AddRoleToInstanceProfile roleName roleName
-    p <- sendAsync $ PutRolePolicy policy roleName roleName
+    a <- sendAsync $ AddRoleToInstanceProfile profileName profileName
+    p <- sendAsync $ PutRolePolicy policy profileName profileName
 
     wait a >>= verifyIAM "LimitExceeded"
-    waitAsync_ p <* logInfo "Updated policy for Role {}" [roleName]
+    waitAsync_ p <* logInfo "Updated policy for Role {}" [profileName]

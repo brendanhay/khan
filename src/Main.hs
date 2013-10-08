@@ -10,35 +10,32 @@
 
 module Main (main) where
 
-import           Khan.Internal
+import Khan.Internal
 
 import qualified Khan.CLI.Application as Application
-import qualified Khan.CLI.Instance    as Instance
 import qualified Khan.CLI.Chef        as Chef
-
--- import qualified Khan.CLI.Artifact    as Artifact
--- import qualified Khan.CLI.Metadata    as Metadata
-
 import qualified Khan.CLI.DNS         as DNS
-import qualified Khan.CLI.Role        as Role
-import qualified Khan.CLI.Group    as Group
+import qualified Khan.CLI.Group       as Group
+import qualified Khan.CLI.Instance    as Instance
+import qualified Khan.CLI.Metadata    as Metadata
+import qualified Khan.CLI.Profile     as Profile
 
 main :: IO ()
 main = runProgram
-    [ Application.cli
-    , Instance.cli
-    ]
+    [ group "Ephemeral:"
+        [ Application.cli
+        , Instance.cli
+        ]
 
-    [ Chef.cli
-    , DNS.cli
-    , Role.cli
-    , Group.cli
-    ]
+    , group "Persistent:"
+        [ Chef.cli
+        ]
 
-    -- -- Low Level
-    -- [ Artifact.cli
-    -- , DNS.cli
-    -- , Metadata.cli
-    -- , Role.cli
-    -- , Security.cli
-    -- ]
+    , group "Direct:"
+        [ DNS.cli
+        , Group.cli
+        , Metadata.cli
+        , Profile.cli
+    --  , Artifact.cli
+        ]
+    ]

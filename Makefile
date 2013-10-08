@@ -10,7 +10,7 @@ build:
 	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS)))
 
 strip: build
-	strip -o khan dist/build/khan/khan && upx khan
+	strip -o dist/khan dist/build/khan/khan && upx dist/khan
 
 install: $(DEPS) cabal.sandbox.config add-sources
 	cabal install $(FLAGS)

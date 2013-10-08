@@ -39,7 +39,7 @@ defineOptions "Deploy" $ do
         "Version of the application."
 
     stringOption "dZones" "zones" "abc"
-         "Availability zones suffixes in which instances are provisioned."
+         "Availability zones suffixes to provision into."
 
     integerOption "dGrace" "grace" 20
         "Seconds until healthchecks are activated."
@@ -74,7 +74,8 @@ instance Validate Deploy where
         check dMin      "--min must be greater than 0."
         check dMax      "--max must be greater than 0."
         check dDesired  "--desired must be greater than 0."
-        check dCooldown "--cooldown must be greater than 0"
+        check dCooldown "--cooldown must be greater than 0."
+        check dZones    "--zones must be specified."
 
         check (not $ dMin < dMax)      "--min must be less than --max."
         check (not $ dDesired >= dMin) "--desired must be greater than or equal to --min."

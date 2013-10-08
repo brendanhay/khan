@@ -28,6 +28,7 @@ import qualified Khan.AWS.IAM           as IAM
 import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.EC2
+import           System.Random          (randomRIO)
 
 defineOptions "Launch" $ do
     textOption "lRole" "role" ""
@@ -63,6 +64,9 @@ defineOptions "Launch" $ do
     rulesOption "lRules" "rules"
         "IP permission specifications."
 
+    stringOption "lZones" "zones" "abc"
+         "Availability zones suffixes to provision into (psuedo-random)."
+
     -- Block Device Mappings
     -- Monitoring
     -- Disable Api Termination
@@ -97,8 +101,12 @@ instance Validate Launch where
         check lImage  "--image must be specified."
         check lMin    "--min must be greater than 0."
         check lMax    "--max must be greater than 0."
-        check (not $ lMin <= lMax) "--min must be less than or equal to --max."
-        checkPath lData $ lData ++ " specified by --user-data must exist."
+        check lData   "--user-data must be specified."
+        check lZones  "--zones must be specified."
+
+        check (not $ lMin <= lMax)    "--min must be less than or equal to --max."
+        checkPath lData $ lData ++    " specified by --user-data must exist."
+        check (Within lZones "abcde") "--zones must be within [a-e]."
 
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
@@ -130,15 +138,17 @@ launch l@Launch{..} = do
     wait_ k <* logInfo "Found KeyPair {}" [keyName]
     wait_ s <* logInfo "Found SSH Group {}" [sshGroup lEnv]
     wait_ g <* logInfo "Found Role Group {}" [groupName]
- 
-    ud  <- liftIO $ Text.decodeUtf8 . Base64.encode <$> BS.readFile lData
-    ids <- EC2.runInstances l lImage lType lMin lMax ud lOptimised
 
-    running <- EC2.waitForInstances ids
+    ud  <- liftIO $ Text.decodeUtf8 . Base64.encode <$> BS.readFile lData
+    az  <- shuffle lZones
+    reg <- currentRegion
+
+    ids <- EC2.runInstances l lImage lType (AZ reg az) lMin lMax ud lOptimised
+    rs  <- EC2.waitForInstances ids
 
     EC2.tagInstances l ids
 
-    liftIO $ print running
+    liftIO $ print rs
 
     -- forM_ ids $ \m -> do
     --     logInfo "Running User Data on {}..." [m]
@@ -153,3 +163,6 @@ run Target{..} = return ()
 
 stop :: Target -> AWS ()
 stop Target{..} = return ()
+
+shuffle :: MonadIO m => [a] -> m a
+shuffle xs = liftIO $ randomRIO (0, length xs - 1) >>= return . (xs !!)

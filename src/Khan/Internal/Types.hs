@@ -54,6 +54,9 @@ instance Invalid a => Invalid [a] where
     invalid [] = True
     invalid xs = invalid `any` xs
 
+instance Invalid Char where
+    invalid _ = False
+
 instance Invalid a => Invalid (Maybe a) where
     invalid (Just x) = invalid x
     invalid Nothing  = False

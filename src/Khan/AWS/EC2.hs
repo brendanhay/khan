@@ -103,12 +103,13 @@ runInstances :: Naming a
              => a
              -> Text
              -> InstanceType
+             -> AvailabilityZone
              -> Integer
              -> Integer
              -> Text
              -> Bool
              -> AWS [Text]
-runInstances (names -> Names{..}) image typ min max ud opt =
+runInstances (names -> Names{..}) image typ az min max ud opt =
     fmap (map riitInstanceId . rirInstancesSet) . send $ RunInstances
         image
         min
@@ -118,7 +119,7 @@ runInstances (names -> Names{..}) image typ min max ud opt =
         [groupName, sshGroup envName] -- Group Names
         (Just ud)                     -- User Data
         (Just typ)
-        Nothing
+        (Just $ PlacementType (Just az) Nothing Nothing)
         Nothing
         Nothing
         []                            -- Block Devices

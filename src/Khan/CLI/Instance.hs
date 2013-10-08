@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.Volume
+-- Module      : Khan.CLI.Instance
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,21 +14,9 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Volume (command) where
+module Khan.CLI.Instance (cli) where
 
-import           Control.Applicative
-import           Control.Concurrent     (threadDelay)
-import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Data.Text              (Text)
-import qualified Data.Text              as Text
-import           Khan.Internal
-import           Network.AWS
-import           Network.AWS.Route53
-import           Pipes
-import qualified Pipes.Prelude          as Pipes
-import           Text.Show.Pretty
+import Khan.Internal
 
 defineOptions "Group" $
     textOption "gName" "name" ""
@@ -39,11 +27,11 @@ deriving instance Show Group
 instance Discover Group
 instance Validate Group
 
-command :: Command
-command = Command "volume" "Manage EBS Volumes."
-    [ subCommand "backup" describe
-    , subCommand "attach"   modify
-    , subCommand "detach"   delete
+cli :: Command
+cli = Command "instance" "Manage EC2 Instances."
+    [ subCommand "describe" describe
+    , subCommand "modify"   modify
+    , subCommand "delete"   delete
     ]
   where
     describe Group{..} = return ()

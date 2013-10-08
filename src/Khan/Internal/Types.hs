@@ -20,7 +20,8 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Attoparsec.Text
 import           Data.Foldable                (Foldable, toList)
-import           Data.List                    ((\\), intercalate)
+import           Data.List                    ((\\))
+import           Data.Monoid
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
 import           Data.Version
@@ -62,6 +63,41 @@ data Within a = Within [a] [a]
 instance Eq a => Invalid (Within a) where
     invalid (Within xs ys) = not . null $ xs \\ ys
 
+data Names = Names
+    { envName     :: Text
+    , keyName     :: Text
+    , roleName    :: Text
+    , profileName :: Text
+    , groupName   :: Text
+    , imageName   :: Text
+    , appName     :: Text
+    }
+
+class Naming a where
+    names :: a -> Names
+
+instance Naming Names where
+    names = id
+
+instance Naming Text where
+    names t = Names t t t t t t t
+
+unversioned :: Text -> Text -> Names
+unversioned role env = versioned role env defaultVersion
+
+versioned :: Text -> Text -> Version -> Names
+versioned role env ver = Names
+    { envName     = env
+    , keyName     = "khan-" <> env
+    , roleName    = role
+    , profileName = roleEnv
+    , groupName   = roleEnv
+    , imageName   = Text.concat [role, "_", safeVersion ver]
+    , appName     = Text.concat [role, "-", env, "_", safeVersion ver]
+    }
+  where
+    roleEnv = Text.concat [role, "-", env]
+
 data RoutingPolicy
     = Failover
     | Latency
@@ -83,14 +119,36 @@ instance Show RoutingPolicy where
     show Weighted = "weighted"
     show Basic    = "basic"
 
-showRules :: Foldable f => f IpPermissionType -> String
-showRules = intercalate ", " . map rule . toList
+defaultEnv :: Text
+defaultEnv = "dev"
+
+defaultVersion :: Version
+defaultVersion = Version [0] []
+
+parseVersionE :: String -> Either String Version
+parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
+    . listToMaybe
+    . reverse
+    . readP_to_S parseVersion
+    $ map f s
   where
-    rule IpPermissionType{..} = intercalate ":"
-        [ show iptIpProtocol
-        , show iptFromPort
-        , show iptToPort
-        , Text.unpack $ fromMaybe "" groupOrRange
+    f '+' = '-'
+    f  c  = c
+
+safeVersion :: Version -> Text
+safeVersion = Text.map f . Text.pack . showVersion
+  where
+    f '-' = '/'
+    f  c  = c
+
+showRules :: Foldable f => f IpPermissionType -> Text
+showRules = Text.intercalate ", " . map rule . toList
+  where
+    rule IpPermissionType{..} = Text.intercalate ":"
+        [ Text.pack $ show iptIpProtocol
+        , Text.pack $ show iptFromPort
+        , Text.pack $ show iptToPort
+        , fromMaybe "" groupOrRange
         ]
       where
         groupOrRange =
@@ -129,25 +187,3 @@ parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0"
             "udp"  -> return UDP
             "icmp" -> return ICMP
             _      -> fail "Failed to parsed protocol"
-
-defaultEnv :: Text
-defaultEnv = "dev"
-
-defaultVersion :: Version
-defaultVersion = Version [0] []
-
-parseVersionE :: String -> Either String Version
-parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
-    . listToMaybe
-    . reverse
-    . readP_to_S parseVersion
-    $ map f s
-  where
-    f '+' = '-'
-    f  c  = c
-
-safeVersion :: Version -> Text
-safeVersion = Text.map f . Text.pack . showVersion
-  where
-    f '-' = '/'
-    f  c  = c

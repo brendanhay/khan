@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.Artifact
+-- Module      : Khan.CLI.Provision
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Artifact (command) where
+module Khan.CLI.Provision (cli) where
 
 import           Control.Applicative
 import           Control.Concurrent     (threadDelay)
@@ -30,33 +30,24 @@ import           Pipes
 import qualified Pipes.Prelude          as Pipes
 import           Text.Show.Pretty
 
-defineOptions "Object" $
-    textOption "oName" "name" ""
-        "Name of the object."
+defineOptions "Group" $
+    textOption "gName" "name" ""
+        "Name of the group."
 
-deriving instance Show Object
+deriving instance Show Group
 
-instance Discover Object
-instance Validate Object
+instance Discover Group
+instance Validate Group
 
-defineOptions "Bucket" $
-    textOption "bName" "name" ""
-        "Name of the bucket."
-
-deriving instance Show Bucket
-
-instance Discover Bucket
-instance Validate Bucket
-
-command :: Command
-command = Command "artifact" "Manage S3 Artifacts."
-    [ subCommand "put"  put
-    , subCommand "get"  get
-    , subCommand "sync" sync
+cli :: Command
+cli = Command "provision" "Provision EC2 instances."
+    [ subCommand "provision" describe
+    , subCommand "modify"   modify
+    , subCommand "delete"   delete
     ]
   where
-    put Object{..} = return ()
+    describe Group{..} = return ()
 
-    get Object{..} = return ()
+    modify Group{..} = return ()
 
-    sync Bucket{..} = return ()
+    delete Group{..} = return ()

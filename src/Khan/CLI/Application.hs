@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.Application
+-- Module      : Khan.CLI.Application
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,38 +14,19 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Application (command) where
+module Khan.CLI.Application (cli) where
 
 import           Control.Applicative
 import           Control.Concurrent      (threadDelay)
 import           Control.Error
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.Text               (Text)
-import qualified Data.Text               as Text
-import qualified Data.Text.IO            as Text
-import           Data.Version
-import           Khan.Groups
 import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
-import           Network.AWS.EC2
-import           Network.AWS.IAM
-import           Network.AWS.Internal
-
-data ASG = ASG
-    { name  :: !Text
-    , image :: !Text
-    , role  :: !Text
-    , key   :: !Text
-    }
-
-versioned :: Text -> Text -> Version -> ASG
-versioned app env ver = ASG name image role env
-  where
-    name  = Text.concat [role, "_", safeVersion ver]
-    image = Text.concat [app, "_", safeVersion ver]
-    role  = Text.concat [app, "-", env]
+import qualified Khan.AWS.AutoScaling   as ASG
+import qualified Khan.AWS.EC2           as EC2
+import qualified Khan.AWS.IAM           as IAM
 
 defineOptions "Deploy" $ do
     textOption "dName" "name" ""
@@ -78,6 +59,9 @@ defineOptions "Deploy" $ do
     instanceTypeOption "dType" "instance" M1_Medium
         "Type of instance to provision."
 
+    rulesOption "dRules" "rules"
+        "IP permission specifications."
+
 deriving instance Show Deploy
 
 instance Discover Deploy
@@ -98,6 +82,9 @@ instance Validate Deploy where
 
         check (Within dZones "abcde")      "--zones must be within [a-e]."
         check (defaultVersion == dVersion) "--version must be specified."
+
+instance Naming Deploy where
+    names Deploy{..} = versioned dName dEnv dVersion
 
 defineOptions "Scale" $ do
     textOption "sName" "name" ""
@@ -144,6 +131,9 @@ instance Validate Scale where
 
         check (defaultVersion == sVersion) "--version must be specified."
 
+instance Naming Scale where
+    names Scale{..} = versioned sName sEnv sVersion
+
 defineOptions "Cluster" $ do
     textOption "cName" "name" ""
         "Name of the application."
@@ -164,8 +154,11 @@ instance Validate Cluster where
         check cEnv  "--env must be specified."
         check (defaultVersion == cVersion) "--version must be specified."
 
-command :: Command
-command = Command "app" "Manage Applications."
+instance Naming Cluster where
+    names Cluster{..} = versioned cName cEnv cVersion
+
+cli :: Command
+cli = Command "app" "Manage Applications."
     [ subCommand "deploy" deploy
     , subCommand "scale"  scale
     , subCommand "retire" retire
@@ -175,117 +168,45 @@ command = Command "app" "Manage Applications."
 
 deploy :: Deploy -> AWS ()
 deploy d@Deploy{..} = do
-    g <- findGroup name
+    j <- ASG.findGroup d
 
-    when (Just "Delete in progress" == join (asgStatus <$> g)) $ do
-        logInfo "Waiting for previous deletion of Auto Scaling Group {}" [name]
+    when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
+        logInfo "Waiting for previous deletion of Auto Scaling Group {}" [appName]
         liftIO . threadDelay $ 10 * 1000000
         deploy d
 
-    when (isJust g) $ throwErrorF "Auto Scaling Group {} already exists." [name]
+    when (isJust j) $ throwErrorF "Auto Scaling Group {} already exists." [appName]
 
-    k <- async $ createKey key
-    s <- async $ createGroup role (Just 8080)
-    r <- sendAsync $ GetRole role
-    a <- sendAsync $ DescribeImages [] [] ["self"] [Filter "name" [image]]
+    r <- async $ IAM.findRole d
+    k <- async $ EC2.createKey d
+    s <- async $ EC2.updateGroup (sshGroup dEnv) sshRules
+    g <- async $ EC2.updateGroup d dRules
+    a <- async $ EC2.findImage d
 
-    wait k
-    wait s <* logInfo "Found Security Group {}" [role]
-    waitAsync_ r <* logInfo "Found Role {}" [role]
+    wait_ r <* logInfo "Found Role {}" [roleName]
+    wait_ k
 
-    ami <- (listToMaybe . djImagesSet <$> waitAsync a) >>=
-        (fmap diritImageId . noteError "Failed to find any matching AMIs")
-    logInfo "Found AMI {} named {}" [ami, image]
+    wait_ s <* logInfo "Found SSH Group {}" [sshGroup dEnv]
+    wait_ g <* logInfo "Found App Group {}" [groupName]
 
-    c <- sendAsync $ CreateLaunchConfiguration
-        (Members [])
-        Nothing
-        (Just role)      -- IAM Role
-        ami              -- Image Id
-        Nothing
-        dType            -- Instance Type
-        Nothing
-        (Just key)      -- Key Pair Name
-        name             -- Launch Configuration Name
-        Nothing
-        (Members [role]) -- Security Groups
-        Nothing
-        Nothing          -- User Data
-
-    wait c >>= verifyAS "AlreadyExists"
-    logInfo "Created Launch Configuration {}" [name]
+    ami <- wait a
+    logInfo "Found AMI {} named {}" [ami, imageName]
 
     reg <- currentRegion
 
-    send_ $ CreateAutoScalingGroup
-        name                            -- Name
-        (Members $ map (AZ reg) dZones) -- Zones
-        (Just dCooldown)                -- Default Cooldown
-        (Just dDesired)                 -- Desired Capacity
-        (Just dGrace)                   -- Grace Period
-        (Just "EC2")                    -- Health Check Type: EC2 | ELB
-        name                            -- Launch Configuration Name
-        (Members [])
-        dMax
-        dMin
-        Nothing
-        (Members [tag "Name" name])     -- Tags
-        (Members [])
-        Nothing
-
-    logInfo "Created Auto Scaling Group {}" [name]
-
-    -- Create and update level2 'name' DNS SRV record
-
-    -- Health checks, monitoring, statistics
+    ASG.createConfig d ami dType
+    ASG.createGroup d (map (AZ reg) dZones) dCooldown dDesired dGrace dMin dMax
   where
-    ASG{..} = versioned dName dEnv dVersion
-
-    tag k v = Tag k
-       (Just True)
-       (Just name)
-       (Just "auto-scaling-group")
-       (Just v)
+    Names{..} = names d
 
 scale :: Scale -> AWS ()
-scale Scale{..} = do
-    AutoScalingGroup{..} <- findGroup name >>=
-        noteErrorF "Auto Scaling Group %s doesn't exist." [name]
-
-    send_ $ UpdateAutoScalingGroup
-        name
-        (Members asgAvailabilityZones)
-        sCooldown
-        sDesired
-        sGrace
-        Nothing
-        Nothing
-        sMax
-        sMin
-        Nothing
-        (Members asgTerminationPolicies)
-        Nothing
-
-    logInfo "Updated Auto Scaling Group {}" [name]
-  where
-    ASG{..} = versioned sName sEnv sVersion
+scale s@Scale{..} = ASG.updateGroup s sCooldown sDesired sGrace sMin sMax
 
 retire :: Cluster -> AWS ()
-retire Cluster{..} = do
-    send_ $ DeleteAutoScalingGroup name (Just True)
-    logInfo "Delete of Auto Scaling Group {} in progress" [name]
-    send_ $ DeleteLaunchConfiguration name
-    logInfo "Deleted Launch Configuration {}" [name]
-  where
-    ASG{..} = versioned cName cEnv cVersion
+retire c@Cluster{..} = ASG.deleteGroup c >> ASG.deleteConfig c
 
 info :: Cluster -> AWS ()
 info Cluster{..} = return ()
 
 route :: Cluster -> AWS ()
 route Cluster{..} = return ()
-
-findGroup :: Text -> AWS (Maybe AutoScalingGroup)
-findGroup name = fmap
-    (listToMaybe . members . dasgrAutoScalingGroups . dashrDescribeAutoScalingGroupsResult)
-    (send $ DescribeAutoScalingGroups (Members [name]) Nothing Nothing)

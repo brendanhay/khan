@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.DNS
+-- Module      : Khan.CLI.DNS
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.DNS (command) where
+module Khan.CLI.DNS (cli) where
 
 import           Control.Applicative
 import           Control.Concurrent     (threadDelay)
@@ -106,44 +106,46 @@ instance Validate Search where
     validate Search{..} =
         check sZone "--zone must be specified."
 
-command :: Command
-command = Command "dns" "Manage DNS Records."
+cli :: Command
+cli = Command "dns" "Manage DNS Records."
     [ subCommand "create" $ modify CreateAction
     , subCommand "delete" $ modify DeleteAction
     , subCommand "search" search
     ]
+
+modify :: ChangeAction -> Record -> AWS ()
+modify act r@Record{..} = do
+    zid <- findZoneId rZone
+    chg <- send . ChangeResourceRecordSets zid $
+        ChangeBatch Nothing [Change act $ recordSet zid r]
+    waitChange $ crrsrChangeInfo chg
   where
-    modify act r@Record{..} = do
-        zid <- findZoneId rZone
-        chg <- send . ChangeResourceRecordSets zid $
-            ChangeBatch Nothing [Change act $ recordSet zid r]
-        waitChange $ crrsrChangeInfo chg
-      where
-        waitChange c@ChangeInfo{..} = case ciStatus of
-            INSYNC  -> logInfo_ $ "Change " ++ show ciId ++ " INSYNC."
-            PENDING -> do
-                logInfo "Waiting for change {}" (Only $ Shown ciId)
-                liftIO . threadDelay $ 10 * 1000000
-                send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
+    waitChange ChangeInfo{..} = case ciStatus of
+        INSYNC  -> logInfo "Change {} INSYNC." [show ciId]
+        PENDING -> do
+            logInfo "Waiting for change {}" [Shown ciId]
+            liftIO . threadDelay $ 10 * 1000000
+            send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
 
-    search Search{..} = do
-        zid <- findZoneId sZone
-        runEffect $ for (paginate $ start zid) (liftIO . display)
-      where
-        display (matching -> rrs) = unless (null rrs) $ do
-            mapM_ (logInfo_ . ppShow) rrs
-            logInfo_ "Press enter to continue..." >> void getLine
+search :: Search -> AWS ()
+search Search{..} = do
+    zid <- findZoneId sZone
+    runEffect $ for (paginate $ start zid) (liftIO . display)
+  where
+    display (matching -> rrs) = unless (null rrs) $ do
+        mapM_ (putStrLn . ppShow) rrs
+        logInfo_ "Press enter to continue..." >> void getLine
 
-        start zid = ListResourceRecordSets zid Nothing Nothing Nothing (Just sMax)
+    start zid = ListResourceRecordSets zid Nothing Nothing Nothing (Just sMax)
 
-        matching (lrrsrResourceRecordSets -> rr)
-            | null sNames && null sValues = rr
-            | otherwise = filter (\x -> ns x || vs x) rr
+    matching (lrrsrResourceRecordSets -> rr)
+        | null sNames && null sValues = rr
+        | otherwise = filter (\x -> ns x || vs x) rr
 
-        ns = (`match` sNames) . rrsName
-        vs = any (`match` sValues) . rrValues . rrsResourceRecords
+    ns = (`match` sNames) . rrsName
+    vs = any (`match` sValues) . rrValues . rrsResourceRecords
 
-        match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
+    match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
 
 findZoneId :: Text -> AWS HostedZoneId
 findZoneId name = do

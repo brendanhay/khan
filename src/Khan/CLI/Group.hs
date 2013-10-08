@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.Instance
+-- Module      : Khan.CLI.Group
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,40 +14,47 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Instance (command) where
+module Khan.CLI.Group (cli) where
 
-import           Control.Applicative
-import           Control.Concurrent     (threadDelay)
-import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Data.Text              (Text)
-import qualified Data.Text              as Text
+import qualified Khan.AWS.EC2     as EC2
 import           Khan.Internal
 import           Network.AWS
-import           Network.AWS.Route53
 import           Pipes
-import qualified Pipes.Prelude          as Pipes
 import           Text.Show.Pretty
 
-defineOptions "Group" $
+defineOptions "Group" $ do
     textOption "gName" "name" ""
-        "Name of the group."
+        "A name."
+
+    textOption "gEnv" "env" defaultEnv
+        "Environment of the group."
+
+    rulesOption "gRules" "rules"
+        "IP permission specifications."
 
 deriving instance Show Group
 
 instance Discover Group
-instance Validate Group
 
-command :: Command
-command = Command "instance" "Manage EC2 Instances."
-    [ subCommand "describe" describe
-    , subCommand "modify"   modify
-    , subCommand "delete"   delete
+instance Validate Group where
+    validate Group{..} =
+        check gName  "--name must be specified."
+
+instance Naming Group where
+    names Group{..} = unversioned gName gEnv
+
+cli :: Command
+cli = Command "group" "Manage security groups and rules."
+    [ subCommand "show"   info
+    , subCommand "update" update
+    , subCommand "delete" delete
     ]
-  where
-    describe Group{..} = return ()
 
-    modify Group{..} = return ()
+info :: Group -> AWS ()
+info g = EC2.findGroup g >>= liftIO . putStrLn . ppShow
 
-    delete Group{..} = return ()
+update :: Group -> AWS ()
+update g = EC2.updateGroup g (gRules g)
+
+delete :: Group -> AWS ()
+delete = EC2.deleteGroup

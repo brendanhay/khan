@@ -12,30 +12,33 @@ module Main (main) where
 
 import           Khan.Internal
 
-import qualified Khan.Application as Application
-import qualified Khan.Instance    as Instance
-import qualified Khan.Chef        as Chef
+import qualified Khan.CLI.Application as Application
+import qualified Khan.CLI.Instance    as Instance
+import qualified Khan.CLI.Chef        as Chef
 
--- import qualified Khan.Artifact    as Artifact
--- import qualified Khan.DNS         as DNS
--- import qualified Khan.Metadata    as Metadata
-import qualified Khan.Role        as Role
--- import qualified Khan.Security    as Security
+-- import qualified Khan.CLI.Artifact    as Artifact
+-- import qualified Khan.CLI.Metadata    as Metadata
+
+import qualified Khan.CLI.DNS         as DNS
+import qualified Khan.CLI.Role        as Role
+import qualified Khan.CLI.Group    as Group
 
 main :: IO ()
 main = runProgram
-    [ Application.command
-    , Instance.command
+    [ Application.cli
+    , Instance.cli
     ]
 
-    [ Chef.command
-    , Role.command
+    [ Chef.cli
+    , DNS.cli
+    , Role.cli
+    , Group.cli
     ]
 
     -- -- Low Level
-    -- [ Artifact.command
-    -- , DNS.command
-    -- , Metadata.command
-    -- , Role.command
-    -- , Security.command
+    -- [ Artifact.cli
+    -- , DNS.cli
+    -- , Metadata.cli
+    -- , Role.cli
+    -- , Security.cli
     -- ]

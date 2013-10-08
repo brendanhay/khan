@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 
--- Module      : Khan.Metadata
+-- Module      : Khan.CLI.Metadata
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Metadata (command) where
+module Khan.CLI.Metadata (cli) where
 
 import           Control.Applicative
 import           Control.Error
@@ -25,6 +25,9 @@ import           Network.AWS
 import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 import           Text.Show.Pretty
+import qualified Khan.AWS.AutoScaling   as AutoScaling
+import qualified Khan.AWS.EC2           as EC2
+import qualified Khan.AWS.IAM           as IAM
 
 defineOptions "Describe" $
     textOption "dInstanceId" "instance-id" ""
@@ -41,8 +44,8 @@ instance Validate Describe where
     validate Describe{..} =
         check dInstanceId "--instance-id must be specified."
 
-command :: Command
-command = Command "metadata" "Manage Instance Metadata."
+cli :: Command
+cli = Command "metadata" "Manage Instance Metadata."
     [ subCommand "describe" describe
     ]
   where

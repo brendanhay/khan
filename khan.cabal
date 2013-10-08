@@ -34,6 +34,7 @@ executable khan
       , async
       , attoparsec
       , base              >= 4.6 && < 5
+      , base64-bytestring
       , bytestring
       , directory
       , errors

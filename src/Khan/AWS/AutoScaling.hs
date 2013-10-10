@@ -14,12 +14,13 @@
 
 module Khan.AWS.AutoScaling where
 
-import Data.Text               (Text)
-import Khan.Internal
-import Network.AWS
-import Network.AWS.Internal
-import Network.AWS.AutoScaling hiding (Filter)
-import Prelude                 hiding (min, max)
+import           Data.Text               (Text)
+import qualified Data.Text               as Text
+import           Khan.Internal
+import           Network.AWS
+import           Network.AWS.AutoScaling hiding (Filter)
+import           Network.AWS.Internal
+import           Prelude                 hiding (min, max)
 
 createConfig :: Naming a => a -> Text -> InstanceType -> AWS ()
 createConfig (names -> Names{..}) ami typ = do
@@ -52,6 +53,7 @@ findGroup (names -> Names{..}) = fmap
 
 createGroup :: Naming a
             => a
+            -> Text
             -> [AvailabilityZone]
             -> Integer
             -> Integer
@@ -59,7 +61,8 @@ createGroup :: Naming a
             -> Integer
             -> Integer
             -> AWS ()
-createGroup (names -> Names{..}) zones cool desired grace min max = do
+createGroup (names -> n@Names{..}) dom zones cool desired grace min max = do
+    reg <- currentRegion
     send_ $ CreateAutoScalingGroup
         appName                        -- Name
         (Members zones)                -- Zones
@@ -72,18 +75,23 @@ createGroup (names -> Names{..}) zones cool desired grace min max = do
         max
         min
         Nothing
-        (Members [tag "Name" appName]) -- Tags
+        (Members $ tags reg) -- Tags
         (Members [])
         Nothing
     logInfo "Created Auto Scaling Group {}" [appName]
     -- Create and update level2 'name' DNS SRV record
     -- Health checks, monitoring, statistics
   where
-    tag k v = Tag k
-       (Just True)
-       (Just appName)
-       (Just "auto-scaling-group")
-       (Just v)
+    tags r = map (uncurry tag) $
+        (discoTag, Text.concat [appName, ".", reg]) : requiredTags n dom
+      where
+        tag k v = Tag k
+           (Just True)
+           (Just appName)
+           (Just "auto-scaling-group")
+           (Just v)
+
+        reg = Text.pack $ show r
 
 updateGroup :: Naming a
             => a

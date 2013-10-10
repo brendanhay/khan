@@ -74,7 +74,31 @@ data Names = Names
     , groupName   :: !Text
     , imageName   :: !Text
     , appName     :: !Text
+    , versionName :: Maybe Text
     }
+
+createNames :: Text -> Text -> Maybe Version -> Names
+createNames role env ver = Names
+    { envName     = env
+    , keyName     = env <> "-khan"
+    , roleName    = role
+    , profileName = nameEnv
+    , groupName   = nameEnv
+    , imageName   = role <> tver
+    , appName     = Text.concat [role, tver, ".", env]
+    , versionName = mver
+    }
+  where
+    nameEnv = Text.concat [env, "-", role]
+
+    tver = maybe "" ("-" <>) mver
+    mver = safeVersion <$> ver
+
+unversioned :: Text -> Text -> Names
+unversioned role env = createNames role env Nothing
+
+versioned :: Text -> Text -> Version -> Names
+versioned role env = createNames role env . Just
 
 class Naming a where
     names :: a -> Names
@@ -83,23 +107,7 @@ instance Naming Names where
     names = id
 
 instance Naming Text where
-    names t = Names t t t t t t t
-
-unversioned :: Text -> Text -> Names
-unversioned name env = versioned name env defaultVersion
-
-versioned :: Text -> Text -> Version -> Names
-versioned name env ver = Names
-    { envName     = env
-    , keyName     = env <> "-khan"
-    , roleName    = name
-    , profileName = nameEnv
-    , groupName   = nameEnv
-    , imageName   = Text.concat [name, "_", safeVersion ver]
-    , appName     = Text.concat [name, "-", env, "_", safeVersion ver]
-    }
-  where
-    nameEnv = Text.concat [env, "-", name]
+    names t = Names t t t t t t t Nothing
 
 data RoutingPolicy
     = Failover

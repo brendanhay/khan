@@ -25,7 +25,7 @@ import           Network.AWS.EC2.Metadata
 import           Text.Show.Pretty
 
 defineOptions "Tags" $
-    textOption "dInstance" "instance-id" ""
+    textOption "dInstance" "id" ""
         "Id of the instance to describe."
 
 deriving instance Show Tags

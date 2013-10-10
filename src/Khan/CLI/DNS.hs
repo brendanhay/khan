@@ -30,11 +30,8 @@ import qualified Pipes.Prelude          as Pipes
 import           Text.Show.Pretty
 
 defineOptions "Record" $ do
-    textOption "rZone" "zone" ""
+    textOption "rZone" "domain" ""
         "Name of the hosted zone to modify."
-
-    textOption "rDomain" "domain" ""
-        "Domain name of the existing or new record set."
 
     recordTypeOption "rRecordType" "type" CNAME
         "Record set type."
@@ -71,7 +68,6 @@ deriving instance Show Record
 instance Discover Record
 --    discover = return
         -- get zone from tag
-        -- get domain from tag
         -- get policy from tag
         -- get set-id from tag
         -- get region from metadata
@@ -80,13 +76,12 @@ instance Discover Record
 instance Validate Record where
     validate Record{..} = do
         check rZone   "--zone must be specified."
-        check rDomain "--domain must be specified."
         check rValues "At least one --value must be specified."
         check (rPolicy /= Basic && Text.null rSetId)
             "--set-id must be specified for all non-basic routing policies."
 
 defineOptions "Search" $ do
-    textOption "sZone" "zone" ""
+    textOption "sZone" "domain" ""
         "Name of the hosted zone to inspect."
 
     integerOption "sMax" "max" 4
@@ -164,15 +159,15 @@ recordSet zid Record{..} = mk rPolicy rAlias
     mk Failover True  = aset FailoverAliasRecordSet rFailover
     mk Latency  True  = aset LatencyAliasRecordSet  rRegion
     mk Weighted True  = aset WeightedAliasRecordSet weight
-    mk Basic    True  = AliasRecordSet rDomain rRecordType tgt health
+    mk Basic    True  = AliasRecordSet rZone rRecordType tgt health
 
     mk Failover False = rset FailoverRecordSet rFailover
     mk Latency  False = rset LatencyRecordSet  rRegion
     mk Weighted False = rset WeightedRecordSet weight
-    mk Basic    False = BasicRecordSet rDomain rRecordType rTTL rrs health
+    mk Basic    False = BasicRecordSet rZone rRecordType rTTL rrs health
 
-    aset x y = x rDomain rRecordType rSetId y tgt health
-    rset x y = x rDomain rRecordType rSetId y rTTL rrs health
+    aset x y = x rZone rRecordType rSetId y tgt health
+    rset x y = x rZone rRecordType rSetId y rTTL rrs health
 
     tgt = AliasTarget zid (head rValues) False
     rrs = ResourceRecords rValues

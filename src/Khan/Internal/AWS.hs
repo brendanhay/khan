@@ -16,6 +16,7 @@ module Khan.Internal.AWS where
 
 import Data.Monoid
 import Data.Text               (Text)
+import Khan.Internal.Types
 import Network.AWS
 import Network.AWS.AutoScaling
 import Network.AWS.EC2
@@ -35,6 +36,21 @@ sshRules = [IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]]
 
 certPath :: FilePath
 certPath = "./cert"
+
+envTag, roleTag, nameTag, versionTag, discoTag, domainTag :: Text
+envTag     = "Env"
+roleTag    = "Role"
+nameTag    = "Name"
+versionTag = "Version"
+discoTag   = "Discovery"
+domainTag  = "Domain"
+
+requiredTags :: Names -> Text -> [(Text, Text)]
+requiredTags Names{..} dom =
+    [ (roleTag, roleName)
+    , (envTag, envName)
+    , (domainTag, dom)
+    ] ++ maybe [] (\v -> [(versionTag, v)]) versionName
 
 verifyAS :: Text -> Either AutoScalingErrorResponse a -> AWS ()
 verifyAS  = (`verify` (aseCode . aserError))

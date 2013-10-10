@@ -37,6 +37,7 @@ executable khan
       , base              >= 4.6 && < 5
       , base64-bytestring
       , bytestring
+      , containers
       , directory
       , errors
       , options

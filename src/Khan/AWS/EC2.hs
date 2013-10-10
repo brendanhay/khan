@@ -133,14 +133,11 @@ runInstances (names -> Names{..}) image typ az min max ud opt =
         [IamInstanceProfileRequestType Nothing (Just profileName)]
         (Just opt)
 
-tagInstances :: Naming a => a -> [Text] -> AWS ()
-tagInstances (names -> Names{..}) ids = do
+tagInstances :: Naming a => a -> Text -> [Text] -> AWS ()
+tagInstances (names -> n) dom ids = do
     logInfo_ "Tagging instances with Group, Role, and Env..."
-    send_ $ CreateTags ids
-        [ ResourceTagSetItemType "Env" envName
-        , ResourceTagSetItemType "Role" roleName
-        , ResourceTagSetItemType "Profile" profileName
-        ]
+    send_ . CreateTags ids . map (uncurry ResourceTagSetItemType) $
+        requiredTags n dom
 
 waitForInstances :: [Text] -> AWS ()
 waitForInstances []  = logInfo_ "All instances running"
@@ -162,10 +159,13 @@ waitForInstances ids = do
 
     format  = Text.intercalate ", "
 
-findImage :: Naming a => a -> AWS Text
-findImage (names -> Names{..}) = do
+findImage :: [Text] -> AWS Text
+findImage images = do
+    logInfo "Looking for AMIs matching: {}" [options]
     rs  <- fmap (listToMaybe . djImagesSet) . send $
-        DescribeImages [] [] ["self"] [Filter "name" [imageName]]
+        DescribeImages [] [] ["self"] [Filter "name" images]
     ami <- fmap diritImageId $ noteError "Failed to find any matching AMIs" rs
-    logInfo "Found AMI {} named {}" [ami, imageName]
+    logInfo "Found AMI {} matching {}" [ami, options]
     return ami
+  where
+    options = Text.intercalate " | " images

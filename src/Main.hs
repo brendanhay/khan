@@ -10,21 +10,20 @@
 
 module Main (main) where
 
-import Khan.Internal
-
 import qualified Khan.CLI.Application as Application
 import qualified Khan.CLI.Chef        as Chef
 import qualified Khan.CLI.DNS         as DNS
 import qualified Khan.CLI.Group       as Group
-import qualified Khan.CLI.Instance    as Instance
+import qualified Khan.CLI.Host        as Host
 import qualified Khan.CLI.Metadata    as Metadata
 import qualified Khan.CLI.Profile     as Profile
+import           Khan.Internal
 
 main :: IO ()
 main = runProgram
     [ group "Ephemeral:"
         [ Application.cli
-        , Instance.cli
+        , Host.cli
         ]
 
     , group "Persistent:"

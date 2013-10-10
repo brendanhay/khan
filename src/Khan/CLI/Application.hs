@@ -176,13 +176,14 @@ deploy d@Deploy{..} = do
         liftIO . threadDelay $ 10 * 1000000
         deploy d
 
-    when (isJust j) $ throwErrorF "Auto Scaling Group {} already exists." [appName]
+    when (isJust j) $
+        throwErrorF "Auto Scaling Group {} already exists." [appName]
 
     k <- async $ EC2.createKey d
     r <- async $ IAM.findRole d
     s <- async $ EC2.updateGroup (sshGroup dEnv) sshRules
     g <- async $ EC2.updateGroup d dRules
-    a <- async $ EC2.findImage d
+    a <- async $ EC2.findImage [imageName]
 
     wait_ k
     wait_ r <* logInfo "Found IAM Profile {}" [profileName]

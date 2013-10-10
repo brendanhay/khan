@@ -16,6 +16,7 @@
 
 module Khan.CLI.Host (cli) where
 
+import Data.Foldable (foldl')
 import           Control.Applicative
 import           Control.Error
 import           Control.Monad
@@ -67,57 +68,55 @@ register Host{..} = do
     dom  <- required domainTag ts
     zid  <- R53.findZoneId dom
 
---    either (const Nothing) Just $ Map.lookup versionTag ts
-
     let ver   = join $ parse <$> Map.lookup versionTag ts
         disco = Map.lookup discoTag ts
-        names = maybe (unversioned role env) (versioned role env) ver
+        ns    = maybe (unversioned role env) (versioned role env) ver
 
-    maybe (persistent names zid dom) (ephemeral names zid) disco
+    maybe (persistent ns zid dom) (ephemeral ns zid) disco
   where
     toMap = Map.fromList
         . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
         . dtagsrTagSet
 
-    required k m = noteError ("Non-existent tag: " ++ Text.unpack k ++ " in: " ++ show m) $
-        Map.lookup k m
+    required k m = noteError
+        ("Non-existent tag: " ++ Text.unpack k ++ " in: " ++ show m) $
+            Map.lookup k m
 
     parse = hush . parseVersionE . Text.unpack
 
+    -- FIXME: Create and assign health check
+    -- FIXME: Handle errors retries gracefully
     persistent Names{..} zid dom = do
         fqdn <- Text.decodeUtf8 <$> liftEitherT (metadata PublicHostname)
-        mset <- R53.findRecordSet zid $ exists fqdn
-        unless (isJust mset) $ create fqdn
+        sets <- matching appName
+        unless (any (exists fqdn) sets) $
+            create fqdn sets
       where
+        matching name = Pipes.toListM $ paginate start
+            >-> Pipes.map lrrsrResourceRecordSets
+            >-> Pipes.concat
+            >-> Pipes.filter ((name ==) . Text.takeWhile (/= '.') . rrsName)
+
+        start = ListResourceRecordSets zid Nothing Nothing Nothing Nothing
+
         exists v LatencyRecordSet{..} = any (== v) $ rrValues rrsResourceRecords
         exists _ _                    = False
 
-        create fqdn = do
+        create fqdn sets = do
             reg <- currentRegion
-            n   <- (Text.pack . show . (+ 1)) <$> ordinal
-
-            let name  = Text.concat [appName, n, ".", R53.abbreviate reg]
+            let n     = Text.pack . show $ 1 + foldl' newest 0 sets
+                name  = Text.concat [appName, n, ".", R53.abbreviate reg]
                 value = ResourceRecords [fqdn]
                 set   = LatencyRecordSet name CNAME appName reg 60 value Nothing
-
             R53.updateRecordSet zid [Change CreateAction set]
 
-        ordinal = fmap (fromMaybe 0) . Pipes.fold newest Nothing id $
-            paginate (ListResourceRecordSets zid Nothing Nothing Nothing Nothing)
-                >-> Pipes.map (map rrsName . lrrsrResourceRecordSets)
-                >-> Pipes.concat
-                >-> Pipes.filter ((appName ==) . Text.takeWhile (/= '.'))
-
-        newest x a = Just $ maybe (int a) (max (int a)) x
+        newest acc x = max (int $ rrsName x) acc
 
         int = fromMaybe (0 :: Integer)
             . readMay
             . (:[])
             . Text.last
             . Text.takeWhile (/= '.')
-
-        -- Create and assign health check
-        -- Handle errors retries gracefully
 
     ephemeral Names{..} zid dns = do
       --   mset <- R53.findRecordSet zid dns

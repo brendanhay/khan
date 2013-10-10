@@ -35,6 +35,11 @@ defineOptions "Deploy" $ do
     textOption "dEnv" "env" defaultEnv
         "Environment to deploy the application into."
 
+    textOption "dDomain" "domain" ""
+        "Instance's DNS domain."
+
+-- FIXME: Add port(s) option, and apply to tags
+
     versionOption "dVersion" "version" defaultVersion
         "Version of the application."
 
@@ -70,6 +75,7 @@ instance Validate Deploy where
     validate Deploy{..} = do
         check dName     "--name must be specified."
         check dEnv      "--env must be specified."
+        check dDomain   "--domain must be specified."
         check dGrace    "--grace must be greater than 0."
         check dMin      "--min must be greater than 0."
         check dMax      "--max must be greater than 0."
@@ -130,6 +136,7 @@ instance Validate Scale where
         check (not $ sDesired >= sMin) "--desired must be greater than or equal to --min."
         check (not $ sDesired <= sMax) "--desired must be less than or equal to --max."
 
+
         check (defaultVersion == sVersion) "--version must be specified."
 
 instance Naming Scale where
@@ -164,7 +171,7 @@ cli = Command "app" "Manage Applications."
     , subCommand "scale"  scale
     , subCommand "retire" retire
     , subCommand "info"   info
-    , subCommand "route"  route
+    , subCommand "promote"  promote
     ]
 
 deploy :: Deploy -> AWS ()
@@ -195,8 +202,10 @@ deploy d@Deploy{..} = do
 
     reg <- currentRegion
 
+    let zones = map (AZ reg) dZones
+
     ASG.createConfig d ami dType
-    ASG.createGroup d (map (AZ reg) dZones) dCooldown dDesired dGrace dMin dMax
+    ASG.createGroup d dDomain zones dCooldown dDesired dGrace dMin dMax
   where
     Names{..} = names d
 
@@ -209,5 +218,5 @@ retire c@Cluster{..} = ASG.deleteGroup c >> ASG.deleteConfig c
 info :: Cluster -> AWS ()
 info Cluster{..} = return ()
 
-route :: Cluster -> AWS ()
-route Cluster{..} = return ()
+promote :: Cluster -> AWS ()
+promote Cluster{..} = return ()

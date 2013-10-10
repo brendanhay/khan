@@ -20,7 +20,7 @@ import Data.Foldable (foldl')
 import           Control.Applicative
 import           Control.Error
 import           Control.Monad
-import           Data.List                (delete)
+import           Data.List                (nub, intercalate)
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Text                (Text)
@@ -39,30 +39,35 @@ import           Network.AWS.Route53
 import           Pipes
 import qualified Pipes.Prelude            as Pipes
 
-defineOptions "Host" $
-    textOption "iId" "id" ""
+defineOptions "Host" $ do
+    textOption "hId" "id" ""
         "Name of the group."
+
+    textOption "hFQDN" "fqdn" ""
+        "FQDN."
 
 deriving instance Show Host
 
 instance Discover Host where
-    discover d
-        | not $ invalid (iId d) = return d
-        | otherwise = liftEitherT $ do
-            iid <- Text.decodeUtf8 <$> metadata InstanceId
-            return $! d { iId = iid }
+    discover h = liftEitherT $ do
+        iid  <- Text.decodeUtf8 <$> metadata InstanceId
+        fqdn <- Text.decodeUtf8 <$> metadata PublicHostname
+        return $! h { hId = iid, hFQDN = fqdn }
 
-instance Validate Host
+instance Validate Host where
+    validate Host{..} = do
+        check hId   "--id must be specified."
+        check hFQDN "--fqdn must be specified."
 
 cli :: Command
-cli = Command "instance" "Manage EC2 Hosts."
+cli = Command "host" "Manage EC2 Hosts."
     [ subCommand "register"   register
     , subCommand "unregister" unregister
     ]
 
 register :: Host -> AWS ()
 register Host{..} = do
-    ts   <- fmap toMap . send $ DescribeTags [TagResourceId [iId]]
+    ts   <- fmap toMap . send $ DescribeTags [TagResourceId [hId]]
     role <- required roleTag ts
     env  <- required envTag ts
     dom  <- required domainTag ts
@@ -78,19 +83,22 @@ register Host{..} = do
         . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
         . dtagsrTagSet
 
-    required k m = noteError
-        ("Non-existent tag: " ++ Text.unpack k ++ " in: " ++ show m) $
-            Map.lookup k m
+    required k m = noteError (message k m) $ Map.lookup k m
+
+    message k m = Text.unpack $
+        Text.concat ["No tag '", k, "' found in [", render m, "]"]
+
+    render = Text.intercalate ","
+        . map (\(k, v) -> Text.concat [k, "=", v])
+        . Map.toList
 
     parse = hush . parseVersionE . Text.unpack
 
     -- FIXME: Create and assign health check
     -- FIXME: Handle errors retries gracefully
     persistent Names{..} zid dom = do
-        fqdn <- Text.decodeUtf8 <$> liftEitherT (metadata PublicHostname)
         sets <- matching appName
-        unless (any (exists fqdn) sets) $
-            create fqdn sets
+        unless (any (exists hFQDN) sets) $ create sets
       where
         matching name = Pipes.toListM $ paginate start
             >-> Pipes.map lrrsrResourceRecordSets
@@ -102,11 +110,11 @@ register Host{..} = do
         exists v LatencyRecordSet{..} = any (== v) $ rrValues rrsResourceRecords
         exists _ _                    = False
 
-        create fqdn sets = do
+        create sets = do
             reg <- currentRegion
             let n     = Text.pack . show $ 1 + foldl' newest 0 sets
                 name  = Text.concat [appName, n, ".", R53.abbreviate reg]
-                value = ResourceRecords [fqdn]
+                value = ResourceRecords [hFQDN]
                 set   = LatencyRecordSet name CNAME appName reg 60 value Nothing
             R53.updateRecordSet zid [Change CreateAction set]
 
@@ -118,34 +126,23 @@ register Host{..} = do
             . Text.last
             . Text.takeWhile (/= '.')
 
+    -- FIXME: Create and assign health check
+    -- FIXME: Handle errors retries gracefully
     ephemeral Names{..} zid dns = do
-      --   mset <- R53.findRecordSet zid dns
-      --   reg  <- currentRegion
-      --   host <- Text.decodeUtf8 <$> liftEitherT (metadata PublicHostname)
-      --   R53.findRecordSet zid appName >>= maybe (create host) (update host)
-      -- where
-      --   create host = do
-      --       reg <- currentRegion
-      --       -- create health check
+        mset <- R53.findRecordSet zid ((dns ==) . rrsName)
+        let value = Text.intercalate " " ["50", "50", "8080", hFQDN]
+        R53.updateRecordSet zid $ maybe (create value) (update value) mset
+      where
+        create value =
+            [ Change CreateAction $
+                BasicRecordSet appName SRV 60 (ResourceRecords [value]) Nothing
+            ]
 
-      --       let vs  = ResourceRecords [host]
-      --           set = LatencyRecordSet appName CNAME appName reg 60 vs Nothing
-
-      --       R53.updateRecordSet zid [Change CreateAction set]
-
-      --   update host rset = do
-      --       let vs  = host : host `delete` rrValues (rrsResourceRecords rset)
-      --           set = rset { rrsResourceRecords = ResourceRecords vs }
-
-      --       R53.updateRecordSet zid
-      --           [ Change DeleteAction rset
-      --           , Change CreateAction set
-      --           ]
-
-        return ()
-
-        -- Get record set or create if it doesn't exist
-        -- Add self to srv
+        update value s =
+            let vs = ResourceRecords . nub $ value : rrValues (rrsResourceRecords s)
+            in [ Change DeleteAction s
+               , Change CreateAction $ s { rrsResourceRecords = vs }
+               ]
 
 unregister :: Host -> AWS ()
 unregister Host{..} = return ()

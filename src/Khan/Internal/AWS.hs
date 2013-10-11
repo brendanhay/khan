@@ -14,13 +14,21 @@
 
 module Khan.Internal.AWS where
 
-import Data.Monoid
-import Data.Text               (Text)
-import Khan.Internal.Types
-import Network.AWS
-import Network.AWS.AutoScaling
-import Network.AWS.EC2
-import Network.AWS.IAM
+import           Control.Applicative
+import           Control.Error
+import           Control.Monad
+import qualified Data.Map                as Map
+import           Data.Monoid
+import           Data.Text               (Text)
+import qualified Data.Text               as Text
+import qualified Data.Text.Encoding      as Text
+import           Data.Version
+import           Khan.Internal.Log
+import           Khan.Internal.Types
+import           Network.AWS
+import           Network.AWS.AutoScaling hiding (DescribeTags)
+import           Network.AWS.EC2
+import           Network.AWS.IAM
 
 policyPath :: FilePath
 policyPath = "./config/role-policy.json"
@@ -37,20 +45,53 @@ sshRules = [IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]]
 certPath :: FilePath
 certPath = "./cert"
 
-envTag, roleTag, nameTag, versionTag, discoTag, domainTag :: Text
+envTag, roleTag, domainTag, nameTag, versionTag, discoTag :: Text
 envTag     = "Env"
 roleTag    = "Role"
+domainTag  = "Domain"
 nameTag    = "Name"
 versionTag = "Version"
 discoTag   = "Discovery"
-domainTag  = "Domain"
 
-requiredTags :: Names -> Text -> [(Text, Text)]
-requiredTags Names{..} dom =
+defaultTags :: Names -> Text -> [(Text, Text)]
+defaultTags Names{..} dom =
     [ (roleTag, roleName)
     , (envTag, envName)
     , (domainTag, dom)
     ] ++ maybe [] (\v -> [(versionTag, v)]) versionName
+
+data Tags = Tags
+    { tagRole    :: !Text
+    , tagEnv     :: !Text
+    , tagDomain  :: !Text
+    , tagVersion :: Maybe Version
+    , tagDisco   :: Maybe Text
+    }
+
+requiredTags :: Text -> AWS Tags
+requiredTags iid = do
+    logInfo "Describing tags for instance-id {}..." [iid]
+    ts <- toMap <$> send (DescribeTags [TagResourceId [iid]])
+    Tags <$> require roleTag ts
+         <*> require envTag ts
+         <*> require domainTag ts
+         <*> pure (join $ parse <$> Map.lookup versionTag ts)
+         <*> pure (Map.lookup discoTag ts)
+  where
+    toMap = Map.fromList
+        . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
+        . dtagsrTagSet
+
+    require k m = noteError (message k m) $ Map.lookup k m
+
+    message k m = Text.unpack $
+        Text.concat ["No tag '", k, "' found in [", render m, "]"]
+
+    render = Text.intercalate ","
+        . map (\(k, v) -> Text.concat [k, "=", v])
+        . Map.toList
+
+    parse = hush . parseVersionE . Text.unpack
 
 verifyAS :: Text -> Either AutoScalingErrorResponse a -> AWS ()
 verifyAS  = (`verify` (aseCode . aserError))

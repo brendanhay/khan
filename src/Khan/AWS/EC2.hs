@@ -137,7 +137,7 @@ tagInstances :: Naming a => a -> Text -> [Text] -> AWS ()
 tagInstances (names -> n) dom ids = do
     logInfo_ "Tagging instances with Group, Role, and Env..."
     send_ . CreateTags ids . map (uncurry ResourceTagSetItemType) $
-        requiredTags n dom
+        defaultTags n dom
 
 waitForInstances :: [Text] -> AWS ()
 waitForInstances []  = logInfo_ "All instances running"

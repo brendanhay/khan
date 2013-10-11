@@ -85,7 +85,7 @@ createNames role env ver = Names
     , profileName = nameEnv
     , groupName   = nameEnv
     , imageName   = role <> tver
-    , appName     = Text.concat [role, tver, ".", env]
+    , appName     = Text.concat [role, tver, "-", env]
     , versionName = mver
     }
   where

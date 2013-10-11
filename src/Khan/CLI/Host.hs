@@ -16,24 +16,17 @@
 
 module Khan.CLI.Host (cli) where
 
-import Data.Foldable (foldl')
 import           Control.Applicative
 import           Control.Error
-import           Control.Monad
-import           Data.List                (nub, intercalate)
-import           Data.Map                 (Map)
-import qualified Data.Map                 as Map
-import           Data.Text                (Text)
+import           Data.Char                (isDigit)
+import           Data.Foldable            (foldl')
+import           Data.List                (find, nub)
+import           Data.Monoid
 import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
-import           Data.Text.Format
-import qualified Khan.AWS.AutoScaling     as ASG
-import qualified Khan.AWS.EC2             as EC2
-import qualified Khan.AWS.IAM             as IAM
 import qualified Khan.AWS.Route53         as R53
 import           Khan.Internal
 import           Network.AWS
-import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 import           Network.AWS.Route53
 import           Pipes
@@ -67,56 +60,42 @@ cli = Command "host" "Manage EC2 Hosts."
 
 register :: Host -> AWS ()
 register Host{..} = do
-    ts   <- fmap toMap . send $ DescribeTags [TagResourceId [hId]]
-    role <- required roleTag ts
-    env  <- required envTag ts
-    dom  <- required domainTag ts
-    zid  <- R53.findZoneId dom
+    Tags{..} <- requiredTags hId
+    zid      <- R53.findZoneId tagDomain
 
-    let ver   = join $ parse <$> Map.lookup versionTag ts
-        disco = Map.lookup discoTag ts
-        ns    = maybe (unversioned role env) (versioned role env) ver
+    let ns = maybe (unversioned tagRole tagEnv)
+                   (versioned tagRole tagEnv) tagVersion
 
-    maybe (persistent ns zid dom) (ephemeral ns zid) disco
+    maybe (persistent ns zid tagDomain) (ephemeral ns zid) tagDisco
   where
-    toMap = Map.fromList
-        . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
-        . dtagsrTagSet
-
-    required k m = noteError (message k m) $ Map.lookup k m
-
-    message k m = Text.unpack $
-        Text.concat ["No tag '", k, "' found in [", render m, "]"]
-
-    render = Text.intercalate ","
-        . map (\(k, v) -> Text.concat [k, "=", v])
-        . Map.toList
-
-    parse = hush . parseVersionE . Text.unpack
-
     -- FIXME: Create and assign health check
     -- FIXME: Handle errors retries gracefully
     persistent Names{..} zid dom = do
-        sets <- matching appName
-        unless (any (exists hFQDN) sets) $ create sets
+        sets <- matchPrefix roleName
+        maybe (create sets) exists $ matchValue hFQDN `find` sets
       where
-        matching name = Pipes.toListM $ paginate start
+        matchPrefix k = Pipes.toListM $ paginate start
             >-> Pipes.map lrrsrResourceRecordSets
             >-> Pipes.concat
-            >-> Pipes.filter ((name ==) . Text.takeWhile (/= '.') . rrsName)
+            >-> Pipes.filter ((k ==) . Text.takeWhile (not . isDigit) . rrsName)
 
         start = ListResourceRecordSets zid Nothing Nothing Nothing Nothing
 
-        exists v LatencyRecordSet{..} = any (== v) $ rrValues rrsResourceRecords
-        exists _ _                    = False
+        matchValue v BasicRecordSet{..} =
+            any (== v) $ rrValues rrsResourceRecords
+        matchValue _ _                  = False
 
         create sets = do
             reg <- currentRegion
-            let n     = Text.pack . show $ 1 + foldl' newest 0 sets
-                name  = Text.concat [appName, n, ".", R53.abbreviate reg]
-                value = ResourceRecords [hFQDN]
-                set   = LatencyRecordSet name CNAME appName reg 60 value Nothing
+            let n    = Text.pack . show $ 1 + foldl' newest 0 sets
+                name = Text.intercalate "."
+                           [roleName <> n, envName, R53.abbreviate reg, dom]
+                vs   = ResourceRecords [hFQDN]
+                set  = BasicRecordSet name CNAME 60 vs Nothing
+            logInfo "Creating record {} with value {}..." [name, hFQDN]
             R53.updateRecordSet zid [Change CreateAction set]
+
+        exists r = logInfo "Record {} exists, skipping..." [rrsName r]
 
         newest acc x = max (int $ rrsName x) acc
 

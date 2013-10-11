@@ -83,7 +83,7 @@ createGroup (names -> n@Names{..}) dom zones cool desired grace min max = do
     -- Health checks, monitoring, statistics
   where
     tags r = map (uncurry tag) $
-        (discoTag, Text.concat [appName, ".", reg]) : requiredTags n dom
+        (discoTag, Text.concat [appName, ".", reg]) : defaultTags n dom
       where
         tag k v = Tag k
            (Just True)

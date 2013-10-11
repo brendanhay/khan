@@ -136,7 +136,6 @@ instance Validate Scale where
         check (not $ sDesired >= sMin) "--desired must be greater than or equal to --min."
         check (not $ sDesired <= sMax) "--desired must be less than or equal to --max."
 
-
         check (defaultVersion == sVersion) "--version must be specified."
 
 instance Naming Scale where

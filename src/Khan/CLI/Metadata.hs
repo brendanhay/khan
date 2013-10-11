@@ -18,27 +18,27 @@ module Khan.CLI.Metadata (cli) where
 import           Control.Applicative
 import qualified Data.Text.Encoding       as Text
 import           Data.Text.Format
-import           Khan.Internal            hiding (Tags)
+import           Khan.Internal
 import           Network.AWS
 import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 import           Text.Show.Pretty
 
-defineOptions "Tags" $
+defineOptions "Info" $
     textOption "dId" "id" ""
         "Id of the instance to describe."
 
-deriving instance Show Tags
+deriving instance Show Info
 
-instance Discover Tags where
+instance Discover Info where
     discover d
         | not $ invalid (dId d) = return d
         | otherwise = liftEitherT $ do
             iid <- Text.decodeUtf8 <$> metadata InstanceId
             return $! d { dId = iid }
 
-instance Validate Tags where
-    validate Tags{..} =
+instance Validate Info where
+    validate Info{..} =
         check dId "--instance-id must be specified."
 
 defineOptions "Local" $
@@ -55,11 +55,11 @@ instance Validate Local where
 
 cli :: Command
 cli = Command "metadata" "Manage Instance Metadata."
-    [ subCommand "tags"  tags
+    [ subCommand "info" info
     ]
 
-tags :: Tags -> AWS ()
-tags Tags{..} = do
+info :: Info -> AWS ()
+info Info{..} = do
     logInfo "Describing instance {}" [dId]
-    send (DescribeTags [TagResourceId [dId]]) >>=
-        logInfo "{}" . Only . ppShow
+    is <- dirReservationSet <$> send (DescribeInstances [dId] [])
+    logInfo "{}" . Only $ ppShow is

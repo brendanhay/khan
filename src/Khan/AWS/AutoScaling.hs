@@ -62,7 +62,6 @@ createGroup :: Naming a
             -> Integer
             -> AWS ()
 createGroup (names -> n@Names{..}) dom zones cool desired grace min max = do
-    reg <- currentRegion
     send_ $ CreateAutoScalingGroup
         appName                        -- Name
         (Members zones)                -- Zones
@@ -75,23 +74,18 @@ createGroup (names -> n@Names{..}) dom zones cool desired grace min max = do
         max
         min
         Nothing
-        (Members $ tags reg) -- Tags
+        (Members . map (uncurry tag) $ defaultTags n dom) -- Tags
         (Members [])
         Nothing
     logInfo "Created Auto Scaling Group {}" [appName]
     -- Create and update level2 'name' DNS SRV record
     -- Health checks, monitoring, statistics
   where
-    tags r = map (uncurry tag) $
-        (discoTag, Text.concat [appName, ".", reg]) : defaultTags n dom
-      where
-        tag k v = Tag k
-           (Just True)
-           (Just appName)
-           (Just "auto-scaling-group")
-           (Just v)
-
-        reg = Text.pack $ show r
+    tag k v = Tag k
+       (Just True)
+       (Just appName)
+       (Just "auto-scaling-group")
+       (Just v)
 
 updateGroup :: Naming a
             => a

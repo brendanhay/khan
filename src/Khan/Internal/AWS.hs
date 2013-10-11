@@ -45,13 +45,12 @@ sshRules = [IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]]
 certPath :: FilePath
 certPath = "./cert"
 
-envTag, roleTag, domainTag, nameTag, versionTag, discoTag :: Text
+envTag, roleTag, domainTag, nameTag, versionTag :: Text
 envTag     = "Env"
 roleTag    = "Role"
 domainTag  = "Domain"
 nameTag    = "Name"
 versionTag = "Version"
-discoTag   = "Discovery"
 
 defaultTags :: Names -> Text -> [(Text, Text)]
 defaultTags Names{..} dom =
@@ -65,7 +64,6 @@ data Tags = Tags
     , tagEnv     :: !Text
     , tagDomain  :: !Text
     , tagVersion :: Maybe Version
-    , tagDisco   :: Maybe Text
     }
 
 requiredTags :: Text -> AWS Tags
@@ -76,7 +74,6 @@ requiredTags iid = do
          <*> require envTag ts
          <*> require domainTag ts
          <*> pure (join $ parse <$> Map.lookup versionTag ts)
-         <*> pure (Map.lookup discoTag ts)
   where
     toMap = Map.fromList
         . map (\TagSetItemType{..} -> (tsitKey, tsitValue))

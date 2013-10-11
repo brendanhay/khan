@@ -1,8 +1,9 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE TupleSections      #-}
+{-# LANGUAGE ViewPatterns       #-}
 
 -- Module      : Khan.CLI.Host
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -22,8 +23,8 @@ import           Data.Char                (isDigit)
 import           Data.Foldable            (foldl')
 import           Data.List                (find, nub)
 import           Data.Monoid
-import qualified Data.Text                as Text
 import           Data.Text                (Text)
+import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import qualified Khan.AWS.Route53         as R53
 import           Khan.Internal
@@ -61,69 +62,98 @@ cli = Command "host" "Manage EC2 Hosts."
 
 register :: Host -> AWS ()
 register Host{..} = do
-    Tags{..} <- requiredTags hId
-    zid      <- R53.findZoneId tagDomain
-    let ns = maybe (unversioned tagRole tagEnv) (versioned tagRole tagEnv)
-                   tagVersion
-    maybe (persistent ns hFQDN zid tagDomain) (ephemeral ns hFQDN zid)
-          tagDisco
+    (ns, Tags{..}) <- describe hId
+    zid            <- R53.findZoneId tagDomain
+    maybe (persistent ns zid tagDomain) (ephemeral ns zid tagDomain) tagVersion
+  where
+    -- FIXME: Create and assign health check
+    -- FIXME: Handle errors retries gracefully
+    persistent Names{..} zid dom = do
+        logInfo_ "Registering as persistent host..."
+        sets <- findPrefix zid roleName
+        maybe (create sets) exists $ filterValue hFQDN sets
+      where
+        create sets = do
+            reg <- currentRegion
+            let n    = 1 + foldl' newest 0 sets
+                name = address roleName (Text.pack $ show n) envName reg dom
+                vs   = ResourceRecords [hFQDN]
+                set  = BasicRecordSet name CNAME 60 vs Nothing
+            logInfo "Creating record {} with value {}..." [name, hFQDN]
+            R53.updateRecordSet zid [Change CreateAction set]
+
+        exists r = logInfo "Record {} exists, skipping..." [rrsName r]
+
+        newest acc x = max (int $ rrsName x) acc
+
+        int = fromMaybe (0 :: Integer)
+            . readMay
+            . (:[])
+            . Text.last
+            . Text.takeWhile (/= '.')
+
+    -- FIXME: Create and assign health check
+    -- FIXME: Handle errors retries gracefully
+    ephemeral Names{..} zid dom (safeVersion -> ver) = do
+        reg <- currentRegion
+        let name  = address roleName ver envName reg dom
+            value = Text.intercalate " " ["50", "50", "8080", hFQDN]
+        logInfo "Registering {} with {} as ephemeral host..." [hFQDN, name]
+        mset <- R53.findRecordSet zid ((name ==) . rrsName)
+        R53.updateRecordSet zid $ maybe (create name value) (update value) mset
+      where
+        create name value =
+            [ Change CreateAction $
+                BasicRecordSet name SRV 60 (ResourceRecords [value]) Nothing
+            ]
+
+        update value s =
+            let vs = ResourceRecords . nub $ value : rrValues (rrsResourceRecords s)
+            in [ Change DeleteAction s
+               , Change CreateAction $ s { rrsResourceRecords = vs }
+               ]
 
 unregister :: Host -> AWS ()
-unregister Host{..} = return ()
-
--- FIXME: Create and assign health check
--- FIXME: Handle errors retries gracefully
-persistent :: Names -> Text -> HostedZoneId -> Text -> AWS ()
-persistent Names{..} fqdn zid dom = do
-    sets <- matchPrefix roleName
-    maybe (create sets) exists $ matchValue fqdn `find` sets
+unregister Host{..} = do
+    (ns, Tags{..}) <- describe hId
+    zid            <- R53.findZoneId tagDomain
+    maybe (persistent ns zid) (error . show) tagVersion
   where
-    matchPrefix k = Pipes.toListM $ paginate start
-        >-> Pipes.map lrrsrResourceRecordSets
-        >-> Pipes.concat
-        >-> Pipes.filter ((k ==) . Text.takeWhile (not . isDigit) . rrsName)
+    persistent Names{..} zid = do
+        logInfo "Searching for records matching {} with value {}..."
+            [roleName, hFQDN]
+        mset <- filterValue hFQDN <$> findPrefix zid roleName
+        maybe (logInfo_ "No record found, skipping...") delete
+              mset
+      where
+        delete set = do
+            logInfo_ "Deleting record..."
+            R53.updateRecordSet zid [Change DeleteAction set]
 
+describe :: Text -> AWS (Names, Tags)
+describe iid = do
+    t@Tags{..} <- requiredTags iid
+    return . (,t) $
+        maybe (unversioned tagRole tagEnv) (versioned tagRole tagEnv) tagVersion
+
+findPrefix :: HostedZoneId -> Text -> AWS [ResourceRecordSet]
+findPrefix zid k = Pipes.toListM $ paginate start
+    >-> Pipes.map lrrsrResourceRecordSets
+    >-> Pipes.concat
+    >-> Pipes.filter ((k ==) . Text.takeWhile (not . isDigit) . rrsName)
+  where
     start = ListResourceRecordSets zid Nothing Nothing Nothing Nothing
 
-    matchValue v BasicRecordSet{..} =
-        any (== v) $ rrValues rrsResourceRecords
-    matchValue _ _                  = False
-
-    create sets = do
-        reg <- currentRegion
-        let n    = Text.pack . show $ 1 + foldl' newest 0 sets
-            name = Text.intercalate "."
-                       [roleName <> n, envName, R53.abbreviate reg, dom]
-            vs   = ResourceRecords [fqdn]
-            set  = BasicRecordSet name CNAME 60 vs Nothing
-        logInfo "Creating record {} with value {}..." [name, fqdn]
-        R53.updateRecordSet zid [Change CreateAction set]
-
-    exists r = logInfo "Record {} exists, skipping..." [rrsName r]
-
-    newest acc x = max (int $ rrsName x) acc
-
-    int = fromMaybe (0 :: Integer)
-        . readMay
-        . (:[])
-        . Text.last
-        . Text.takeWhile (/= '.')
-
--- FIXME: Create and assign health check
--- FIXME: Handle errors retries gracefully
-ephemeral :: Names -> Text -> HostedZoneId -> Text -> AWS ()
-ephemeral Names{..} fqdn zid dns = do
-    mset <- R53.findRecordSet zid ((dns ==) . rrsName)
-    let value = Text.intercalate " " ["50", "50", "8080", fqdn]
-    R53.updateRecordSet zid $ maybe (create value) (update value) mset
+filterValue :: Text -> [ResourceRecordSet] -> Maybe ResourceRecordSet
+filterValue v sets = match `find` sets
   where
-    create value =
-        [ Change CreateAction $
-            BasicRecordSet appName SRV 60 (ResourceRecords [value]) Nothing
-        ]
+    match BasicRecordSet{..} = any (== v) $ rrValues rrsResourceRecords
+    match _                  = False
 
-    update value s =
-        let vs = ResourceRecords . nub $ value : rrValues (rrsResourceRecords s)
-        in [ Change DeleteAction s
-           , Change CreateAction $ s { rrsResourceRecords = vs }
-           ]
+address :: Text -> Text -> Text -> Region -> Text -> Text
+address role ver env reg dom = Text.intercalate "."
+    [ role <> ver
+    , R53.abbreviate reg
+    , env
+    , dom
+    ]

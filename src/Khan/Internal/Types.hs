@@ -85,13 +85,13 @@ createNames role env ver = Names
     , profileName = nameEnv
     , groupName   = nameEnv
     , imageName   = role <> tver
-    , appName     = Text.concat [role, tver, "-", env]
+    , appName     = Text.concat [role, tver, ".", env]
     , versionName = mver
     }
   where
     nameEnv = Text.concat [env, "-", role]
 
-    tver = maybe "" ("-" <>) mver
+    tver = fromMaybe "" mver
     mver = safeVersion <$> ver
 
 unversioned :: Text -> Text -> Names

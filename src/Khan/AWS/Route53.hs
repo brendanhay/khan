@@ -56,9 +56,9 @@ updateRecordSet zid changes = send batch >>= waitChange . crrsrChangeInfo
     batch = ChangeResourceRecordSets zid $ ChangeBatch Nothing changes
 
     waitChange ChangeInfo{..} = case ciStatus of
-        INSYNC  -> logInfo "Change {} INSYNC." [show ciId]
+        INSYNC  -> logInfo "{} INSYNC." [show ciId]
         PENDING -> do
-            logInfo "Waiting for change {}" [Shown ciId]
+            logInfo "Waiting for {}" [Shown ciId]
             liftIO . threadDelay $ 10 * 1000000
             send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
 

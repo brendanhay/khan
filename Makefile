@@ -36,7 +36,7 @@ add-sources: cabal.sandbox.config
 	cabal sandbox add-source ../aws-haskell
 
 cabal.sandbox.config:
-	cabal sandbox init && cabal configure
+	cabal sandbox init
 
 vendor/http-streams:
 	git clone git@github.com:afcowie/http-streams.git $@

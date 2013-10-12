@@ -1,5 +1,5 @@
 SHELL := /usr/bin/env bash
-DEPS  := vendor/http-streams vendor/options vendor/aws-haskell
+DEPS  := vendor/http-streams vendor/options vendor/amazonka
 
 build:
 	cabal build
@@ -14,7 +14,7 @@ clean:
 add-sources: cabal.sandbox.config
 	cabal sandbox add-source vendor/http-streams
 	cabal sandbox add-source vendor/options
-	cabal sandbox add-source vendor/aws-haskell
+	cabal sandbox add-source vendor/amazonka
 
 cabal.sandbox.config:
 	cabal sandbox init

@@ -1,5 +1,9 @@
-SHELL := /usr/bin/env bash
-DEPS  := vendor/http-streams vendor/options vendor/amazonka
+SHELL        := /usr/bin/env bash
+NAME         := libstatgrab-dev
+VERSION      := 0.90
+BUILD_NUMBER ?= 0
+DEPS         := vendor/http-streams vendor/options vendor/amazonka
+DEB          := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
 
 build:
 	cabal build
@@ -10,6 +14,16 @@ install: $(DEPS) cabal.sandbox.config add-sources
 clean:
 	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor
 	cabal clean
+
+dist: dist/$(DEB)
+
+%.deb: install
+	makedeb --name=$(NAME) \
+	 --version=$(VERSION) \
+	 --debian-dir=deb \
+	 --build=$(BUILD_NUMBER) \
+	 --architecture=amd64 \
+	 --output-dir=dist
 
 add-sources: cabal.sandbox.config
 	cabal sandbox add-source vendor/http-streams

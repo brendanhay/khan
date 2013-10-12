@@ -1,0 +1,26 @@
+SHELL := /usr/bin/env bash
+DEPS  := vendor/http-streams vendor/options vendor/aws-haskell
+
+build:
+	cabal build
+
+install: $(DEPS) cabal.sandbox.config add-sources
+	cabal install -j --disable-documentation --disable-library-coverage
+
+clean:
+	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor
+	cabal clean
+
+add-sources: cabal.sandbox.config
+	cabal sandbox add-source vendor/http-streams
+	cabal sandbox add-source vendor/options
+	cabal sandbox add-source vendor/aws-haskell
+
+cabal.sandbox.config:
+	cabal sandbox init
+
+vendor/http-streams:
+	git clone git@github.com:afcowie/http-streams.git $@
+
+vendor/%:
+	git clone git@github.com:brendanhay/$*.git $@

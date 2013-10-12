@@ -57,7 +57,7 @@ instance Validate Host where
 cli :: Command
 cli = Command "host" "Manage EC2 Hosts."
     [ subCommand "register"   register
-    , subCommand "unregister" unregister
+    , subCommand "deregister" deregister
     ]
 
 register :: Host -> AWS ()
@@ -102,19 +102,19 @@ register Host{..} = do
         mset <- R53.findRecordSet zid ((name ==) . rrsName)
         R53.updateRecordSet zid $ maybe (create name value) (update value) mset
       where
-        create name value =
+        create n v =
             [ Change CreateAction $
-                BasicRecordSet name SRV 60 (ResourceRecords [value]) Nothing
+                BasicRecordSet n SRV 60 (ResourceRecords [v]) Nothing
             ]
 
-        update value s =
-            let vs = ResourceRecords . nub $ value : rrValues (rrsResourceRecords s)
+        update v s =
+            let vs = ResourceRecords . nub $ v : rrValues (rrsResourceRecords s)
             in [ Change DeleteAction s
                , Change CreateAction $ s { rrsResourceRecords = vs }
                ]
 
-unregister :: Host -> AWS ()
-unregister Host{..} = do
+deregister :: Host -> AWS ()
+deregister Host{..} = do
     (ns, Tags{..}) <- describe hId
     zid            <- R53.findZoneId tagDomain
     maybe (persistent ns zid) (error . show) tagVersion

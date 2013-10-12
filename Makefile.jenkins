@@ -1,6 +1,6 @@
 SHELL        := /usr/bin/env bash
 NAME         := khan
-VERSION      := 0.90
+VERSION      := 0.1.0
 BUILD_NUMBER ?= 0
 DEPS         := vendor/http-streams vendor/options vendor/amazonka
 DEB          := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb

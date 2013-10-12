@@ -1,5 +1,5 @@
 SHELL        := /usr/bin/env bash
-NAME         := libstatgrab-dev
+NAME         := khan
 VERSION      := 0.90
 BUILD_NUMBER ?= 0
 DEPS         := vendor/http-streams vendor/options vendor/amazonka

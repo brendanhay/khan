@@ -44,7 +44,6 @@ executable khan
       , pipes             >= 4.0
       , pretty-show
       , random
-      , statgrab
       , template-haskell
       , text
       , text-format

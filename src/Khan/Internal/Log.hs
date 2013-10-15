@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- Module      : Khan.Internal.Log
@@ -12,12 +13,8 @@
 
 module Khan.Internal.Log
     (
-    -- * Variadic AWS Errors
-      throwErrorF
-    , noteErrorF
-
     -- * Variadic Formatters
-    , logInfo
+      logInfo
     , logError
     , logDebug
 
@@ -30,21 +27,12 @@ module Khan.Internal.Log
     , Shown (..)
     ) where
 
-import Control.Monad.IO.Class
-import Data.Monoid
-import Data.Text               (Text)
 import Data.Text.Format
 import Data.Text.Format.Params
 import Data.Text.IO            (hPutStrLn)
-import Data.Text.Lazy          (unpack)
+import Khan.Prelude
 import Network.AWS
 import System.IO               (stdout, stderr)
-
-throwErrorF :: Params ps => Format -> ps -> AWS a
-throwErrorF f = throwError . unpack . format f
-
-noteErrorF :: Params ps => Format -> ps -> Maybe a -> AWS a
-noteErrorF f ps = noteError (unpack $ format f ps)
 
 logInfo, logError :: (MonadIO m, Params ps) => Format -> ps -> m ()
 logInfo  f = hprint stdout (f <> "\n")

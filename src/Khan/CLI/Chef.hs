@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
@@ -16,20 +17,22 @@
 
 module Khan.CLI.Chef (cli) where
 
-import           Control.Applicative
-import           Control.Monad.IO.Class
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Base64 as Base64
+import qualified Data.Text              as Text
 import qualified Data.Text.Encoding     as Text
 import qualified Khan.AWS.EC2           as EC2
 import qualified Khan.AWS.IAM           as IAM
 import           Khan.Internal
+import           Khan.Prelude
 import           Network.AWS
+import           Network.AWS.EC2
+import qualified Shelly                 as Shell
 import           System.Random          (randomRIO)
 
 defineOptions "Launch" $ do
     textOption "lRole" "role" ""
-        "Instance's Chef role."
+        "Instance's role."
 
     textOption "lEnv" "env" defaultEnv
         "Instance's environment."
@@ -49,7 +52,7 @@ defineOptions "Launch" $ do
     textsOption "lGroups" "groups" []
         "Security groups."
 
-    stringOption "lData" "user-data" "./config/user-data"
+    pathOption "lData" "user-data" "./config/user-data"
         "Path to user data file."
 
     instanceTypeOption "lType" "type" M1_Small
@@ -64,6 +67,12 @@ defineOptions "Launch" $ do
     stringOption "lZones" "zones" "abc"
          "Availability zones suffixes to provision into (psuedo-random)."
 
+    textOption "lUser" "user" ""
+        "SSH user."
+
+    intOption "lTimeout" "timeout" 60
+        "SSH timeout."
+
     -- Block Device Mappings
     -- Monitoring
     -- Disable Api Termination
@@ -73,7 +82,9 @@ defineOptions "Launch" $ do
 
 deriving instance Show Launch
 
-instance Discover Launch
+instance Discover Launch -- where
+    -- discover l@Launch{..} = do
+        -- look for metadata.rb and get name from their
 
 instance Validate Launch where
     validate Launch{..} = do
@@ -82,28 +93,36 @@ instance Validate Launch where
         check lDomain "--domain must be specified."
         check lMin    "--min must be greater than 0."
         check lMax    "--max must be greater than 0."
-        check lData   "--user-data must be specified."
         check lZones  "--zones must be specified."
 
         check (not $ lMin <= lMax)    "--min must be less than or equal to --max."
-        checkPath lData $ lData ++    " specified by --user-data must exist."
         check (Within lZones "abcde") "--zones must be within [a-e]."
+
+        checkPath lData " specified by --user-data must exist."
 
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
 
-defineOptions "Target" $
-    textOption "tName" "name" ""
-        "Name of the group."
+defineOptions "Target" $ do
+    textOption "tRole" "role" ""
+        "Instance's role."
+
+    pathOption "tBerks" "berksfile" "Berksfile"
+        "Path to the cookbook's Berksfile."
 
 deriving instance Show Target
 
 instance Discover Target
-instance Validate Target
+
+instance Validate Target where
+    validate Target{..} = do
+        check tRole "--role must be specified."
+        checkPath tBerks " specified by --berksfile must exist."
 
 cli :: Command
 cli = Command "chef" "Manage Chef EC2 Instances."
     [ subCommand "launch" launch
+    , subCommand "bundle" bundle
     , subCommand "run"    run
     , subCommand "stop"   stop
     ]
@@ -122,24 +141,78 @@ launch l@Launch{..} = do
     wait_ s <* logInfo "Found SSH Group {}" [sshGroup lEnv]
     wait_ g <* logInfo "Found Role Group {}" [groupName]
 
-    ud  <- liftIO $ Text.decodeUtf8 . Base64.encode <$> BS.readFile lData
+    ud  <- Text.decodeUtf8 . Base64.encode <$> shell (Shell.readBinary lData)
     az  <- shuffle lZones
     reg <- currentRegion
+    ms1 <- EC2.runInstances l ami lType (AZ reg az) lMin lMax ud lOptimised
 
-    ids <- EC2.runInstances l ami lType (AZ reg az) lMin lMax ud lOptimised
-    rs  <- EC2.waitForInstances ids
+    let ids = map riitInstanceId ms1
 
+    EC2.waitForInstances ids
     EC2.tagInstances l lDomain ids
-
-    liftIO $ print rs
-
-    -- SSH into machine, wget Khan
-    -- run setup
   where
     Names{..} = names l
 
+bundle :: Target -> AWS ()
+bundle Target{..} = shellAWS . Shell.verbosely $ do
+
+    Shell.rm_rf tmp
+    Shell.mkdir_p out
+
+    Shell.run_ "bundle"
+        ["exec", "berks", "-b", toTextIgnore tBerks, "-o", toTextIgnore out]
+
+    Shell.touchfile solo
+    Shell.touchfile node
+
+    return ()
+  where
+    solo = out </> ("solo.rb" :: FilePath)
+    node = out </> ("node.json" :: FilePath)
+    out  = tmp </> ("var/chef" :: FilePath)
+    tmp  = ".khan" :: FilePath
+    -- Create ./.khan
+    --           - /var/chef
+    --           - /var/chef/node.json - with run_list set to name from metadata.rb
+    --           - /var/chef/solo.rb
+    -- Bundle ./Berksfile dependencies to ./.khan/var/chef/cookbooks
+    -- Bundle organisational data to ./.khan/var/chef/data_bags
+    -- Create a tar.gz which unzips to the correct paths (/var/chef etc)
+
 run :: Target -> AWS ()
 run Target{..} = return ()
+    -- Ensure bundle exists
+    -- Describe instances
+    -- SCP bundle to public DNS
+    -- SSH in and:
+    --   get + execute user-data, or should it just be done here ignoring need for user-data?
+    --   untar bundle and run chef-solo
+
+    -- ms2 <- EC2.findInstances ids
+    -- ts  <- catMaybes <$> mapM formulate ms2
+
+    -- logInfo_ "Running SSH tasks.."
+    -- liftIO . runEffect $ for (runTasks ts lTimeout) (liftIO . print)
+
+    -- formulate RunningInstancesItemType{..} =
+    --     case riitDnsName of
+    --         Nothing -> do
+    --             logError "No public DNS found for instance {}" [riitInstanceId]
+    --             return Nothing
+    --         Just x  -> do
+    --             logInfo "Instance {} located at {}" [riitInstanceId, x]
+    --             return . Just $ Task (Text.unpack x) ["cat /etc/hostname"]
+
+    -- let port        = 22
+    --     known_hosts = home </> ".ssh" </> "known_hosts"
+    --     public      = home </> ".ssh" </> "id_rsa.pub"
+    --     private     = home </> ".ssh" </> "id_rsa"
+
+    -- withSSH2 known_hosts public private "" login host 22 $ s ->
+    --     withChannel s $ \ch -> do
+    --         channelExecute ch command
+    --         result <- readAllChannel ch
+    --         BSL.putStr result
 
 stop :: Target -> AWS ()
 stop Target{..} = return ()

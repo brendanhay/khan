@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -14,25 +15,14 @@
 
 module Khan.AWS.Route53 where
 
-import           Control.Applicative
-import           Control.Arrow          ((***))
-import           Control.Concurrent     (threadDelay)
-import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Data.Foldable          (toList)
-import           Data.List              ((\\), partition)
-import           Data.Text              (Text)
-import qualified Data.Text              as Text
-import qualified Data.Text.IO           as Text
+import           Control.Concurrent  (threadDelay)
+import qualified Data.Text           as Text
 import           Khan.Internal
+import           Khan.Prelude        hiding (min, max)
 import           Network.AWS
-import           Network.AWS.EC2
 import           Network.AWS.Route53
 import           Pipes
-import qualified Pipes.Prelude          as Pipes
-import           Prelude                hiding (min, max)
-import           System.Directory
+import qualified Pipes.Prelude       as Pipes
 
 findZoneId :: Text -> AWS HostedZoneId
 findZoneId zone = do
@@ -51,6 +41,7 @@ findRecordSet zid match =
     Pipes.find match . (paginate ~> each . lrrsrResourceRecordSets) $
         ListResourceRecordSets zid Nothing Nothing Nothing Nothing
 
+updateRecordSet :: HostedZoneId -> [Change] -> AWS ()
 updateRecordSet zid changes = send batch >>= waitChange . crrsrChangeInfo
   where
     batch = ChangeResourceRecordSets zid $ ChangeBatch Nothing changes

@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -14,12 +15,11 @@
 
 module Khan.AWS.IAM where
 
-import           Control.Applicative
-import           Control.Monad.IO.Class
-import qualified Data.Text.IO           as Text
 import           Khan.Internal
+import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.IAM
+import qualified Shelly          as Shell
 
 findRole :: Naming a => a -> AWS Role
 findRole = fmap (grrRole . grrGetRoleResult) .
@@ -27,9 +27,9 @@ findRole = fmap (grrRole . grrGetRoleResult) .
 
 updateRole :: Naming a => a -> FilePath -> FilePath -> AWS ()
 updateRole (names -> Names{..}) ppath tpath = do
-    (policy, trust) <- liftIO $ (,)
-        <$> Text.readFile ppath
-        <*> Text.readFile tpath
+    (policy, trust) <- shell $ (,)
+        <$> Shell.readfile ppath
+        <*> Shell.readfile tpath
 
     i <- sendAsync $ CreateInstanceProfile profileName Nothing
     r <- sendAsync $ CreateRole trust Nothing profileName

@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude  #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -17,17 +18,13 @@
 
 module Khan.CLI.Host (cli) where
 
-import           Control.Applicative
-import           Control.Error
 import           Data.Char                (isDigit)
-import           Data.Foldable            (foldl')
-import           Data.List                (find, nub)
-import           Data.Monoid
-import           Data.Text                (Text)
+import           Data.List                (nub)
 import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import qualified Khan.AWS.Route53         as R53
 import           Khan.Internal
+import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2.Metadata
 import           Network.AWS.Route53

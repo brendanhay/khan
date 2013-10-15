@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
@@ -16,9 +17,9 @@
 
 module Khan.CLI.Profile (cli) where
 
-import           Control.Monad.IO.Class
 import qualified Khan.AWS.IAM           as IAM
 import           Khan.Internal
+import           Khan.Prelude
 import           Network.AWS
 import           Text.Show.Pretty
 
@@ -29,10 +30,10 @@ defineOptions "Role" $ do
     textOption "rEnv" "env" defaultEnv
         "Environment of the application."
 
-    stringOption "rPolicy" "policy" policyPath
+    pathOption "rPolicy" "policy" policyPath
         "Role policy file."
 
-    stringOption "rTrust" "trust" trustPath
+    pathOption "rTrust" "trust" trustPath
         "Trust relationship file."
 
 deriving instance Show Role
@@ -43,8 +44,8 @@ instance Validate Role where
     validate Role{..} = do
         check rName "--name must be specified."
         check rEnv  "--env must be specified."
-        checkPath rPolicy $ rPolicy ++ " specified by --policy must exist."
-        checkPath rTrust $ rTrust ++ " specified by --trust must exist."
+        checkPath rPolicy " specified by --policy must exist."
+        checkPath rTrust  " specified by --trust must exist."
 
 instance Naming Role where
     names Role{..} = unversioned rName rEnv

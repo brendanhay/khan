@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
@@ -15,10 +16,10 @@
 
 module Khan.CLI.Metadata (cli) where
 
-import           Control.Applicative
 import qualified Data.Text.Encoding       as Text
 import           Data.Text.Format
 import           Khan.Internal
+import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata

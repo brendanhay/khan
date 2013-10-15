@@ -38,13 +38,15 @@ executable khan
       , base64-bytestring
       , bytestring
       , containers
-      , directory
       , errors
       , options
       , pipes             >= 4.0
+      , prelude-prime
       , pretty-show
       , random
+      , shelly
       , template-haskell
       , text
       , text-format
+      , time
       , transformers

@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -14,17 +15,12 @@
 
 module Khan.Internal.AWS where
 
-import           Control.Applicative
-import           Control.Error
-import           Control.Monad
 import qualified Data.Map                as Map
-import           Data.Monoid
-import           Data.Text               (Text)
 import qualified Data.Text               as Text
-import qualified Data.Text.Encoding      as Text
 import           Data.Version
 import           Khan.Internal.Log
 import           Khan.Internal.Types
+import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (DescribeTags)
 import           Network.AWS.EC2

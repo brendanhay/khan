@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
@@ -14,17 +15,11 @@
 
 module Khan.Internal.Types where
 
-import           Control.Applicative
-import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
 import           Data.Attoparsec.Text
-import           Data.Foldable                (Foldable, toList)
 import           Data.List                    ((\\))
-import           Data.Monoid
-import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
 import           Data.Version
+import           Khan.Prelude
 import           Network.AWS.EC2
 import           Network.AWS.Internal
 import           Text.ParserCombinators.ReadP (readP_to_S)

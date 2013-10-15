@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
@@ -18,8 +19,8 @@ module Khan.CLI.Group (cli) where
 
 import qualified Khan.AWS.EC2     as EC2
 import           Khan.Internal
+import           Khan.Prelude
 import           Network.AWS
-import           Pipes
 import           Text.Show.Pretty
 
 defineOptions "Group" $ do

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}

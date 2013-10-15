@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -33,22 +34,17 @@ module Khan.Internal.Program
     , subCommand
     ) where
 
-import           Control.Applicative
-import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Class (lift)
-import qualified Data.ByteString.Char8     as BS
-import           Data.List                 (find)
-import qualified Data.Text                 as Text
+import qualified Data.ByteString.Char8    as BS
+import qualified Data.Text                as Text
 import           Data.Text.Encoding
 import           Khan.Internal.Log
 import           Khan.Internal.Options
 import           Khan.Internal.Types
+import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2.Metadata
-import           Options                   hiding (group, boolOption, stringOption)
-import           System.Directory
+import           Options                  hiding (group, boolOption, stringOption)
+import qualified Shelly                   as Shell
 import           System.Environment
 import           System.Exit
 
@@ -112,7 +108,8 @@ checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT Error m ()
 checkIO io e = liftIO io >>= (`check` e)
 
 checkPath :: MonadIO m => FilePath -> String -> EitherT Error m ()
-checkPath p = checkIO (not <$> doesFileExist p)
+checkPath p e = checkIO (not <$> shell (Shell.test_e p)) $
+    Text.unpack (toTextIgnore p) ++ e
 
 data Command = Command
     { cmdName :: String

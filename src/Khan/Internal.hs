@@ -1,4 +1,4 @@
--- Module      : Khan.Internal
+{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}-- Module      : Khan.Internal
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.

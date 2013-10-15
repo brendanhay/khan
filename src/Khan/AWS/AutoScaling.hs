@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -14,13 +15,11 @@
 
 module Khan.AWS.AutoScaling where
 
-import           Data.Text               (Text)
-import qualified Data.Text               as Text
-import           Khan.Internal
-import           Network.AWS
-import           Network.AWS.AutoScaling hiding (Filter)
-import           Network.AWS.Internal
-import           Prelude                 hiding (min, max)
+import Khan.Internal
+import Khan.Prelude            hiding (min, max)
+import Network.AWS
+import Network.AWS.AutoScaling hiding (Filter)
+import Network.AWS.Internal
 
 createConfig :: Naming a => a -> Text -> InstanceType -> AWS ()
 createConfig (names -> Names{..}) ami typ = do

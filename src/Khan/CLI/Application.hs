@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
@@ -16,17 +17,14 @@
 
 module Khan.CLI.Application (cli) where
 
-import           Control.Applicative
 import           Control.Concurrent      (threadDelay)
-import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
+import qualified Khan.AWS.AutoScaling    as ASG
+import qualified Khan.AWS.EC2            as EC2
+import qualified Khan.AWS.IAM            as IAM
 import           Khan.Internal
+import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
-import qualified Khan.AWS.AutoScaling   as ASG
-import qualified Khan.AWS.EC2           as EC2
-import qualified Khan.AWS.IAM           as IAM
 
 defineOptions "Deploy" $ do
     textOption "dName" "name" ""

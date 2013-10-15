@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
@@ -16,17 +17,14 @@
 
 module Khan.CLI.DNS (cli) where
 
-import           Control.Applicative
-import           Control.Concurrent     (threadDelay)
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Data.Text              (Text)
-import qualified Data.Text              as Text
+import           Control.Concurrent  (threadDelay)
+import qualified Data.Text           as Text
 import           Khan.Internal
+import           Khan.Prelude        hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
 import           Pipes
-import qualified Pipes.Prelude          as Pipes
+import qualified Pipes.Prelude       as Pipes
 import           Text.Show.Pretty
 
 defineOptions "Record" $ do

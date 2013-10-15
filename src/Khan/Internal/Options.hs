@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -25,6 +26,8 @@ module Khan.Internal.Options
     , integerOption
     , maybeIntegerOption
     , boolOption
+    , pathOption
+    , maybePathOption
 
     -- * Option Types
     , optionTypeWord8
@@ -41,18 +44,26 @@ module Khan.Internal.Options
     , customOption
     ) where
 
-import           Control.Error
-import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Version
 import           Khan.Internal.Types
+import           Khan.Prelude
 import           Language.Haskell.TH
 import           Network.AWS.EC2
 import           Network.AWS.Internal.Types
 import           Network.AWS.Route53
 import qualified Options                    as Opts
-import           Options                    hiding (textOption, textsOption, intOption, integerOption, boolOption, stringOption)
 import           Options.OptionTypes
+
+import Options hiding
+     ( textOption
+     , textsOption
+     , intOption
+     , integerOption
+     , boolOption
+     , stringOption
+     , pathOption
+     )
 
 type Opt a = String -> String -> a -> String -> OptionsM ()
 
@@ -97,6 +108,19 @@ maybeIntegerOption name flag (show -> def) desc =
 boolOption :: Opt Bool
 boolOption name flag def = Opts.boolOption name flag def
     . defaultText (show def)
+
+pathOption :: Opt FilePath
+pathOption name flag def = Opts.pathOption name flag def
+    . defaultText (show def)
+
+maybePathOption :: Opt Text
+maybePathOption name flag (Text.unpack -> def) desc =
+    option name $ \o -> o
+        { optionLongFlags   = [flag]
+        , optionDefault     = def
+        , optionType        = optionTypeMaybe optionTypeFilePath
+        , optionDescription = defaultText def desc
+        }
 
 recordTypeOption :: Opt RecordType
 recordTypeOption = readOption (ConT ''RecordType)

@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -14,21 +15,21 @@
 
 module Khan.AWS.EC2 where
 
-import           Control.Arrow          ((***))
-import           Control.Concurrent     (threadDelay)
-import           Control.Error
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Data.Foldable          (toList)
-import           Data.List              ((\\), partition)
-import           Data.Text              (Text)
-import qualified Data.Text              as Text
-import qualified Data.Text.IO           as Text
+import           Control.Arrow      ((***))
+import           Control.Concurrent (threadDelay)
+import           Data.List          ((\\), partition)
+import qualified Data.Text          as Text
 import           Khan.Internal
+import           Khan.Prelude       hiding (min, max)
 import           Network.AWS
 import           Network.AWS.EC2
-import           Prelude                hiding (min, max)
-import           System.Directory
+import qualified Shelly             as Shell
+
+keyPath :: Text -> Region -> FilePath
+keyPath name reg = certPath </> path
+  where
+    path = Shell.fromText $
+        Text.concat [Text.pack $ show reg, ".", name, ".pem"]
 
 createKey :: Naming a => a -> AWS ()
 createKey (names -> Names{..}) =
@@ -39,13 +40,9 @@ createKey (names -> Names{..}) =
         logInfo "KeyPair {} exists, not updating." [keyName]
 
     write k = do
-        reg <- currentRegion
-        let path = concat [certPath, "/", show reg, ".", Text.unpack keyName, ".pem"]
-        liftIO $ do
-            createDirectoryIfMissing True certPath
-            Text.writeFile path $ ckqKeyMaterial k
-
-        logInfo "Wrote new KeyPair to {}" [path]
+        path <- keyPath keyName <$> currentRegion
+        shell $ Shell.mkdir_p path >> Shell.writefile path (ckqKeyMaterial k)
+        logInfo "Wrote new KeyPair to {}" [toTextIgnore path]
 
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
 findGroup (names -> Names{..}) = do
@@ -108,9 +105,9 @@ runInstances :: Naming a
              -> Integer
              -> Text
              -> Bool
-             -> AWS [Text]
+             -> AWS [RunningInstancesItemType]
 runInstances (names -> Names{..}) image typ az min max ud opt =
-    fmap (map riitInstanceId . rirInstancesSet) . send $ RunInstances
+    fmap rirInstancesSet . send $ RunInstances
         image
         min
         max
@@ -151,7 +148,7 @@ waitForInstances ids = do
     unless (null ps) $ do
         logInfo "Instances still pending: {}" [format ps]
         logInfo_ "Waiting..."
-        liftIO . threadDelay $ 1000000 * 10
+        liftIO . threadDelay $ 1000000 * 30
 
     waitForInstances ps
   where

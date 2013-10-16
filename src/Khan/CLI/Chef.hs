@@ -252,14 +252,15 @@ bundle t@Bundle{..} = liftEitherT $ do
 run :: Host -> AWS ()
 run Host{..} = do
     hs <- if null hHosts
-              then liftEitherT . mapM dns =<< EC2.findInstances []
-                  [ tag roleTag roleName
-                  , tag envTag  envName
-                  ]
+              then findTagged
               else return hHosts
-
     logInfo "Running on hosts: \n{}" [Text.intercalate "\n" hs]
   where
+    findTagged = liftEitherT . mapM dns =<< EC2.findInstances []
+        [ tag roleTag roleName
+        , tag envTag  envName
+        ]
+
     tag key = Filter ("tag:" <> key) . (:[])
 
     Names{..} = unversioned hRole hEnv

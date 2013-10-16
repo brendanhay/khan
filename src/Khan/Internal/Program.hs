@@ -96,8 +96,12 @@ instance Validate Khan where
       where
         role = isNothing kRole
 
-        msg k e = k ++ " must be specified or "
-            ++ e ++ " env must be set if --iam-role is not set."
+        msg k e = concat
+            [k
+            , " must be specified or "
+            , e
+            , " env must be set if --iam-role is not set."
+            ]
 
 validKeys :: Khan -> Bool
 validKeys Khan{..} = (not . null) `all` [kAccess, kSecret]
@@ -109,8 +113,9 @@ checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT Error m ()
 checkIO io e = liftIO io >>= (`check` e)
 
 checkPath :: MonadIO m => FilePath -> String -> EitherT Error m ()
-checkPath p e = checkIO (not <$> shell (Shell.test_e p)) $
-    Text.unpack (path p) ++ e
+checkPath p e = check p msg >> checkIO (not <$> shell (Shell.test_e p)) msg
+  where
+    msg = Text.unpack (Text.concat ["path '", path p, "'"]) ++ e
 
 data Command = Command
     { cmdName :: String

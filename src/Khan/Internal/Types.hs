@@ -19,6 +19,7 @@ import           Data.Attoparsec.Text
 import           Data.List                    ((\\))
 import qualified Data.Text                    as Text
 import           Data.Version
+import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           Network.AWS.Internal
@@ -51,6 +52,10 @@ instance Invalid a => Invalid [a] where
 
 instance Invalid Char where
     invalid _ = False
+
+instance Invalid FilePath where
+    invalid "" = True
+    invalid f  = Path.valid f
 
 instance Invalid a => Invalid (Maybe a) where
     invalid (Just x) = invalid x

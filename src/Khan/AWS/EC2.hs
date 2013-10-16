@@ -40,7 +40,7 @@ createKey (names -> Names{..}) =
     write k = do
         f <- keyPath keyName <$> currentRegion
         shell $ Shell.mkdir_p certPath >> Shell.writefile f (ckqKeyMaterial k)
-        logInfo "Wrote new KeyPair to {}" [path f]
+        logInfo "Wrote new KeyPair to {}" [f]
 
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
 findGroup (names -> Names{..}) = do

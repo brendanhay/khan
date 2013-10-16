@@ -30,7 +30,6 @@ import           Network.AWS.AutoScaling hiding (DescribeTags)
 import           Network.AWS.EC2
 import           Network.AWS.IAM
 import           Network.Http.Client     hiding (get)
-import qualified Shelly                  as Shell
 
 sshGroup :: Text -> Text
 sshGroup = (<> "-ssh")

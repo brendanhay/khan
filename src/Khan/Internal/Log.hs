@@ -46,6 +46,9 @@ instance Buildable [Text] where
 instance Buildable [LText.Text] where
     build = build . LText.intercalate ", "
 
+instance Buildable FilePath where
+    build = build . path
+
 logInfo, logError :: (MonadIO m, Params ps) => Format -> ps -> m ()
 logInfo  f = hprint stdout (f <> "\n")
 logError f = hprint stderr (f <> "\n")

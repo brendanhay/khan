@@ -183,12 +183,11 @@ instance Discover Host
 
 instance Validate Host where
     validate Host{..} = do
-        if invalid hHosts
-            then do
-                check hRole "--role must be specified."
-                check hEnv  "--env must be specified."
-            else check hHosts "--hosts must be specified."
         checkPath hBundle " specified by --bundle must exist."
+        if invalid hHosts
+            then check hRole "--role must be specified." >>
+                 check hEnv  "--env must be specified."
+            else check hHosts "--hosts must be specified."
 
 cli :: Command
 cli = Command "chef" "Manage Chef EC2 Instances."
@@ -229,16 +228,18 @@ bundle t@Bundle{..} = liftEitherT $ do
     exists "Berksfile"
     exists "chefignore"
     sh $ do
-        Shell.rm_rf tTmp >> Shell.mkdir_p tTmp
+        Shell.rm_rf tTmp
+        Shell.mkdir_p tTmp
         Shell.cp tSolo solo
 
     sync . LBS.writeFile (Path.encodeString node) $ encode t
+    tgz <- sh $ Shell.absPath output
 
     sh $ do
         Shell.run_ "bundle" ["exec", "berks", "install", "--path", path books]
-        b <- Shell.absPath output
-        Shell.chdir tTmp $ Shell.run_ "tar" ["zcf", path b, "."]
-        logInfo "Bundle created at {}" [path b]
+        Shell.chdir tTmp $ Shell.run_ "tar" ["zcf", path tgz, "."]
+
+    logInfo "Bundle created at {}" [tgz]
   where
     output = "bundle.tar.gz" :: FilePath
 
@@ -247,7 +248,7 @@ bundle t@Bundle{..} = liftEitherT $ do
     node  = tTmp </> ("node.json" :: FilePath)
 
     exists f = sh (Shell.test_e f) >>=
-        assert "Missing {}, is the current dir a Chef Cookbook?" [path f] . not
+        assert "Missing {}, is the current dir a Chef Cookbook?" [f] . not
 
 run :: Host -> AWS ()
 run Host{..} = do

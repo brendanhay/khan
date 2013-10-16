@@ -1,4 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -15,22 +15,22 @@
 
 module Khan.Internal.AWS where
 
+import           Control.Arrow           ((***))
+import           Control.Concurrent      (threadDelay)
+import           Control.Exception
+import           Data.List               ((\\), partition)
 import qualified Data.Map                as Map
 import qualified Data.Text               as Text
 import           Data.Version
 import           Khan.Internal.Log
 import           Khan.Internal.Types
-import           Khan.Prelude
+import           Khan.Prelude            hiding (min, max)
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (DescribeTags)
 import           Network.AWS.EC2
 import           Network.AWS.IAM
-
-policyPath :: FilePath
-policyPath = "./config/role-policy.json"
-
-trustPath :: FilePath
-trustPath = "./config/trust-relationship.json"
+import           Network.Http.Client     hiding (get)
+import qualified Shelly                  as Shell
 
 sshGroup :: Text -> Text
 sshGroup = (<> "-ssh")
@@ -96,4 +96,13 @@ verifyIAM :: Text -> Either IAMError a -> AWS ()
 verifyIAM = (`verify` (etCode . erError))
 
 verify :: (Eq a, ToError e) => a -> (e -> a) -> Either e b -> AWS ()
-verify k f = checkError ((k ==) . f)
+verify k f = assertError ((k ==) . f)
+
+isEC2 :: (Functor m, MonadIO m) => m Bool
+isEC2 = isRight <$> runEitherT (syncIO attempt)
+  where
+    attempt = bracket (establishConnection host) closeConnection $ \c -> do
+        rq <- buildRequest $ http GET "/latest"
+        sendRequest c rq emptyBody
+
+    host = "http://instance-data"

@@ -25,9 +25,11 @@ module Khan.Prelude
     , unless
     , void
     , lift
-    , toTextIgnore
+
+    -- * Shell
+    , sh
     , shell
-    , shellAWS
+    , path
 
     -- * Variadic AWS Errors
     , throwErrorF
@@ -35,7 +37,10 @@ module Khan.Prelude
 
     -- * Variadic EitherT Errors
     , assert
-    , assertM
+
+    -- * Caba Data Files
+    , defaultDataFile
+    , dataFile
 
     , module Applicative
     , module Error
@@ -54,32 +59,48 @@ import Data.ByteString           (ByteString)
 import Data.Map                  (Map)
 import Data.Maybe                as Maybe
 import Data.Monoid               as Monoid
+import Data.String
 import Data.Text                 (Text)
 import Data.Text.Format          (Format, format)
 import Data.Text.Format.Params
 import Data.Text.Lazy            (unpack)
 import Network.AWS
+import Paths_khan                (getDataFileName)
 import Prelude.Prime             as Prime hiding (FilePath)
-import Shelly                    ((</>), FilePath, Sh, shellyNoDir, toTextIgnore)
+
+import Shelly
+    ( FilePath
+    , Sh
+    , (</>)
+    , absPath
+    , shellyNoDir
+    , toTextIgnore
+    , verbosely
+    )
+
+sh :: MonadIO m => Sh a -> EitherT String m a
+sh = fmapLT show . syncIO . shell
 
 shell :: MonadIO m => Sh a -> m a
-shell = shellyNoDir
+shell = shellyNoDir . verbosely
 
--- shellAWS :: EitherT String Sh a -> AWS a
-shellAWS = liftEitherT . fmapLT toError . syncIO . shellyNoDir
+path :: FilePath -> Text
+path = toTextIgnore
 
 assert :: (MonadIO m, Params ps) => Format -> ps -> Bool -> EitherT String m ()
-assert f ps = assertM f ps . return
-
-assertM :: (MonadIO m, Params ps) => Format -> ps -> m Bool -> EitherT String m ()
-assertM f ps act = do
-    p <- lift act
-    if p
-        then left . unpack $ format f ps
-        else right ()
+assert f ps True  = left . unpack $ format f ps
+assert _ _  False = right ()
 
 throwErrorF :: Params ps => Format -> ps -> AWS a
 throwErrorF f = throwError . unpack . format f
 
 noteErrorF :: Params ps => Format -> ps -> Maybe a -> AWS a
 noteErrorF f ps = noteError (unpack $ format f ps)
+
+defaultDataFile :: (Functor m, MonadIO m) => FilePath -> String -> m FilePath
+defaultDataFile f name
+    | mempty /= f = return f
+    | otherwise   = dataFile name
+
+dataFile :: (Functor m, MonadIO m) => String -> m FilePath
+dataFile name = liftIO (getDataFileName name) >>= shell . absPath . fromString

@@ -18,6 +18,13 @@ description:
 extra-source-files:
     README.md
 
+data-files:
+      config/node.json
+    , config/policy.json
+    , config/trust.json
+    , config/solo.rb
+    , config/user-data
+
 source-repository head
     type:     git
     location: git://github.com/brendanhay/khan.git
@@ -39,6 +46,8 @@ executable khan
       , bytestring
       , containers
       , errors
+      , http-streams
+      , io-streams
       , options
       , pipes             >= 4.0
       , prelude-prime

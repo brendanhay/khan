@@ -37,6 +37,7 @@ module Khan.Internal.Program
 import qualified Data.ByteString.Char8    as BS
 import qualified Data.Text                as Text
 import           Data.Text.Encoding
+import           Khan.Internal.AWS
 import           Khan.Internal.Log
 import           Khan.Internal.Options
 import           Khan.Internal.Types
@@ -68,8 +69,8 @@ defineOptions "Khan" $ do
     regionOption "kRegion" "region" NorthCalifornia
         "Region to operate in."
 
-    boolOption "kDisco" "disco" False
-        "Auto-discover command line parameters."
+    boolOption "kDisco" "no-discovery" False
+        "Skip discovery of command line parameters."
 
 deriving instance Show Khan
 
@@ -109,7 +110,7 @@ checkIO io e = liftIO io >>= (`check` e)
 
 checkPath :: MonadIO m => FilePath -> String -> EitherT Error m ()
 checkPath p e = checkIO (not <$> shell (Shell.test_e p)) $
-    Text.unpack (toTextIgnore p) ++ e
+    Text.unpack (path p) ++ e
 
 data Command = Command
     { cmdName :: String
@@ -173,22 +174,24 @@ subCommand name action = Options.subcommand name run
         logInfo "Setting region to {}..." [Shown kRegion]
         env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
         res <- lift . runAWS env $ do
-            opts <- disco kDisco o
+            opts <- disco (not kDisco) o
             liftEitherT $ validate opts
             action opts
         hoistEither res
 
-    regionalise k
-        | isNothing (kRole k) = return k
-        | otherwise = do
-              az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
-              reg <- fmapLT toError $
-                  tryRead ("Failed to read region from: " ++ az) az
-              return $! k { kRegion = reg }
+    regionalise k = do
+        p <- isEC2
+        if not p
+            then return k
+            else do
+                az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
+                reg <- fmapLT toError $
+                    tryRead ("Failed to read region from: " ++ az) az
+                return $! k { kRegion = reg }
 
     creds Khan{..}
         | Just r <- kRole = FromRole $! encodeUtf8 r
         | otherwise       = FromKeys (BS.pack kAccess) (BS.pack kSecret)
 
-    disco True  = (logDebug_ "Performing discovery..." >>) . discover
-    disco False = (logDebug_ "Skipping discovery..." >>) . return
+    disco True  = (logInfo_ "Performing discovery..." >>) . discover
+    disco False = (logInfo_ "Skipping discovery..." >>) . return

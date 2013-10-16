@@ -30,15 +30,20 @@ defineOptions "Role" $ do
     textOption "rEnv" "env" defaultEnv
         "Environment of the application."
 
-    pathOption "rPolicy" "policy" policyPath
+    pathOption "rPolicy" "policy" ""
         "Role policy file."
 
-    pathOption "rTrust" "trust" trustPath
+    pathOption "rTrust" "trust" ""
         "Trust relationship file."
 
 deriving instance Show Role
 
-instance Discover Role
+instance Discover Role where
+    discover r@Role{..} = do
+        (p, t) <- (,)
+            <$> defaultDataFile rPolicy "policy.json"
+            <*> defaultDataFile rTrust  "trust.json"
+        return $! r { rPolicy = p, rTrust  = t }
 
 instance Validate Role where
     validate Role{..} = do

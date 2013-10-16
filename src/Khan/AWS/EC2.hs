@@ -15,21 +15,21 @@
 
 module Khan.AWS.EC2 where
 
-import           Control.Arrow      ((***))
-import           Control.Concurrent (threadDelay)
-import           Data.List          ((\\), partition)
-import qualified Data.Text          as Text
+import           Control.Arrow       ((***))
+import           Control.Concurrent  (threadDelay)
+import           Control.Exception
+import           Data.List           ((\\), partition)
+import qualified Data.Text           as Text
 import           Khan.Internal
-import           Khan.Prelude       hiding (min, max)
+import           Khan.Prelude        hiding (min, max)
 import           Network.AWS
 import           Network.AWS.EC2
-import qualified Shelly             as Shell
+import           Network.Http.Client hiding (get)
+import qualified Shelly              as Shell
 
 keyPath :: Text -> Region -> FilePath
-keyPath name reg = certPath </> path
-  where
-    path = Shell.fromText $
-        Text.concat [Text.pack $ show reg, ".", name, ".pem"]
+keyPath name reg = certPath
+    </> Shell.fromText (Text.concat [Text.pack $ show reg, ".", name, ".pem"])
 
 createKey :: Naming a => a -> AWS ()
 createKey (names -> Names{..}) =
@@ -40,9 +40,9 @@ createKey (names -> Names{..}) =
         logInfo "KeyPair {} exists, not updating." [keyName]
 
     write k = do
-        path <- keyPath keyName <$> currentRegion
-        shell $ Shell.mkdir_p path >> Shell.writefile path (ckqKeyMaterial k)
-        logInfo "Wrote new KeyPair to {}" [toTextIgnore path]
+        f <- keyPath keyName <$> currentRegion
+        shell $ Shell.mkdir_p certPath >> Shell.writefile f (ckqKeyMaterial k)
+        logInfo "Wrote new KeyPair to {}" [path f]
 
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
 findGroup (names -> Names{..}) = do
@@ -158,7 +158,7 @@ waitForInstances ids = do
 
 findImage :: [Text] -> AWS Text
 findImage images = do
-    logInfo "Looking for AMIs matching: {}" [options]
+    logInfo "Finding AMIs matching: {}" [options]
     rs  <- fmap (listToMaybe . djImagesSet) . send $
         DescribeImages [] [] ["self"] [Filter "name" images]
     ami <- fmap diritImageId $ noteError "Failed to find any matching AMIs" rs
@@ -166,3 +166,13 @@ findImage images = do
     return ami
   where
     options = Text.intercalate " | " images
+
+findCurrentZones :: AWS [AvailabilityZoneItemType]
+findCurrentZones = do
+    reg <- Text.pack . show <$> currentRegion
+    logInfo_ "Finding AZs in current region"
+    fmap dazrAvailabilityZoneInfo . send $
+        DescribeAvailabilityZones []
+            [ Filter "region-name" [reg]
+            , Filter "state" ["available"]
+            ]

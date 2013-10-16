@@ -25,6 +25,7 @@ import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
+import           Network.AWS.EC2
 
 defineOptions "Deploy" $ do
     textOption "dName" "name" ""
@@ -41,7 +42,7 @@ defineOptions "Deploy" $ do
     versionOption "dVersion" "version" defaultVersion
         "Version of the application."
 
-    stringOption "dZones" "zones" "abc"
+    stringOption "dZones" "zones" ""
          "Availability zones suffixes to provision into."
 
     integerOption "dGrace" "grace" 20
@@ -50,10 +51,10 @@ defineOptions "Deploy" $ do
     integerOption "dMin" "min" 1
         "Minimum number of instances."
 
-    integerOption "dMax" "max" 20
+    integerOption "dMax" "max" 1
         "Maximum number of instances."
 
-    integerOption "dDesired" "desired" 2
+    integerOption "dDesired" "desired" 1
         "Desired number of instances."
 
     integerOption "dCooldown" "cooldown" 60
@@ -67,7 +68,11 @@ defineOptions "Deploy" $ do
 
 deriving instance Show Deploy
 
-instance Discover Deploy
+instance Discover Deploy where
+    discover d = do
+        zs <- map (azSuffix . azitZoneName) <$> EC2.findCurrentZones
+        logInfo "Using Availability Zones '{}'" [zs]
+        return $! d { dZones = zs }
 
 instance Validate Deploy where
     validate Deploy{..} = do
@@ -81,11 +86,11 @@ instance Validate Deploy where
         check dCooldown "--cooldown must be greater than 0."
         check dZones    "--zones must be specified."
 
-        check (not $ dMin < dMax)      "--min must be less than --max."
+        check (not $ dMax >= dMin)     "--max must be greater than or equal to --max."
         check (not $ dDesired >= dMin) "--desired must be greater than or equal to --min."
         check (not $ dDesired <= dMax) "--desired must be less than or equal to --max."
 
-        check (Within dZones "abcde")      "--zones must be within [a-e]."
+        check (Within dZones "abc")        "--zones must be within [a-e]."
         check (defaultVersion == dVersion) "--version must be specified."
 
 instance Naming Deploy where
@@ -164,11 +169,11 @@ instance Naming Cluster where
 
 cli :: Command
 cli = Command "app" "Manage Applications."
-    [ subCommand "deploy" deploy
-    , subCommand "scale"  scale
-    , subCommand "retire" retire
-    , subCommand "info"   info
-    , subCommand "promote"  promote
+    [ subCommand "deploy"  deploy
+    , subCommand "scale"   scale
+    , subCommand "retire"  retire
+    , subCommand "promote" promote
+    , subCommand "info"    info
     ]
 
 deploy :: Deploy -> AWS ()
@@ -212,8 +217,8 @@ scale s@Scale{..} = ASG.updateGroup s sCooldown sDesired sGrace sMin sMax
 retire :: Cluster -> AWS ()
 retire c@Cluster{..} = ASG.deleteGroup c >> ASG.deleteConfig c
 
-info :: Cluster -> AWS ()
-info Cluster{..} = return ()
-
 promote :: Cluster -> AWS ()
 promote Cluster{..} = return ()
+
+info :: Cluster -> AWS ()
+info Cluster{..} = return ()

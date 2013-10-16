@@ -17,10 +17,12 @@
 
 module Khan.CLI.Chef (cli) where
 
+import           Data.Attoparsec.Text
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text              as Text
 import qualified Data.Text.Encoding     as Text
+import qualified Data.Text.IO           as Text
 import qualified Khan.AWS.EC2           as EC2
 import qualified Khan.AWS.IAM           as IAM
 import           Khan.Internal
@@ -52,7 +54,7 @@ defineOptions "Launch" $ do
     textsOption "lGroups" "groups" []
         "Security groups."
 
-    pathOption "lData" "user-data" "./config/user-data"
+    pathOption "lData" "user-data" ""
         "Path to user data file."
 
     instanceTypeOption "lType" "type" M1_Small
@@ -82,9 +84,10 @@ defineOptions "Launch" $ do
 
 deriving instance Show Launch
 
-instance Discover Launch -- where
-    -- discover l@Launch{..} = do
-        -- look for metadata.rb and get name from their
+instance Discover Launch where
+    discover l@Launch{..} = do
+        ud <- defaultDataFile lData "user-data"
+        return $! l { lData = ud }
 
 instance Validate Launch where
     validate Launch{..} = do
@@ -107,24 +110,39 @@ defineOptions "Target" $ do
     textOption "tRole" "role" ""
         "Instance's role."
 
-    pathOption "tBerks" "berksfile" "Berksfile"
-        "Path to the cookbook's Berksfile."
+    pathOption "tSolo" "solo" ""
+        "Chef solo.rb configuration to use."
+
+    pathOption "tNode" "node" ""
+        "Chef node.json definition to use."
+
+    pathOption "tTmp" "tmp" ".khan"
+        "Temporary working directory."
 
 deriving instance Show Target
 
-instance Discover Target
+instance Discover Target where
+    discover t@Target{..} = do
+        (s, n) <- (,)
+            <$> defaultDataFile tSolo "solo.rb"
+            <*> defaultDataFile tNode "node.json"
+        r <- roleFromMetadata tRole "name"
+        logInfo "Using role '{}'" [r]
+        return $! t { tRole = r, tSolo = s, tNode = n }
 
 instance Validate Target where
     validate Target{..} = do
         check tRole "--role must be specified."
-        checkPath tBerks " specified by --berksfile must exist."
+        checkPath tSolo " specified by --solo must exist."
+        checkPath tNode " specified by --node must exist."
+        checkPath tTmp  " specified by --tmp must exist."
 
 cli :: Command
 cli = Command "chef" "Manage Chef EC2 Instances."
-    [ subCommand "launch" launch
-    , subCommand "bundle" bundle
-    , subCommand "run"    run
-    , subCommand "stop"   stop
+    [ subCommand "launch"   launch
+    , subCommand "artifact" artifact
+    , subCommand "run"      run
+    , subCommand "stop"     stop
     ]
 
 launch :: Launch -> AWS ()
@@ -153,31 +171,32 @@ launch l@Launch{..} = do
   where
     Names{..} = names l
 
-bundle :: Target -> AWS ()
-bundle Target{..} = shellAWS . Shell.verbosely $ do
+artifact :: Target -> AWS ()
+artifact Target{..} = liftEitherT $ do
+    exists "Berksfile"
+    exists "chefignore"
+    sh $ do
+        Shell.rm_rf tTmp
+        Shell.mkdir_p tTmp
 
-    Shell.rm_rf tmp
-    Shell.mkdir_p out
+        Shell.cp tSolo solo
+--        Shell.cp tNode tTmp templates?
 
-    Shell.run_ "bundle"
-        ["exec", "berks", "-b", toTextIgnore tBerks, "-o", toTextIgnore out]
+        Shell.run_ "bundle" ["exec", "berks", "install", "--path", path books]
 
-    Shell.touchfile solo
-    Shell.touchfile node
+        a <- Shell.absPath output
 
-    return ()
+        Shell.chdir tTmp $ Shell.run_ "tar" ["zcf", path a, "."]
+        logInfo "Artifact created at {}" [path a]
   where
-    solo = out </> ("solo.rb" :: FilePath)
-    node = out </> ("node.json" :: FilePath)
-    out  = tmp </> ("var/chef" :: FilePath)
-    tmp  = ".khan" :: FilePath
-    -- Create ./.khan
-    --           - /var/chef
-    --           - /var/chef/node.json - with run_list set to name from metadata.rb
-    --           - /var/chef/solo.rb
-    -- Bundle ./Berksfile dependencies to ./.khan/var/chef/cookbooks
-    -- Bundle organisational data to ./.khan/var/chef/data_bags
-    -- Create a tar.gz which unzips to the correct paths (/var/chef etc)
+    output = "artifact.tar.gz" :: FilePath
+
+    books = tTmp </> ("cookbooks" :: FilePath)
+    solo  = tTmp </> ("solo.rb"   :: FilePath)
+    node  = tTmp </> ("node.json" :: FilePath)
+
+    exists f = sh (Shell.test_e f) >>=
+        assert "Missing {}, is the current dir a Chef Cookbook?" [path f] . not
 
 run :: Target -> AWS ()
 run Target{..} = return ()
@@ -219,3 +238,23 @@ stop Target{..} = return ()
 
 shuffle :: MonadIO m => [a] -> m a
 shuffle xs = liftIO $ randomRIO (0, length xs - 1) >>= return . (xs !!)
+
+roleFromMetadata :: Text -> Text -> AWS Text
+roleFromMetadata def key
+    | not $ invalid def = return def
+    | otherwise         = liftEitherT $ do
+        p <- sh $ Shell.test_e "metadata.rb"
+        r <- if p then fromMaybe def <$> match else return def
+        return . fromMaybe r $ Text.stripSuffix "-role" r
+  where
+    match = liftIO $ do
+        logInfo_ "Reading metadata.rb"
+        ls <- Text.lines <$> Text.readFile "metadata.rb"
+        return . join
+               . fmap (maybeResult . parse parser)
+               $ find (key `Text.isPrefixOf`) ls
+
+    parser = (string key >> skipSpace >> satisfy separator)
+        *> takeTill separator
+
+    separator c = c == '\'' || c == '"'

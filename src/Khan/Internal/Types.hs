@@ -79,7 +79,7 @@ createNames role env ver = Names
     , roleName    = role
     , profileName = nameEnv
     , groupName   = nameEnv
-    , imageName   = role <> tver
+    , imageName   = Text.concat [role, "_", tver]
     , appName     = Text.concat [role, tver, ".", env]
     , versionName = mver
     }
@@ -157,9 +157,8 @@ showRules = Text.intercalate ", " . map rule . toList
         , fromMaybe "" groupOrRange
         ]
       where
-        groupOrRange =
-                 headMay (mapMaybe uigGroupName $ toList iptGroups)
-             <|> headMay (map irCidrIp $ toList iptIpRanges)
+        groupOrRange = headMay (mapMaybe uigGroupName $ toList iptGroups)
+            <|> headMay (map irCidrIp $ toList iptIpRanges)
 
 parseRule :: String -> Either String IpPermissionType
 parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0")

@@ -17,14 +17,12 @@ module Khan.AWS.EC2 where
 
 import           Control.Arrow       ((***))
 import           Control.Concurrent  (threadDelay)
-import           Control.Exception
 import           Data.List           ((\\), partition)
 import qualified Data.Text           as Text
 import           Khan.Internal
 import           Khan.Prelude        hiding (min, max)
 import           Network.AWS
 import           Network.AWS.EC2
-import           Network.Http.Client hiding (get)
 import qualified Shelly              as Shell
 
 keyPath :: Text -> Region -> FilePath
@@ -92,9 +90,9 @@ deleteGroup (names -> Names{..}) = do
     send_ $ DeleteSecurityGroup (Just groupName) Nothing
     logInfo_ "Group deleted."
 
-findInstances :: [Text] -> AWS [RunningInstancesItemType]
+findInstances :: [Text] -> [Filter] -> AWS [RunningInstancesItemType]
 findInstances ids = fmap (concatMap ritInstancesSet . dirReservationSet) .
-    send $ DescribeInstances ids []
+    send . DescribeInstances ids
 
 runInstances :: Naming a
              => a
@@ -139,7 +137,7 @@ tagInstances (names -> n) dom ids = do
 waitForInstances :: [Text] -> AWS ()
 waitForInstances []  = logInfo_ "All instances running"
 waitForInstances ids = do
-    xs <- findInstances ids
+    xs <- findInstances ids []
 
     let (ps, rs) = join (***) (map riitInstanceId) $ pending xs
 

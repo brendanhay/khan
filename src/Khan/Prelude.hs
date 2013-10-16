@@ -35,8 +35,9 @@ module Khan.Prelude
     , throwErrorF
     , noteErrorF
 
-    -- * Variadic EitherT Errors
+    -- * EitherT Errors
     , assert
+    , sync
 
     -- * Caba Data Files
     , defaultDataFile
@@ -82,10 +83,13 @@ sh :: MonadIO m => Sh a -> EitherT String m a
 sh = fmapLT show . syncIO . shell
 
 shell :: MonadIO m => Sh a -> m a
-shell = shellyNoDir . verbosely
+shell = shellyNoDir
 
 path :: FilePath -> Text
 path = toTextIgnore
+
+sync :: MonadIO m => IO a -> EitherT String m a
+sync = fmapLT show . syncIO
 
 assert :: (MonadIO m, Params ps) => Format -> ps -> Bool -> EitherT String m ()
 assert f ps True  = left . unpack $ format f ps

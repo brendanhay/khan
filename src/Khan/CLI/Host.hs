@@ -33,7 +33,7 @@ import qualified Pipes.Prelude            as Pipes
 
 defineOptions "Host" $ do
     textOption "hId" "id" ""
-        "Name of the group."
+        "Instance Id."
 
     textOption "hFQDN" "fqdn" ""
         "FQDN."

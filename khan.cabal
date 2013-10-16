@@ -54,6 +54,7 @@ executable khan
       , pretty-show
       , random
       , shelly
+      , system-filepath
       , template-haskell
       , text
       , text-format

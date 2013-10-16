@@ -1,5 +1,8 @@
-{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE NoImplicitPrelude    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- Module      : Khan.Internal.Log
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -27,12 +30,21 @@ module Khan.Internal.Log
     , Shown (..)
     ) where
 
-import Data.Text.Format
-import Data.Text.Format.Params
-import Data.Text.IO            (hPutStrLn)
-import Khan.Prelude
-import Network.AWS
-import System.IO               (stdout, stderr)
+import qualified Data.Text               as Text
+import           Data.Text.Buildable
+import           Data.Text.Format        hiding (build)
+import           Data.Text.Format.Params
+import           Data.Text.IO            (hPutStrLn)
+import qualified Data.Text.Lazy          as LText
+import           Khan.Prelude
+import           Network.AWS
+import           System.IO               (stdout, stderr)
+
+instance Buildable [Text] where
+    build = build . Text.intercalate ", "
+
+instance Buildable [LText.Text] where
+    build = build . LText.intercalate ", "
 
 logInfo, logError :: (MonadIO m, Params ps) => Format -> ps -> m ()
 logInfo  f = hprint stdout (f <> "\n")

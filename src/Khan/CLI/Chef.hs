@@ -17,20 +17,49 @@
 
 module Khan.CLI.Chef (cli) where
 
+import           Data.Aeson
 import           Data.Attoparsec.Text
-import qualified Data.ByteString        as BS
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.Text              as Text
-import qualified Data.Text.Encoding     as Text
-import qualified Data.Text.IO           as Text
-import qualified Khan.AWS.EC2           as EC2
-import qualified Khan.AWS.IAM           as IAM
+import qualified Data.ByteString.Base64    as Base64
+import qualified Data.ByteString.Lazy      as LBS
+import qualified Data.Text                 as Text
+import qualified Data.Text.Encoding        as Text
+import           Data.Text.Format
+import qualified Data.Text.IO              as Text
+import qualified Filesystem.Path.CurrentOS as Path
+import qualified Khan.AWS.EC2              as EC2
+import qualified Khan.AWS.IAM              as IAM
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
-import qualified Shelly                 as Shell
-import           System.Random          (randomRIO)
+import qualified Shelly                    as Shell
+import           System.Random             (randomRIO)
+
+cookbookRole :: Text -> AWS Text
+cookbookRole def
+    | not $ invalid def = return def
+    | otherwise         = liftEitherT $ do
+        p <- sh $ Shell.test_e "metadata.rb"
+        r <- if p
+                 then fromMaybe def <$> match
+                 else return def
+        let r' = fromMaybe r $ Text.stripSuffix "-role" r
+        logInfo "Using role '{}'" [r']
+        return r'
+  where
+    key = "name"
+
+    match = liftIO $ do
+        logInfo_ "Reading metadata.rb"
+        ls <- Text.lines <$> Text.readFile "metadata.rb"
+        return . join
+               . fmap (maybeResult . parse parser)
+               $ find (key `Text.isPrefixOf`) ls
+
+    parser = (string key >> skipSpace >> satisfy separator)
+        *> takeTill separator
+
+    separator c = c == '\'' || c == '"'
 
 defineOptions "Launch" $ do
     textOption "lRole" "role" ""
@@ -106,43 +135,67 @@ instance Validate Launch where
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
 
-defineOptions "Target" $ do
+defineOptions "Bundle" $ do
     textOption "tRole" "role" ""
         "Instance's role."
 
     pathOption "tSolo" "solo" ""
         "Chef solo.rb configuration to use."
 
-    pathOption "tNode" "node" ""
-        "Chef node.json definition to use."
-
     pathOption "tTmp" "tmp" ".khan"
         "Temporary working directory."
 
-deriving instance Show Target
+deriving instance Show Bundle
 
-instance Discover Target where
-    discover t@Target{..} = do
-        (s, n) <- (,)
-            <$> defaultDataFile tSolo "solo.rb"
-            <*> defaultDataFile tNode "node.json"
-        r <- roleFromMetadata tRole "name"
-        logInfo "Using role '{}'" [r]
-        return $! t { tRole = r, tSolo = s, tNode = n }
+instance Discover Bundle where
+    discover t@Bundle{..} = do
+        s <- defaultDataFile tSolo "solo.rb"
+        r <- cookbookRole tRole
+        return $! t { tRole = r, tSolo = s }
 
-instance Validate Target where
-    validate Target{..} = do
+instance Validate Bundle where
+    validate Bundle{..} = do
         check tRole "--role must be specified."
         checkPath tSolo " specified by --solo must exist."
-        checkPath tNode " specified by --node must exist."
         checkPath tTmp  " specified by --tmp must exist."
+
+instance ToJSON Bundle where
+    toJSON Bundle{..} = object
+        [ "run_list" .= toJSON [format "recipe[{}]" [tRole]]
+        ]
+
+defineOptions "Host" $ do
+    textOption "hRole" "role" ""
+        "Instance's role."
+
+    textOption "hEnv" "env" defaultEnv
+        "Instance's environment."
+
+    textsOption "hHosts" "hosts" []
+        "Hosts to run on."
+
+    pathOption "hBundle" "bundle" ""
+        "Path to the bundle."
+
+deriving instance Show Host
+
+instance Discover Host
+
+instance Validate Host where
+    validate Host{..} = do
+        if invalid hHosts
+            then do
+                check hRole "--role must be specified."
+                check hEnv  "--env must be specified."
+            else check hHosts "--hosts must be specified."
+        checkPath hBundle " specified by --bundle must exist."
 
 cli :: Command
 cli = Command "chef" "Manage Chef EC2 Instances."
-    [ subCommand "launch"   launch
-    , subCommand "artifact" artifact
-    , subCommand "run"      run
-    , subCommand "stop"     stop
+    [ subCommand "launch" launch
+    , subCommand "bundle" bundle
+    , subCommand "run"    run
+    , subCommand "stop"   stop
     ]
 
 launch :: Launch -> AWS ()
@@ -171,25 +224,23 @@ launch l@Launch{..} = do
   where
     Names{..} = names l
 
-artifact :: Target -> AWS ()
-artifact Target{..} = liftEitherT $ do
+bundle :: Bundle -> AWS ()
+bundle t@Bundle{..} = liftEitherT $ do
     exists "Berksfile"
     exists "chefignore"
     sh $ do
-        Shell.rm_rf tTmp
-        Shell.mkdir_p tTmp
-
+        Shell.rm_rf tTmp >> Shell.mkdir_p tTmp
         Shell.cp tSolo solo
---        Shell.cp tNode tTmp templates?
 
+    sync . LBS.writeFile (Path.encodeString node) $ encode t
+
+    sh $ do
         Shell.run_ "bundle" ["exec", "berks", "install", "--path", path books]
-
-        a <- Shell.absPath output
-
-        Shell.chdir tTmp $ Shell.run_ "tar" ["zcf", path a, "."]
-        logInfo "Artifact created at {}" [path a]
+        b <- Shell.absPath output
+        Shell.chdir tTmp $ Shell.run_ "tar" ["zcf", path b, "."]
+        logInfo "Bundle created at {}" [path b]
   where
-    output = "artifact.tar.gz" :: FilePath
+    output = "bundle.tar.gz" :: FilePath
 
     books = tTmp </> ("cookbooks" :: FilePath)
     solo  = tTmp </> ("solo.rb"   :: FilePath)
@@ -198,9 +249,24 @@ artifact Target{..} = liftEitherT $ do
     exists f = sh (Shell.test_e f) >>=
         assert "Missing {}, is the current dir a Chef Cookbook?" [path f] . not
 
-run :: Target -> AWS ()
-run Target{..} = return ()
-    -- Ensure bundle exists
+run :: Host -> AWS ()
+run Host{..} = do
+    hs <- if null hHosts
+              then liftEitherT . mapM dns =<< EC2.findInstances []
+                  [ tag roleTag roleName
+                  , tag envTag  envName
+                  ]
+              else return hHosts
+
+    logInfo "Running on hosts: \n{}" [Text.intercalate "\n" hs]
+  where
+    tag key = Filter ("tag:" <> key) . (:[])
+
+    Names{..} = unversioned hRole hEnv
+
+    dns RunningInstancesItemType{..} = riitDnsName ??
+        (Text.unpack $ "Blank public DNS for " <> riitInstanceId)
+
     -- Describe instances
     -- SCP bundle to public DNS
     -- SSH in and:
@@ -233,28 +299,8 @@ run Target{..} = return ()
     --         result <- readAllChannel ch
     --         BSL.putStr result
 
-stop :: Target -> AWS ()
-stop Target{..} = return ()
+stop :: Host -> AWS ()
+stop Host{..} = return ()
 
 shuffle :: MonadIO m => [a] -> m a
 shuffle xs = liftIO $ randomRIO (0, length xs - 1) >>= return . (xs !!)
-
-roleFromMetadata :: Text -> Text -> AWS Text
-roleFromMetadata def key
-    | not $ invalid def = return def
-    | otherwise         = liftEitherT $ do
-        p <- sh $ Shell.test_e "metadata.rb"
-        r <- if p then fromMaybe def <$> match else return def
-        return . fromMaybe r $ Text.stripSuffix "-role" r
-  where
-    match = liftIO $ do
-        logInfo_ "Reading metadata.rb"
-        ls <- Text.lines <$> Text.readFile "metadata.rb"
-        return . join
-               . fmap (maybeResult . parse parser)
-               $ find (key `Text.isPrefixOf`) ls
-
-    parser = (string key >> skipSpace >> satisfy separator)
-        *> takeTill separator
-
-    separator c = c == '\'' || c == '"'

@@ -36,6 +36,9 @@ defineOptions "Role" $ do
     pathOption "rTrust" "trust" ""
         "Trust relationship file."
 
+    pathOption "rCerts" "certs" defaultKeyPath
+        "Directory for private keys."
+
 deriving instance Show Role
 
 instance Discover Role where

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -15,10 +16,8 @@
 
 module Khan.Internal.AWS where
 
-import           Control.Arrow           ((***))
-import           Control.Concurrent      (threadDelay)
 import           Control.Exception
-import           Data.List               ((\\), partition)
+import           Control.Monad.Error
 import qualified Data.Map                as Map
 import qualified Data.Text               as Text
 import           Data.Version
@@ -74,9 +73,9 @@ requiredTags iid = do
         . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
         . dtagsrTagSet
 
-    require k m = noteError (message k m) $ Map.lookup k m
+    require k m = hoistError . note (message k m) $ Map.lookup k m
 
-    message k m = Text.unpack $
+    message k m = Err . Text.unpack $
         Text.concat ["No tag '", k, "' found in [", render m, "]"]
 
     render = Text.intercalate ","
@@ -94,8 +93,16 @@ verifyEC2 = (`verify` (ecCode . head . eerErrors))
 verifyIAM :: Text -> Either IAMError a -> AWS ()
 verifyIAM = (`verify` (etCode . erError))
 
-verify :: (Eq a, ToError e) => a -> (e -> a) -> Either e b -> AWS ()
-verify k f = assertError ((k ==) . f)
+verify :: (MonadError AWSError m, Eq a, ToError e)
+       => a
+       -> (e -> a)
+       -> Either e b
+       -> m ()
+verify k f = g
+  where
+    g (Right _) = return ()
+    g (Left  x) | k == f x  = return ()
+                | otherwise = throwError $ toError x
 
 isEC2 :: (Functor m, MonadIO m) => m Bool
 isEC2 = isRight <$> runEitherT (syncIO attempt)

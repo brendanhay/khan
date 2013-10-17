@@ -74,7 +74,7 @@ defineOptions "Khan" $ do
 
 deriving instance Show Khan
 
-initialise :: (Applicative m, MonadIO m) => Khan -> EitherT Error m Khan
+initialise :: (Applicative m, MonadIO m) => Khan -> EitherT AWSError m Khan
 initialise k@Khan{..}
     | isJust kRole = right k
     | validKeys k  = right k
@@ -106,13 +106,13 @@ instance Validate Khan where
 validKeys :: Khan -> Bool
 validKeys Khan{..} = (not . null) `all` [kAccess, kSecret]
 
-check :: (Monad m, Invalid a) => a -> String -> EitherT Error m ()
-check x = when (invalid x) . throwT . Error
+check :: (Monad m, Invalid a) => a -> String -> EitherT AWSError m ()
+check x = when (invalid x) . throwT . Err
 
-checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT Error m ()
+checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT AWSError m ()
 checkIO io e = liftIO io >>= (`check` e)
 
-checkPath :: MonadIO m => FilePath -> String -> EitherT Error m ()
+checkPath :: MonadIO m => FilePath -> String -> EitherT AWSError m ()
 checkPath p e = check p msg >> checkIO (not <$> shell (Shell.test_e p)) msg
   where
     msg = Text.unpack (Text.concat ["path '", path p, "'"]) ++ e
@@ -136,7 +136,7 @@ runProgram specs = do
     run argv subs =
         let parsed = parseSubcommand subs argv
         in case parsedSubcommand parsed of
-            Just cmd -> runScript $ fmapLT awsError cmd <* logInfo_ "Exiting..."
+            Just cmd -> runScript $ fmapLT show cmd <* logInfo_ "Exiting..."
             Nothing  -> case parsedError parsed of
                 Just ex -> do
                     putStrLn $ parsedHelp parsed
@@ -159,13 +159,10 @@ runProgram specs = do
         , cmdDesc
         ]
 
-    awsError (Error s) = s
-    awsError (Ex e)    = show e
-
 group :: String -> [Command] -> (String, [Command])
 group = (,)
 
-type SubCommand = Subcommand Khan (EitherT Error IO ())
+type SubCommand = Subcommand Khan (EitherT AWSError IO ())
 
 subCommand :: (Show a, Options a, Discover a, Validate a)
            => String
@@ -190,7 +187,7 @@ subCommand name action = Options.subcommand name run
             then return k
             else do
                 az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
-                reg <- fmapLT toError $
+                reg <- fmapLT Err $
                     tryRead ("Failed to read region from: " ++ az) az
                 return $! k { kRegion = reg }
 

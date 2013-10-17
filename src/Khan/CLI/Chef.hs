@@ -99,6 +99,9 @@ defineOptions "Launch" $ do
     intOption "lTimeout" "timeout" 60
         "SSH timeout."
 
+    pathOption "lKeys" "keys" defaultKeyPath
+        "Directory for private keys."
+
     -- Block Device Mappings
     -- Monitoring
     -- Disable Api Termination
@@ -121,6 +124,7 @@ instance Validate Launch where
         check lMin    "--min must be greater than 0."
         check lMax    "--max must be greater than 0."
         check lZones  "--zones must be specified."
+        check lKeys   "--keys must be specified."
 
         check (not $ lMin <= lMax)    "--min must be less than or equal to --max."
         check (Within lZones "abcde") "--zones must be within [a-e]."
@@ -137,7 +141,7 @@ defineOptions "Bundle" $ do
     pathOption "tSolo" "solo" ""
         "Chef solo.rb configuration to use."
 
-    pathOption "tTmp" "tmp" defaultTmp
+    pathOption "tTmp" "tmp" defaultTmpPath
         "Temporary working directory."
 
 deriving instance Show Bundle
@@ -172,15 +176,17 @@ defineOptions "Host" $ do
     pathOption "hBundle" "bundle" ""
         "Path to the bundle."
 
+    pathOption "hKeys" "keys" defaultKeyPath
+        "Directory for private keys."
+
 deriving instance Show Host
 
 instance Discover Host where
     discover h@Host{..}
         | not $ invalid hBundle = return h
-        | invalid hRole         = return h
         | otherwise = do
             logInfo_ "No --bundle specified, attempting to create from cwd"
-            tgz <- bundle $ Bundle hRole "" defaultTmp
+            tgz <- discover (Bundle hRole "" defaultTmpPath) >>= bundle
             return $! h { hBundle = tgz }
 
 instance Validate Host where
@@ -189,6 +195,7 @@ instance Validate Host where
             then check hRole "--role must be specified." >>
                  check hEnv  "--env must be specified."
             else check hHosts "--hosts must be specified."
+        check hKeys "--keys must be specified."
         checkPath hBundle " specified by --bundle must exist."
 
 cli :: Command
@@ -204,7 +211,7 @@ launch l@Launch{..} = do
     ami <- maybe (EC2.findImage [roleName, "base"]) return lImage
 
     i <- async $ IAM.findRole l
-    k <- async $ EC2.createKey l
+    k <- async $ EC2.createKey l lKeys
     s <- async $ EC2.updateGroup (sshGroup lEnv) sshRules
     g <- async $ EC2.updateGroup l lRules
 
@@ -253,12 +260,20 @@ bundle t@Bundle{..} = liftEitherT $ do
     exists f = sh (Shell.test_e f) >>=
         assert "Missing {}, is the current dir a Chef Cookbook?" [f] . not
 
+-- FIXME: specify manual key path
+-- FIXME: specify ssh user
+
 run :: Host -> AWS ()
 run Host{..} = do
-    hs <- if null hHosts
-              then findTagged
-              else return hHosts
+    hs <- if null hHosts then findTagged else return hHosts
     logInfo "Running on hosts: \n{}" [Text.intercalate "\n" hs]
+
+    key <- EC2.keyPath keyName hKeys
+    logInfo "Using private key {}" [key]
+
+    forM_ hs $ \h -> shell $ do
+        logInfo "Copying {} to {}" [path hBundle, h]
+        Shell.run_ "scp" ["-i", path key, path hBundle, "ubuntu@" <> h <> ":~/"]
   where
     findTagged = liftEitherT . mapM dns =<< EC2.findInstances []
         [ tag roleTag roleName
@@ -272,7 +287,6 @@ run Host{..} = do
     dns RunningInstancesItemType{..} = riitDnsName ??
         (Text.unpack $ "Blank public DNS for " <> riitInstanceId)
 
-    -- Describe instances
     -- SCP bundle to public DNS
     -- SSH in and:
     --   get + execute user-data, or should it just be done here ignoring need for user-data?

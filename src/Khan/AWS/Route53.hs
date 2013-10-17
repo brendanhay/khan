@@ -1,4 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -28,11 +28,11 @@ findZoneId :: Text -> AWS HostedZoneId
 findZoneId zone = do
     mz <- Pipes.find match . (paginate ~> each . lhzrHostedZones) .
         ListHostedZones Nothing $ Just 10
-    hzId <$> noteError msg mz
+    hzId <$> hoistError (note msg mz)
   where
     match = (strip zone ==) . strip . hzName
     strip = Text.dropWhileEnd (== '.')
-    msg   = "Unable to find a hosted zone zoned " ++ Text.unpack zone
+    msg   = toError $ "Unable to find a hosted zone zoned " ++ Text.unpack zone
 
 findRecordSet :: HostedZoneId
               -> (ResourceRecordSet -> Bool)

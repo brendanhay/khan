@@ -25,12 +25,18 @@ import           Network.AWS
 import           Network.AWS.EC2
 import qualified Shelly              as Shell
 
-keyPath :: Text -> Region -> FilePath
-keyPath name reg = certPath
-    </> Shell.fromText (Text.concat [Text.pack $ show reg, ".", name, ".pem"])
+keyPath :: Text -> FilePath -> AWS FilePath
+keyPath name dir = do
+    reg <- Text.pack . show <$> currentRegion
+    liftEitherT
+        . sh
+        . Shell.absPath
+        . (dir </>)
+        . Shell.fromText
+        $ Text.concat [reg, ".", name, ".pem"]
 
-createKey :: Naming a => a -> AWS ()
-createKey (names -> Names{..}) =
+createKey :: Naming a => a -> FilePath -> AWS ()
+createKey (names -> Names{..}) dir =
     sendCatch (CreateKeyPair keyName) >>= either exist write
   where
     exist e = do
@@ -38,8 +44,8 @@ createKey (names -> Names{..}) =
         logInfo "KeyPair {} exists, not updating." [keyName]
 
     write k = do
-        f <- keyPath keyName <$> currentRegion
-        shell $ Shell.mkdir_p certPath >> Shell.writefile f (ckqKeyMaterial k)
+        f <- keyPath keyName dir
+        shell $ Shell.mkdir_p dir >> Shell.writefile f (ckqKeyMaterial k)
         logInfo "Wrote new KeyPair to {}" [f]
 
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
@@ -61,7 +67,7 @@ updateGroup (names -> n@Names{..}) rules =
         gid <- fmap csgrGroupId . send $
             CreateSecurityGroup groupName groupName Nothing
         logInfo "Group {} created." [gid]
-        findGroup n >>= noteErrorF "Unable to find created group {}" [groupName]
+        findGroup n >>= noteFormat "Unable to find created group {}" [groupName]
 
     modify grp = do
         logInfo "Updating group {}..." [groupName]
@@ -159,7 +165,8 @@ findImage images = do
     logInfo "Finding AMIs matching: {}" [options]
     rs  <- fmap (listToMaybe . djImagesSet) . send $
         DescribeImages [] [] ["self"] [Filter "name" images]
-    ami <- fmap diritImageId $ noteError "Failed to find any matching AMIs" rs
+    ami <- fmap diritImageId . hoistError $
+        note "Failed to find any matching AMIs" rs
     logInfo "Found AMI {} matching {}" [ami, options]
     return ami
   where

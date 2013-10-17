@@ -49,8 +49,8 @@ data Result = Result
 --         runEffect $ lift (runTask t n) >~ toOutput buf
 --         performGC)
 
-runTask :: Task -> Int -> IO Result
-runTask Task{..} n = do
+runSSH :: Task -> Int -> IO Result
+runSSH Task{..} n = do
     (ts, res) <- time . timeout (n * 1000000) $
         readProcessWithExitCode "ssh" args []
     return . Result taskHost ts $ maybe (Left "Time out") result res

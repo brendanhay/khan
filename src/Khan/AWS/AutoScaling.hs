@@ -96,7 +96,7 @@ updateGroup :: Naming a
             -> AWS ()
 updateGroup (names -> n@Names{..}) cool desired grace min max = do
     AutoScalingGroup{..} <- findGroup n >>=
-        noteErrorF "Auto Scaling Group %s doesn't exist." [appName]
+        noteFormat "Auto Scaling Group %s doesn't exist." [appName]
     send_ $ UpdateAutoScalingGroup
         appName
         (Members asgAvailabilityZones)

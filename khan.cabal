@@ -48,6 +48,7 @@ executable khan
       , errors
       , http-streams
       , io-streams
+      , mtl
       , options
       , pipes             >= 4.0
       , prelude-prime

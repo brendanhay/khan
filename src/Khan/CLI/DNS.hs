@@ -17,14 +17,13 @@
 
 module Khan.CLI.DNS (cli) where
 
-import           Control.Concurrent  (threadDelay)
 import qualified Data.Text           as Text
+import           Khan.AWS.Route53    as R53
 import           Khan.Internal
 import           Khan.Prelude        hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
 import           Pipes
-import qualified Pipes.Prelude       as Pipes
 import           Text.Show.Pretty
 
 defineOptions "Record" $ do
@@ -108,17 +107,8 @@ cli = Command "dns" "Manage DNS Records."
 
 modify :: ChangeAction -> Record -> AWS ()
 modify act r@Record{..} = do
-    zid <- findZoneId rZone
-    chg <- send . ChangeResourceRecordSets zid $
-        ChangeBatch Nothing [Change act $ recordSet zid r]
-    waitChange $ crrsrChangeInfo chg
-  where
-    waitChange ChangeInfo{..} = case ciStatus of
-        INSYNC  -> logInfo "Change {} INSYNC." [show ciId]
-        PENDING -> do
-            logInfo "Waiting for change {}" [Shown ciId]
-            liftIO . threadDelay $ 10 * 1000000
-            send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
+    zid <- R53.findZoneId rZone
+    updateRecordSet zid [Change act $ recordSet zid r]
 
 search :: Search -> AWS ()
 search Search{..} = do
@@ -139,17 +129,6 @@ search Search{..} = do
     vs = any (`match` sValues) . rrValues . rrsResourceRecords
 
     match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
-
-findZoneId :: Text -> AWS HostedZoneId
-findZoneId name = do
-    logInfo_ "Listing hosted zones..."
-    mz <- Pipes.find match $ (paginate ~> each . lhzrHostedZones) start
-    hzId <$> noteError msg mz
-  where
-    start = ListHostedZones Nothing $ Just 10
-    match = (== strip name) . strip . hzName
-    strip = Text.dropWhileEnd (== '.')
-    msg   = "Unable to find a hosted zone named " ++ Text.unpack name
 
 recordSet :: HostedZoneId -> Record -> ResourceRecordSet
 recordSet zid Record{..} = mk rPolicy rAlias

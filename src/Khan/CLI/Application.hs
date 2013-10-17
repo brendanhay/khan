@@ -66,6 +66,9 @@ defineOptions "Deploy" $ do
     rulesOption "dRules" "rules"
         "IP permission specifications."
 
+    pathOption "dKeys" "keys" defaultKeyPath
+        "Directory for private keys."
+
 deriving instance Show Deploy
 
 instance Discover Deploy where
@@ -85,6 +88,7 @@ instance Validate Deploy where
         check dDesired  "--desired must be greater than 0."
         check dCooldown "--cooldown must be greater than 0."
         check dZones    "--zones must be specified."
+        check dKeys     "--keys must be specified."
 
         check (not $ dMax >= dMin)     "--max must be greater than or equal to --max."
         check (not $ dDesired >= dMin) "--desired must be greater than or equal to --min."
@@ -186,9 +190,9 @@ deploy d@Deploy{..} = do
         deploy d
 
     when (isJust j) $
-        throwErrorF "Auto Scaling Group {} already exists." [appName]
+        throwFormat "Auto Scaling Group {} already exists." [appName]
 
-    k <- async $ EC2.createKey d
+    k <- async $ EC2.createKey d dKeys
     r <- async $ IAM.findRole d
     s <- async $ EC2.updateGroup (sshGroup dEnv) sshRules
     g <- async $ EC2.updateGroup d dRules

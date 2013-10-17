@@ -31,7 +31,7 @@ class Discover a where
     discover = return
 
 class Validate a where
-    validate :: MonadIO m => a -> EitherT Error m ()
+    validate :: MonadIO m => a -> EitherT AWSError m ()
     validate = void . return
 
 class Invalid a where
@@ -129,15 +129,6 @@ instance Show RoutingPolicy where
     show Latency  = "latency"
     show Weighted = "weighted"
     show Basic    = "basic"
-
-defaultTmp :: FilePath
-defaultTmp = ".khan"
-
-defaultEnv :: Text
-defaultEnv = "dev"
-
-defaultVersion :: Version
-defaultVersion = Version [0] []
 
 parseVersionE :: String -> Either String Version
 parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)

@@ -21,7 +21,9 @@ with opinion a close second.
 Although as you will see we immediately throw the first tenant to the wolves as
 necessitated by the following architecture:
 
-<img align="center" src="http://brendanhay.github.io/khan/img/immutability.png" alt="immutability">
+<p align="center">
+  <img src="http://brendanhay.github.io/khan/img/immutability.png" alt="immutability">
+</p>
 
 ### Persistent vs Ephemeral
 

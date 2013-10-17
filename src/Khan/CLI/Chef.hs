@@ -137,7 +137,7 @@ defineOptions "Bundle" $ do
     pathOption "tSolo" "solo" ""
         "Chef solo.rb configuration to use."
 
-    pathOption "tTmp" "tmp" ".khan"
+    pathOption "tTmp" "tmp" defaultTmp
         "Temporary working directory."
 
 deriving instance Show Bundle
@@ -174,20 +174,27 @@ defineOptions "Host" $ do
 
 deriving instance Show Host
 
-instance Discover Host
+instance Discover Host where
+    discover h@Host{..}
+        | not $ invalid hBundle = return h
+        | invalid hRole         = return h
+        | otherwise = do
+            logInfo_ "No --bundle specified, attempting to create from cwd"
+            tgz <- bundle $ Bundle hRole "" defaultTmp
+            return $! h { hBundle = tgz }
 
 instance Validate Host where
     validate Host{..} = do
-        checkPath hBundle " specified by --bundle must exist."
         if invalid hHosts
             then check hRole "--role must be specified." >>
                  check hEnv  "--env must be specified."
             else check hHosts "--hosts must be specified."
+        checkPath hBundle " specified by --bundle must exist."
 
 cli :: Command
 cli = Command "chef" "Manage Chef EC2 Instances."
     [ subCommand "launch" launch
-    , subCommand "bundle" bundle
+    , subCommand "bundle" (void . bundle)
     , subCommand "run"    run
     , subCommand "stop"   stop
     ]
@@ -218,7 +225,7 @@ launch l@Launch{..} = do
   where
     Names{..} = names l
 
-bundle :: Bundle -> AWS ()
+bundle :: Bundle -> AWS FilePath
 bundle t@Bundle{..} = liftEitherT $ do
     exists "Berksfile"
     exists "chefignore"
@@ -235,6 +242,7 @@ bundle t@Bundle{..} = liftEitherT $ do
         Shell.chdir tTmp $ Shell.run_ "tar" ["zcf", path tgz, "."]
 
     logInfo "Bundle created at {}" [tgz]
+    return tgz
   where
     output = "bundle.tar.gz" :: FilePath
 

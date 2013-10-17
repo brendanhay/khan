@@ -55,7 +55,7 @@ instance Invalid Char where
 
 instance Invalid FilePath where
     invalid "" = True
-    invalid f  = Path.valid f
+    invalid f  = not $ Path.valid f
 
 instance Invalid a => Invalid (Maybe a) where
     invalid (Just x) = invalid x
@@ -129,6 +129,9 @@ instance Show RoutingPolicy where
     show Latency  = "latency"
     show Weighted = "weighted"
     show Basic    = "basic"
+
+defaultTmp :: FilePath
+defaultTmp = ".khan"
 
 defaultEnv :: Text
 defaultEnv = "dev"

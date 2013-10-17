@@ -34,8 +34,9 @@ import qualified Data.Text               as Text
 import           Data.Text.Buildable
 import           Data.Text.Format        hiding (build)
 import           Data.Text.Format.Params
-import           Data.Text.IO            (hPutStrLn)
+import qualified Data.Text.IO            as Text
 import qualified Data.Text.Lazy          as LText
+import           Khan.Internal.IO
 import           Khan.Prelude
 import           Network.AWS
 import           System.IO               (stdout, stderr)
@@ -54,8 +55,8 @@ logInfo  f = hprint stdout (f <> "\n")
 logError f = hprint stderr (f <> "\n")
 
 logInfo_, logError_ :: MonadIO m => Text -> m ()
-logInfo_  = liftIO . hPutStrLn stdout
-logError_ = liftIO . hPutStrLn stderr
+logInfo_  = liftIO . Text.putStrLn
+logError_ = liftIO . Text.hPutStrLn stderr
 
 logDebug :: Params ps => Format -> ps -> AWS ()
 logDebug fmt = whenDebug . logInfo fmt

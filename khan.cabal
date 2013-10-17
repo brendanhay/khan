@@ -45,6 +45,7 @@ executable khan
       , base64-bytestring
       , bytestring
       , containers
+      , directory
       , errors
       , http-streams
       , io-streams

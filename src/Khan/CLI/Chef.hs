@@ -260,12 +260,11 @@ bundle t@Bundle{..} = liftEitherT $ do
     exists f = sh (Shell.test_e f) >>=
         assert "Missing {}, is the current dir a Chef Cookbook?" [f] . not
 
--- FIXME: specify manual key path
 -- FIXME: specify ssh user
 
 run :: Host -> AWS ()
 run Host{..} = do
-    hs <- if null hHosts then findTagged else return hHosts
+    hs <- if null hHosts then findDNS else return hHosts
     logInfo "Running on hosts: \n{}" [Text.intercalate "\n" hs]
 
     key <- EC2.keyPath keyName hKeys
@@ -275,51 +274,19 @@ run Host{..} = do
         logInfo "Copying {} to {}" [path hBundle, h]
         Shell.run_ "scp" ["-i", path key, path hBundle, "ubuntu@" <> h <> ":~/"]
   where
-    findTagged = liftEitherT . mapM dns =<< EC2.findInstances []
-        [ tag roleTag roleName
-        , tag envTag  envName
-        ]
+    findDNS = do
+        is <- EC2.findInstances [] [tag roleTag roleName, tag envTag  envName]
+        forM_ is $ \RunningInstancesItemType{..} -> when (isNothing riitDnsName) $
+            logInfo "No public DNS for {} in state {}"
+                [riitInstanceId, istName riitInstanceState]
+        return . catMaybes $ map riitDnsName is
 
     tag key = Filter ("tag:" <> key) . (:[])
 
     Names{..} = unversioned hRole hEnv
 
-    dns RunningInstancesItemType{..} = riitDnsName ??
-        (Text.unpack $ "Blank public DNS for " <> riitInstanceId)
-
-    -- SCP bundle to public DNS
-    -- SSH in and:
-    --   get + execute user-data, or should it just be done here ignoring need for user-data?
-    --   untar bundle and run chef-solo
-
-    -- ms2 <- EC2.findInstances ids
-    -- ts  <- catMaybes <$> mapM formulate ms2
-
-    -- logInfo_ "Running SSH tasks.."
-    -- liftIO . runEffect $ for (runTasks ts lTimeout) (liftIO . print)
-
-    -- formulate RunningInstancesItemType{..} =
-    --     case riitDnsName of
-    --         Nothing -> do
-    --             logError "No public DNS found for instance {}" [riitInstanceId]
-    --             return Nothing
-    --         Just x  -> do
-    --             logInfo "Instance {} located at {}" [riitInstanceId, x]
-    --             return . Just $ Task (Text.unpack x) ["cat /etc/hostname"]
-
-    -- let port        = 22
-    --     known_hosts = home </> ".ssh" </> "known_hosts"
-    --     public      = home </> ".ssh" </> "id_rsa.pub"
-    --     private     = home </> ".ssh" </> "id_rsa"
-
-    -- withSSH2 known_hosts public private "" login host 22 $ s ->
-    --     withChannel s $ \ch -> do
-    --         channelExecute ch command
-    --         result <- readAllChannel ch
-    --         BSL.putStr result
-
 stop :: Host -> AWS ()
 stop Host{..} = return ()
 
 shuffle :: MonadIO m => [a] -> m a
-shuffle xs = liftIO $ randomRIO (0, length xs - 1) >>= return . (xs !!)
+shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)

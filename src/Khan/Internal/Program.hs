@@ -1,4 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -38,6 +38,7 @@ import qualified Data.ByteString.Char8    as BS
 import qualified Data.Text                as Text
 import           Data.Text.Encoding
 import           Khan.Internal.AWS
+import           Khan.Internal.IO
 import           Khan.Internal.Log
 import           Khan.Internal.Options
 import           Khan.Internal.Types

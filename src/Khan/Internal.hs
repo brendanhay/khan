@@ -1,4 +1,4 @@
-{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}{-# LANGUAGE NoImplicitPrelude   #-}-- Module      : Khan.Internal
+-- Module      : Khan.Internal
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -13,6 +13,7 @@ module Khan.Internal
     ) where
 
 import Khan.Internal.AWS     as Internal
+import Khan.Internal.IO      as Internal
 import Khan.Internal.Log     as Internal
 import Khan.Internal.Options as Internal
 import Khan.Internal.Program as Internal

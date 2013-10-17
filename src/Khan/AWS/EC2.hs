@@ -28,12 +28,7 @@ import qualified Shelly              as Shell
 keyPath :: Text -> FilePath -> AWS FilePath
 keyPath name dir = do
     reg <- Text.pack . show <$> currentRegion
-    liftEitherT
-        . sh
-        . Shell.absPath
-        . (dir </>)
-        . Shell.fromText
-        $ Text.concat [reg, ".", name, ".pem"]
+    return . (dir </>) . Shell.fromText $ Text.concat [reg, ".", name, ".pem"]
 
 createKey :: Naming a => a -> FilePath -> AWS ()
 createKey (names -> Names{..}) dir =
@@ -44,8 +39,18 @@ createKey (names -> Names{..}) dir =
         logInfo "KeyPair {} exists, not updating." [keyName]
 
     write k = do
-        f <- keyPath keyName dir
-        shell $ Shell.mkdir_p dir >> Shell.writefile f (ckqKeyMaterial k)
+        d <- expandPath dir
+        f <- keyPath keyName d
+        shell $ do
+
+--             timestamp bak suffix
+
+             p <- Shell.test_e f
+             when p . Shell.mv f $ f <.> ".bak"
+             liftIO . print . Text.lines $ ckqKeyMaterial k
+             Shell.mkdir_p d
+             Shell.writefile f $ ckqKeyMaterial k
+             Shell.run_ "chmod" ["0600", path f]
         logInfo "Wrote new KeyPair to {}" [f]
 
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
@@ -147,18 +152,16 @@ waitForInstances ids = do
 
     let (ps, rs) = join (***) (map riitInstanceId) $ pending xs
 
-    unless (null rs) $ logInfo "Instances marked as running: {}" [format rs]
+    unless (null rs) $ logInfo "Instances marked as running: {}" [rs]
 
     unless (null ps) $ do
-        logInfo "Instances still pending: {}" [format ps]
+        logInfo "Instances still pending: {}" [ps]
         logInfo_ "Waiting..."
         liftIO . threadDelay $ 1000000 * 30
 
     waitForInstances ps
   where
     pending = partition (("pending" ==) . istName . riitInstanceState)
-
-    format  = Text.intercalate ", "
 
 findImage :: [Text] -> AWS Text
 findImage images = do

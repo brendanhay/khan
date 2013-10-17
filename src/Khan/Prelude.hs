@@ -17,9 +17,6 @@ module Khan.Prelude
     , Map
     , Text
     , FilePath
-    , Sh
-
-    , (</>)
 
     , forever
     , join
@@ -28,21 +25,12 @@ module Khan.Prelude
     , void
     , lift
 
-    -- * Shell
-    , sh
-    , shell
-    , path
-
     -- * Errors
     , sync
     , assert
     , throwFormat
     , noteFormat
     , throwError
-
-    -- * Caba Data Files
-    , defaultDataFile
-    , dataFile
 
     -- * Defaults
     , defaultKeyPath
@@ -62,7 +50,7 @@ module Khan.Prelude
 import Control.Applicative       as Applicative
 import Control.Error             as Error
 import Control.Monad             (forever, join, when, unless, void)
-import Control.Monad.Error       (MonadError, Error, throwError)
+import Control.Monad.Error       (MonadError, throwError)
 import Control.Monad.IO.Class    as MonadIO
 import Control.Monad.Trans.Class (lift)
 import Data.ByteString           (ByteString)
@@ -75,27 +63,9 @@ import Data.Text.Format          (Format, format)
 import Data.Text.Format.Params
 import Data.Text.Lazy            (unpack)
 import Data.Version
+import Filesystem.Path.CurrentOS (FilePath)
 import Network.AWS
-import Paths_khan                (getDataFileName)
-import Prelude.Prime             as Prime hiding (FilePath)
-
-import Shelly
-    ( FilePath
-    , Sh
-    , (</>)
-    , absPath
-    , shellyNoDir
-    , toTextIgnore
-    )
-
-sh :: MonadIO m => Sh a -> EitherT String m a
-sh = fmapLT show . syncIO . shell
-
-shell :: MonadIO m => Sh a -> m a
-shell = shellyNoDir
-
-path :: FilePath -> Text
-path = toTextIgnore
+import Prelude.Prime             as Prime hiding (FilePath, writeFile)
 
 sync :: MonadIO m => IO a -> EitherT String m a
 sync = fmapLT show . syncIO
@@ -113,14 +83,6 @@ throwFormat f = throwError . Err . unpack . format f
 
 noteFormat :: (Params ps, MonadError AWSError m) => Format -> ps -> Maybe a -> m a
 noteFormat f ps = hoistError . note (Err . unpack $ format f ps)
-
-defaultDataFile :: (Functor m, MonadIO m) => FilePath -> String -> m FilePath
-defaultDataFile f name
-    | mempty /= f = return f
-    | otherwise   = dataFile name
-
-dataFile :: (Functor m, MonadIO m) => String -> m FilePath
-dataFile name = liftIO (getDataFileName name) >>= shell . absPath . fromString
 
 defaultKeyPath :: FilePath
 defaultKeyPath = "~/.khan/keys"

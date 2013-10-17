@@ -144,7 +144,7 @@ findPrefix zid k = Pipes.toListM $ paginate start
 filterValue :: Text -> [ResourceRecordSet] -> Maybe ResourceRecordSet
 filterValue v sets = match `find` sets
   where
-    match BasicRecordSet{..} = any (== v) $ rrValues rrsResourceRecords
+    match BasicRecordSet{..} = v `elem` rrValues rrsResourceRecords
     match _                  = False
 
 address :: Text -> Text -> Text -> Region -> Text -> Text

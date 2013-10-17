@@ -2,7 +2,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.Internal.AWS
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>

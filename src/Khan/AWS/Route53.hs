@@ -1,7 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.AWS.Route53
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>

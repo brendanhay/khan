@@ -35,9 +35,6 @@ sshGroup = (<> "-ssh")
 sshRules :: [IpPermissionType]
 sshRules = [IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]]
 
-certPath :: FilePath
-certPath = "./cert"
-
 envTag, roleTag, domainTag, nameTag, versionTag :: Text
 envTag     = "Env"
 roleTag    = "Role"

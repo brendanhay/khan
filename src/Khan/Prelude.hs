@@ -32,12 +32,6 @@ module Khan.Prelude
     , noteFormat
     , throwError
 
-    -- * Defaults
-    , defaultKeyPath
-    , defaultTmpPath
-    , defaultEnv
-    , defaultVersion
-
     -- * Re-exported Modules
     , module Applicative
     , module Error
@@ -62,7 +56,6 @@ import Data.Text                 (Text)
 import Data.Text.Format          (Format, format)
 import Data.Text.Format.Params
 import Data.Text.Lazy            (unpack)
-import Data.Version
 import Filesystem.Path.CurrentOS (FilePath)
 import Network.AWS
 import Prelude.Prime             as Prime hiding (FilePath, writeFile)
@@ -83,15 +76,3 @@ throwFormat f = throwError . Err . unpack . format f
 
 noteFormat :: (Params ps, MonadError AWSError m) => Format -> ps -> Maybe a -> m a
 noteFormat f ps = hoistError . note (Err . unpack $ format f ps)
-
-defaultKeyPath :: FilePath
-defaultKeyPath = "~/.khan/keys"
-
-defaultTmpPath :: FilePath
-defaultTmpPath = ".khan"
-
-defaultEnv :: Text
-defaultEnv = "dev"
-
-defaultVersion :: Version
-defaultVersion = Version [0] []

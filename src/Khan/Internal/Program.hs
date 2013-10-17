@@ -22,13 +22,13 @@ module Khan.Internal.Program
     , Command  (..)
     , SubCommand
 
-    -- * Program Helpers
-    , Discover (..)
-    , Validate (..)
-    , defineOptions
+    -- * Validation
     , check
     , checkIO
     , checkPath
+
+    -- * Program Helpers
+    , defineOptions
     , runProgram
     , group
     , subCommand
@@ -104,6 +104,14 @@ instance Validate Khan where
             , " env must be set if --iam-role is not set."
             ]
 
+type SubCommand = Subcommand Khan (EitherT AWSError IO ())
+
+data Command = Command
+    { cmdName :: String
+    , cmdDesc :: String
+    , cmdSubs :: [SubCommand]
+    }
+
 validKeys :: Khan -> Bool
 validKeys Khan{..} = (not . null) `all` [kAccess, kSecret]
 
@@ -117,12 +125,6 @@ checkPath :: MonadIO m => FilePath -> String -> EitherT AWSError m ()
 checkPath p e = check p msg >> checkIO (not <$> shell (Shell.test_e p)) msg
   where
     msg = Text.unpack (Text.concat ["path '", path p, "'"]) ++ e
-
-data Command = Command
-    { cmdName :: String
-    , cmdDesc :: String
-    , cmdSubs :: [SubCommand]
-    }
 
 runProgram :: [(String, [Command])] -> IO ()
 runProgram specs = do
@@ -162,8 +164,6 @@ runProgram specs = do
 
 group :: String -> [Command] -> (String, [Command])
 group = (,)
-
-type SubCommand = Subcommand Khan (EitherT AWSError IO ())
 
 subCommand :: (Show a, Options a, Discover a, Validate a)
            => String

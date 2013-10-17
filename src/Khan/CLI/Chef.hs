@@ -18,7 +18,6 @@
 module Khan.CLI.Chef (cli) where
 
 import           Data.Aeson
-import           Data.Attoparsec.Text
 import qualified Data.ByteString.Base64    as Base64
 import qualified Data.ByteString.Lazy      as LBS
 import qualified Data.Text                 as Text
@@ -40,26 +39,23 @@ cookbookRole def
     | not $ invalid def = return def
     | otherwise         = liftEitherT $ do
         p <- sh $ Shell.test_e "metadata.rb"
-        r <- if p
-                 then fromMaybe def <$> match
-                 else return def
-        let r' = fromMaybe r $ Text.stripSuffix "-role" r
-        logInfo "Using role '{}'" [r']
-        return r'
+        r <- liftIO $ extract p
+        logInfo "Using role '{}'" [r]
+        return r
   where
-    key = "name"
-
-    match = liftIO $ do
+    extract False = return def
+    extract True  = do
         logInfo_ "Reading metadata.rb"
         ls <- Text.lines <$> Text.readFile "metadata.rb"
-        return . join
-               . fmap (maybeResult . parse parser)
-               $ find (key `Text.isPrefixOf`) ls
+        return . suffix
+               . fromMaybe def
+               . fmap strip $ find ("name" `Text.isPrefixOf`) ls
 
-    parser = (string key >> skipSpace >> satisfy separator)
-        *> takeTill separator
+    strip = Text.dropAround separator . Text.dropWhile (not . separator)
 
     separator c = c == '\'' || c == '"'
+
+    suffix s = fromMaybe s $ Text.stripSuffix "-role" s
 
 defineOptions "Launch" $ do
     textOption "lRole" "role" ""

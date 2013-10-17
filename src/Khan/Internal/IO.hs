@@ -24,6 +24,12 @@ module Khan.Internal.IO
     , defaultDataFile
     , dataFile
 
+    -- * metadata.rb
+    , cookbookMeta
+
+    -- * Psuedo Randomisation
+    , shuffle
+
     -- Re-exported
     , Sh
     , (</>)
@@ -32,13 +38,17 @@ module Khan.Internal.IO
 
 import           Data.String
 import qualified Data.Text                 as Text
+import qualified Data.Text.IO              as Text
 import           Data.Time.Clock.POSIX
 import           Filesystem.Path.CurrentOS (fromText, parent)
+import           Khan.Internal.Log
+import           Khan.Internal.Types
 import           Khan.Prelude
 import           Paths_khan                (getDataFileName)
 import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                    as Shell
 import           System.Directory          (getHomeDirectory)
+import           System.Random             (randomRIO)
 
 sh :: MonadIO m => Sh a -> EitherT String m a
 sh = fmapLT show . syncIO . shell
@@ -76,3 +86,28 @@ defaultDataFile f name
 
 dataFile :: (Functor m, MonadIO m) => String -> m FilePath
 dataFile name = liftIO (getDataFileName name) >>= shell . absPath . fromString
+
+cookbookMeta :: MonadIO m => Text -> Text -> m Text
+cookbookMeta def key
+    | not $ invalid def = return def
+    | otherwise         = do
+        p <- shell $ Shell.test_e "metadata.rb"
+        r <- liftIO $ extract p
+        logInfo "Using role '{}'" [r]
+        return r
+  where
+    extract False = return def
+    extract True  = do
+        logInfo_ "Reading metadata.rb"
+        strip . fromMaybe def . split . Text.lines <$>
+            Text.readFile "metadata.rb"
+
+    split = fmap (Text.dropAround separator . Text.dropWhile (not . separator)) .
+        find (key `Text.isPrefixOf`)
+
+    separator c = c == '\'' || c == '"'
+
+    strip s = fromMaybe s $ Text.stripSuffix "-role" s
+
+shuffle :: MonadIO m => [a] -> m a
+shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)

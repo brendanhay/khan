@@ -23,7 +23,6 @@ import qualified Data.ByteString.Lazy      as LBS
 import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
 import           Data.Text.Format
-import qualified Data.Text.IO              as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import qualified Khan.AWS.EC2              as EC2
 import qualified Khan.AWS.IAM              as IAM
@@ -32,29 +31,6 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
 import qualified Shelly                    as Shell
-import           System.Random             (randomRIO)
-
-cookbookRole :: Text -> AWS Text
-cookbookRole def
-    | not $ invalid def = return def
-    | otherwise         = liftEitherT $ do
-        p <- sh $ Shell.test_e "metadata.rb"
-        r <- liftIO $ extract p
-        logInfo "Using role '{}'" [r]
-        return r
-  where
-    extract False = return def
-    extract True  = do
-        logInfo_ "Reading metadata.rb"
-        strip . fromMaybe def . split . Text.lines <$>
-            Text.readFile "metadata.rb"
-
-    split = fmap (Text.dropAround separator . Text.dropWhile (not . separator)) .
-        find ("name" `Text.isPrefixOf`)
-
-    separator c = c == '\'' || c == '"'
-
-    strip s = fromMaybe s $ Text.stripSuffix "-role" s
 
 defineOptions "Launch" $ do
     textOption "lRole" "role" ""
@@ -149,7 +125,7 @@ deriving instance Show Bundle
 instance Discover Bundle where
     discover t@Bundle{..} = do
         s <- defaultDataFile tSolo "solo.rb"
-        r <- cookbookRole tRole
+        r <- cookbookMeta tRole "name"
         return $! t { tRole = r, tSolo = s }
 
 instance Validate Bundle where
@@ -287,6 +263,3 @@ run Host{..} = do
 
 stop :: Host -> AWS ()
 stop Host{..} = return ()
-
-shuffle :: MonadIO m => [a] -> m a
-shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)

@@ -36,9 +36,9 @@ import           Data.Text.Format        hiding (build)
 import           Data.Text.Format.Params
 import qualified Data.Text.IO            as Text
 import qualified Data.Text.Lazy          as LText
-import           Khan.Internal.IO
 import           Khan.Prelude
 import           Network.AWS
+import           Shelly                  (toTextIgnore)
 import           System.IO               (stdout, stderr)
 
 instance Buildable [Text] where
@@ -48,7 +48,7 @@ instance Buildable [LText.Text] where
     build = build . LText.intercalate ", "
 
 instance Buildable FilePath where
-    build = build . path
+    build = build . toTextIgnore
 
 logInfo, logError :: (MonadIO m, Params ps) => Format -> ps -> m ()
 logInfo  f = hprint stdout (f <> "\n")

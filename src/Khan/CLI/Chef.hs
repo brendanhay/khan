@@ -46,16 +46,15 @@ cookbookRole def
     extract False = return def
     extract True  = do
         logInfo_ "Reading metadata.rb"
-        ls <- Text.lines <$> Text.readFile "metadata.rb"
-        return . suffix
-               . fromMaybe def
-               . fmap strip $ find ("name" `Text.isPrefixOf`) ls
+        strip . fromMaybe def . split . Text.lines <$>
+            Text.readFile "metadata.rb"
 
-    strip = Text.dropAround separator . Text.dropWhile (not . separator)
+    split = fmap (Text.dropAround separator . Text.dropWhile (not . separator)) .
+        find ("name" `Text.isPrefixOf`)
 
     separator c = c == '\'' || c == '"'
 
-    suffix s = fromMaybe s $ Text.stripSuffix "-role" s
+    strip s = fromMaybe s $ Text.stripSuffix "-role" s
 
 defineOptions "Launch" $ do
     textOption "lRole" "role" ""

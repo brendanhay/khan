@@ -117,7 +117,7 @@ search Search{..} = do
   where
     display (matching -> rrs) = unless (null rrs) $ do
         mapM_ (putStrLn . ppShow) rrs
-        logInfo_ "Press enter to continue..." >> void getLine
+        log_ "Press enter to continue..." >> void getLine
 
     start zid = ListResourceRecordSets zid Nothing Nothing Nothing (Just sMax)
 

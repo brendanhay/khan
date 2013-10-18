@@ -38,12 +38,12 @@ createConfig (names -> Names{..}) ami typ = do
         Nothing
         Nothing                         -- User Data
     verifyAS "AlreadyExists" c
-    logInfo "Created Launch Configuration {}" [appName]
+    log "Created Launch Configuration {}" [appName]
 
 deleteConfig :: Naming a => a -> AWS ()
 deleteConfig (names -> Names{..}) = do
     send_ $ DeleteLaunchConfiguration appName
-    logInfo "Deleted Launch Configuration {}" [appName]
+    log "Deleted Launch Configuration {}" [appName]
 
 findGroup :: Naming a => a -> AWS (Maybe AutoScalingGroup)
 findGroup (names -> Names{..}) = fmap
@@ -76,7 +76,7 @@ createGroup (names -> n@Names{..}) dom zones cool desired grace min max = do
         (Members . map (uncurry tag) $ defaultTags n dom) -- Tags
         (Members [])
         Nothing
-    logInfo "Created Auto Scaling Group {}" [appName]
+    log "Created Auto Scaling Group {}" [appName]
     -- Create and update level2 'name' DNS SRV record
     -- Health checks, monitoring, statistics
   where
@@ -110,9 +110,9 @@ updateGroup (names -> n@Names{..}) cool desired grace min max = do
         Nothing
         (Members asgTerminationPolicies)
         Nothing
-    logInfo "Updated Auto Scaling Group {}" [appName]
+    log "Updated Auto Scaling Group {}" [appName]
 
 deleteGroup :: Naming a => a -> AWS ()
 deleteGroup (names -> Names{..}) = do
     send_ $ DeleteAutoScalingGroup appName (Just True)
-    logInfo "Delete of Auto Scaling Group {} in progress" [appName]
+    log "Delete of Auto Scaling Group {} in progress" [appName]

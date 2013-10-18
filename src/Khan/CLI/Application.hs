@@ -74,7 +74,7 @@ deriving instance Show Deploy
 instance Discover Deploy where
     discover d = do
         zs <- map (azSuffix . azitZoneName) <$> EC2.findCurrentZones
-        logInfo "Using Availability Zones '{}'" [zs]
+        log "Using Availability Zones '{}'" [zs]
         return $! d { dZones = zs }
 
 instance Validate Deploy where
@@ -185,7 +185,7 @@ deploy d@Deploy{..} = do
     j <- ASG.findGroup d
 
     when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
-        logInfo "Waiting for previous deletion of Auto Scaling Group {}" [appName]
+        log "Waiting for previous deletion of Auto Scaling Group {}" [appName]
         liftIO . threadDelay $ 10 * 1000000
         deploy d
 
@@ -199,12 +199,12 @@ deploy d@Deploy{..} = do
     a <- async $ EC2.findImage [imageName]
 
     wait_ k
-    wait_ r <* logInfo "Found IAM Profile {}" [profileName]
-    wait_ s <* logInfo "Found SSH Group {}" [sshGroup dEnv]
-    wait_ g <* logInfo "Found App Group {}" [groupName]
+    wait_ r <* log "Found IAM Profile {}" [profileName]
+    wait_ s <* log "Found SSH Group {}" [sshGroup dEnv]
+    wait_ g <* log "Found App Group {}" [groupName]
 
     ami <- wait a
-    logInfo "Found AMI {} named {}" [ami, imageName]
+    log "Found AMI {} named {}" [ami, imageName]
 
     reg <- currentRegion
 

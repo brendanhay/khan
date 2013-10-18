@@ -37,9 +37,9 @@ module Khan.Internal.Program
 import qualified Data.ByteString.Char8    as BS
 import qualified Data.Text                as Text
 import           Data.Text.Encoding
+import           Data.Text.Format         (Shown(..))
 import           Khan.Internal.AWS
 import           Khan.Internal.IO
-import           Khan.Internal.Log
 import           Khan.Internal.Options
 import           Khan.Internal.Types
 import           Khan.Prelude
@@ -139,7 +139,7 @@ runProgram specs = do
     run argv subs =
         let parsed = parseSubcommand subs argv
         in case parsedSubcommand parsed of
-            Just cmd -> runScript $ fmapLT show cmd <* logInfo_ "Exiting..."
+            Just cmd -> runScript $ fmapLT show cmd <* log_ "Exiting..."
             Nothing  -> case parsedError parsed of
                 Just ex -> do
                     putStrLn $ parsedHelp parsed
@@ -174,7 +174,7 @@ subCommand name action = Options.subcommand name run
     run k o _ = do
         khan@Khan{..} <- initialise =<< regionalise k
         validate khan
-        logInfo "Setting region to {}..." [Shown kRegion]
+        log "Setting region to {}..." [Shown kRegion]
         env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
         res <- lift . runAWS env $ do
             opts <- disco (not kDisco) o
@@ -196,5 +196,5 @@ subCommand name action = Options.subcommand name run
         | Just r <- kRole = FromRole $! encodeUtf8 r
         | otherwise       = FromKeys (BS.pack kAccess) (BS.pack kSecret)
 
-    disco True  = (logInfo_ "Performing discovery..." >>) . discover
-    disco False = (logInfo_ "Skipping discovery..." >>) . return
+    disco True  = (log_ "Performing discovery..." >>) . discover
+    disco False = (log_ "Skipping discovery..." >>) . return

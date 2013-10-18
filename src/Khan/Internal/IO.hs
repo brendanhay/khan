@@ -41,7 +41,6 @@ import qualified Data.Text                 as Text
 import qualified Data.Text.IO              as Text
 import           Data.Time.Clock.POSIX
 import           Filesystem.Path.CurrentOS (fromText, parent)
-import           Khan.Internal.Log
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Paths_khan                (getDataFileName)
@@ -93,12 +92,12 @@ cookbookMeta def key
     | otherwise         = do
         p <- shell $ Shell.test_e "metadata.rb"
         r <- liftIO $ extract p
-        logInfo "Using role '{}'" [r]
+        log "Using role '{}'" [r]
         return r
   where
     extract False = return def
     extract True  = do
-        logInfo_ "Reading metadata.rb"
+        log_ "Reading metadata.rb"
         strip . fromMaybe def . split . Text.lines <$>
             Text.readFile "metadata.rb"
 

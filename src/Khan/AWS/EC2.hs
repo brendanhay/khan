@@ -36,7 +36,7 @@ createKey (names -> Names{..}) dir =
   where
     exist e = do
         verifyEC2 "InvalidKeyPair.Duplicate" (Left e)
-        logInfo "KeyPair {} exists, not updating." [keyName]
+        log "KeyPair {} exists, not updating." [keyName]
 
     write k = do
         d <- expandPath dir
@@ -51,13 +51,13 @@ createKey (names -> Names{..}) dir =
              Shell.mkdir_p d
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", path f]
-        logInfo "Wrote new KeyPair to {}" [f]
+        log "Wrote new KeyPair to {}" [f]
 
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
 findGroup (names -> Names{..}) = do
-    logInfo "Searching for group {}" [groupName]
+    log "Searching for group {}" [groupName]
     mg <- fmap groupMay . sendCatch $ DescribeSecurityGroups [groupName] [] []
-    when (isNothing mg) $ logInfo "Unable to find group {}" [groupName]
+    when (isNothing mg) $ log "Unable to find group {}" [groupName]
     return mg
   where
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
@@ -68,14 +68,14 @@ updateGroup (names -> n@Names{..}) rules =
     findGroup n >>= maybe (create >>= modify) modify
   where
     create = do
-        logInfo "{} not found, creating..." [groupName]
+        log "{} not found, creating..." [groupName]
         gid <- fmap csgrGroupId . send $
             CreateSecurityGroup groupName groupName Nothing
-        logInfo "Group {} created." [gid]
+        log "Group {} created." [gid]
         findGroup n >>= noteFormat "Unable to find created group {}" [groupName]
 
     modify grp = do
-        logInfo "Updating group {}..." [groupName]
+        log "Updating group {}..." [groupName]
 
         let gid  = sgitGroupId grp
             strip1 = map (UserIdGroupPair Nothing Nothing . uigGroupName)
@@ -86,20 +86,20 @@ updateGroup (names -> n@Names{..}) rules =
             rev  = strip2 ps \\ strip2 rules
 
         unless (null auth) $ do
-            logInfo "Authorizing {} on {}..." [showRules auth, groupName]
+            log "Authorizing {} on {}..." [showRules auth, groupName]
             send_ $ AuthorizeSecurityGroupIngress (Just gid) Nothing auth
 
         unless (null rev) $ do
-            logInfo "Revoking {} on {}..." [showRules rev, groupName]
+            log "Revoking {} on {}..." [showRules rev, groupName]
             send_ $ RevokeSecurityGroupIngress (Just gid) Nothing rev
 
-        logInfo "Group {} updated." [groupName]
+        log "Group {} updated." [groupName]
 
 deleteGroup :: Naming a => a -> AWS ()
 deleteGroup (names -> Names{..}) = do
-    logInfo "Deleting group {}..." [groupName]
+    log "Deleting group {}..." [groupName]
     send_ $ DeleteSecurityGroup (Just groupName) Nothing
-    logInfo_ "Group deleted."
+    log_ "Group deleted."
 
 findInstances :: [Text] -> [Filter] -> AWS [RunningInstancesItemType]
 findInstances ids = fmap (concatMap ritInstancesSet . dirReservationSet) .
@@ -141,22 +141,22 @@ runInstances (names -> Names{..}) image typ az min max ud opt =
 
 tagInstances :: Naming a => a -> Text -> [Text] -> AWS ()
 tagInstances (names -> n) dom ids = do
-    logInfo_ "Tagging instances with Group, Role, and Env..."
+    log_ "Tagging instances with Group, Role, and Env..."
     send_ . CreateTags ids . map (uncurry ResourceTagSetItemType) $
         defaultTags n dom
 
 waitForInstances :: [Text] -> AWS ()
-waitForInstances []  = logInfo_ "All instances running"
+waitForInstances []  = log_ "All instances running"
 waitForInstances ids = do
     xs <- findInstances ids []
 
     let (ps, rs) = join (***) (map riitInstanceId) $ pending xs
 
-    unless (null rs) $ logInfo "Instances marked as running: {}" [rs]
+    unless (null rs) $ log "Instances marked as running: {}" [rs]
 
     unless (null ps) $ do
-        logInfo "Instances still pending: {}" [ps]
-        logInfo_ "Waiting..."
+        log "Instances still pending: {}" [ps]
+        log_ "Waiting..."
         liftIO . threadDelay $ 1000000 * 30
 
     waitForInstances ps
@@ -165,12 +165,12 @@ waitForInstances ids = do
 
 findImage :: [Text] -> AWS Text
 findImage images = do
-    logInfo "Finding AMIs matching: {}" [options]
+    log "Finding AMIs matching: {}" [options]
     rs  <- fmap (listToMaybe . djImagesSet) . send $
         DescribeImages [] [] ["self"] [Filter "name" images]
     ami <- fmap diritImageId . hoistError $
         note "Failed to find any matching AMIs" rs
-    logInfo "Found AMI {} matching {}" [ami, options]
+    log "Found AMI {} matching {}" [ami, options]
     return ami
   where
     options = Text.intercalate " | " images
@@ -178,7 +178,7 @@ findImage images = do
 findCurrentZones :: AWS [AvailabilityZoneItemType]
 findCurrentZones = do
     reg <- Text.pack . show <$> currentRegion
-    logInfo_ "Finding AZs in current region"
+    log_ "Finding AZs in current region"
     fmap dazrAvailabilityZoneInfo . send $
         DescribeAvailabilityZones []
             [ Filter "region-name" [reg]

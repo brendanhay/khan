@@ -13,11 +13,14 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Prelude
-    ( ByteString
+    (
+    -- * Types
+      ByteString
     , Map
     , Text
     , FilePath
 
+    -- * Monadic
     , forever
     , join
     , when
@@ -25,12 +28,24 @@ module Khan.Prelude
     , void
     , lift
 
-    -- * Errors
+    -- * Exceptions
     , sync
-    , assert
+
+    -- * Errors
+    , assertFormat
     , throwFormat
     , noteFormat
     , throwError
+
+    -- * Variadic Loggers
+    , log
+    , error
+    , debug
+
+    -- * Non-variadic Loggers
+    , log_
+    , error_
+    , debug_
 
     -- * Re-exported Modules
     , module Applicative
@@ -41,38 +56,54 @@ module Khan.Prelude
     , module Prime
     ) where
 
-import Control.Applicative       as Applicative
-import Control.Error             as Error
-import Control.Monad             (forever, join, when, unless, void)
-import Control.Monad.Error       (MonadError, throwError)
-import Control.Monad.IO.Class    as MonadIO
-import Control.Monad.Trans.Class (lift)
-import Data.ByteString           (ByteString)
-import Data.Map                  (Map)
-import Data.Maybe                as Maybe
-import Data.Monoid               as Monoid
-import Data.String
-import Data.Text                 (Text)
-import Data.Text.Format          (Format, format)
-import Data.Text.Format.Params
-import Data.Text.Lazy            (unpack)
-import Filesystem.Path.CurrentOS (FilePath)
-import Network.AWS
-import Prelude.Prime             as Prime hiding (FilePath, writeFile)
+import           Control.Applicative       as Applicative
+import           Control.Error             as Error
+import           Control.Monad             (forever, join, when, unless, void)
+import           Control.Monad.Error       (MonadError, throwError)
+import           Control.Monad.IO.Class    as MonadIO
+import           Control.Monad.Trans.Class (lift)
+import           Data.ByteString           (ByteString)
+import           Data.Map                  (Map)
+import           Data.Maybe                as Maybe
+import           Data.Monoid               as Monoid
+import           Data.String
+import           Data.Text                 (Text)
+import           Data.Text.Format
+import           Data.Text.Format.Params
+import qualified Data.Text.IO              as Text
+import           Data.Text.Lazy            (unpack)
+import           Filesystem.Path.CurrentOS (FilePath)
+import           Network.AWS
+import           Prelude.Prime             as Prime hiding (FilePath, error, log, writeFile)
+import qualified System.IO                 as IO
 
 sync :: MonadIO m => IO a -> EitherT String m a
 sync = fmapLT show . syncIO
 
-assert :: (MonadError String m, MonadIO m, Params ps)
+assertFormat :: (MonadError AWSError m, MonadIO m, Params ps)
        => Format
        -> ps
        -> Bool
        -> m ()
-assert f ps True  = throwError . unpack $ format f ps
-assert _ _  False = return ()
+assertFormat f ps True  = throwFormat f ps
+assertFormat _ _  False = return ()
 
 throwFormat :: (Params a, MonadError AWSError m) => Format -> a -> m b
 throwFormat f = throwError . Err . unpack . format f
 
 noteFormat :: (Params ps, MonadError AWSError m) => Format -> ps -> Maybe a -> m a
 noteFormat f ps = hoistError . note (Err . unpack $ format f ps)
+
+log, error :: (MonadIO m, Params ps) => Format -> ps -> m ()
+log f   = hprint IO.stdout (f <> "\n")
+error f = hprint IO.stderr (f <> "\n")
+
+log_, error_ :: MonadIO m => Text -> m ()
+log_   = liftIO . Text.putStrLn
+error_ = liftIO . Text.hPutStrLn IO.stderr
+
+debug :: Params ps => Format -> ps -> AWS ()
+debug fmt = whenDebug . log fmt
+
+debug_ :: Text -> AWS ()
+debug_ = whenDebug . log_

@@ -61,6 +61,6 @@ cli = Command "metadata" "Manage Instance Metadata."
 
 info :: Info -> AWS ()
 info Info{..} = do
-    logInfo "Describing instance {}" [dId]
+    log "Describing instance {}" [dId]
     is <- dirReservationSet <$> send (DescribeInstances [dId] [])
-    logInfo "{}" . Only $ ppShow is
+    log "{}" . Only $ ppShow is

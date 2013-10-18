@@ -16,7 +16,7 @@ module Khan.AWS.Route53 where
 
 import           Control.Concurrent  (threadDelay)
 import qualified Data.Text           as Text
-import           Khan.Internal
+import           Data.Text.Format    (Shown(..))
 import           Khan.Prelude        hiding (min, max)
 import           Network.AWS
 import           Network.AWS.Route53
@@ -46,9 +46,9 @@ updateRecordSet zid changes = send batch >>= waitChange . crrsrChangeInfo
     batch = ChangeResourceRecordSets zid $ ChangeBatch Nothing changes
 
     waitChange ChangeInfo{..} = case ciStatus of
-        INSYNC  -> logInfo "{} INSYNC." [show ciId]
+        INSYNC  -> log "{} INSYNC." [show ciId]
         PENDING -> do
-            logInfo "Waiting for {}" [Shown ciId]
+            log "Waiting for {}" [Shown ciId]
             liftIO . threadDelay $ 10 * 1000000
             send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
 

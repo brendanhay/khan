@@ -161,7 +161,7 @@ instance Discover Host where
     discover h@Host{..}
         | not $ invalid hBundle = return h
         | otherwise = do
-            logInfo_ "No --bundle specified, attempting to create from cwd"
+            log_ "No --bundle specified, attempting to create from cwd"
             tgz <- discover (Bundle hRole "" defaultTmpPath) >>= bundle
             return $! h { hBundle = tgz }
 
@@ -191,10 +191,10 @@ launch l@Launch{..} = do
     s <- async $ EC2.updateGroup (sshGroup lEnv) sshRules
     g <- async $ EC2.updateGroup l lRules
 
-    wait_ i <* logInfo "Found IAM Profile {}" [profileName]
-    wait_ k <* logInfo "Found KeyPair {}" [keyName]
-    wait_ s <* logInfo "Found SSH Group {}" [sshGroup lEnv]
-    wait_ g <* logInfo "Found Role Group {}" [groupName]
+    wait_ i <* log "Found IAM Profile {}" [profileName]
+    wait_ k <* log "Found KeyPair {}" [keyName]
+    wait_ s <* log "Found SSH Group {}" [sshGroup lEnv]
+    wait_ g <* log "Found Role Group {}" [groupName]
 
     ud  <- Text.decodeUtf8 . Base64.encode <$> shell (Shell.readBinary lData)
     az  <- shuffle lZones
@@ -224,7 +224,7 @@ bundle t@Bundle{..} = liftEitherT $ do
         Shell.run_ "bundle" ["exec", "berks", "install", "--path", path books]
         Shell.chdir tTmp $ Shell.run_ "tar" ["zcf", path tgz, "."]
 
-    logInfo "Bundle created at {}" [tgz]
+    log "Bundle created at {}" [tgz]
     return tgz
   where
     output = "bundle.tar.gz" :: FilePath
@@ -241,19 +241,19 @@ bundle t@Bundle{..} = liftEitherT $ do
 run :: Host -> AWS ()
 run Host{..} = do
     hs <- if null hHosts then findDNS else return hHosts
-    logInfo "Running on hosts: \n{}" [Text.intercalate "\n" hs]
+    log "Running on hosts: \n{}" [Text.intercalate "\n" hs]
 
     key <- EC2.keyPath keyName hKeys
-    logInfo "Using private key {}" [key]
+    log "Using private key {}" [key]
 
     forM_ hs $ \h -> shell $ do
-        logInfo "Copying {} to {}" [path hBundle, h]
+        log "Copying {} to {}" [path hBundle, h]
         Shell.run_ "scp" ["-i", path key, path hBundle, "ubuntu@" <> h <> ":~/"]
   where
     findDNS = do
         is <- EC2.findInstances [] [tag roleTag roleName, tag envTag  envName]
         forM_ is $ \RunningInstancesItemType{..} -> when (isNothing riitDnsName) $
-            logInfo "No public DNS for {} in state {}"
+            log "No public DNS for {} in state {}"
                 [riitInstanceId, istName riitInstanceState]
         return . catMaybes $ map riitDnsName is
 

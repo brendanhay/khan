@@ -41,4 +41,4 @@ updateRole (names -> Names{..}) ppath tpath = do
     p <- sendAsync $ PutRolePolicy policy profileName profileName
 
     wait a >>= verifyIAM "LimitExceeded"
-    waitAsync_ p <* logInfo "Updated policy for Role {}" [profileName]
+    waitAsync_ p <* log "Updated policy for Role {}" [profileName]

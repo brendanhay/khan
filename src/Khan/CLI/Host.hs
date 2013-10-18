@@ -66,7 +66,7 @@ register Host{..} = do
     -- FIXME: Create and assign health check
     -- FIXME: Handle errors retries gracefully
     persistent Names{..} zid dom = do
-        logInfo_ "Registering as persistent host..."
+        log_ "Registering as persistent host..."
         sets <- findPrefix zid roleName
         maybe (create sets) exists $ filterValue hFQDN sets
       where
@@ -76,10 +76,10 @@ register Host{..} = do
                 name = address roleName (Text.pack $ show n) envName reg dom
                 vs   = ResourceRecords [hFQDN]
                 set  = BasicRecordSet name CNAME 60 vs Nothing
-            logInfo "Creating record {} with value {}..." [name, hFQDN]
+            log "Creating record {} with value {}..." [name, hFQDN]
             R53.updateRecordSet zid [Change CreateAction set]
 
-        exists r = logInfo "Record {} exists, skipping..." [rrsName r]
+        exists r = log "Record {} exists, skipping..." [rrsName r]
 
         newest acc x = max (int $ rrsName x) acc
 
@@ -95,7 +95,7 @@ register Host{..} = do
         reg <- currentRegion
         let name  = address roleName ver envName reg dom
             value = Text.intercalate " " ["50", "50", "8080", hFQDN]
-        logInfo "Registering {} with {} as ephemeral host..." [hFQDN, name]
+        log "Registering {} with {} as ephemeral host..." [hFQDN, name]
         mset <- R53.findRecordSet zid ((name ==) . rrsName)
         R53.updateRecordSet zid $ maybe (create name value) (update value) mset
       where
@@ -117,14 +117,14 @@ deregister Host{..} = do
     maybe (persistent ns zid) (error . show) tagVersion
   where
     persistent Names{..} zid = do
-        logInfo "Searching for records matching {} with value {}..."
+        log "Searching for records matching {} with value {}..."
             [roleName, hFQDN]
         mset <- filterValue hFQDN <$> findPrefix zid roleName
-        maybe (logInfo_ "No record found, skipping...") delete
+        maybe (log_ "No record found, skipping...") delete
               mset
       where
         delete set = do
-            logInfo_ "Deleting record..."
+            log_ "Deleting record..."
             R53.updateRecordSet zid [Change DeleteAction set]
 
 describe :: Text -> AWS (Names, Tags)

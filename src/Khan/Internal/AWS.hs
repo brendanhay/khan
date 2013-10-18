@@ -20,7 +20,6 @@ import           Control.Monad.Error
 import qualified Data.Map                as Map
 import qualified Data.Text               as Text
 import           Data.Version
-import           Khan.Internal.Log
 import           Khan.Internal.Types
 import           Khan.Prelude            hiding (min, max)
 import           Network.AWS
@@ -58,7 +57,7 @@ data Tags = Tags
 
 requiredTags :: Text -> AWS Tags
 requiredTags iid = do
-    logInfo "Describing tags for instance-id {}..." [iid]
+    log "Describing tags for instance-id {}..." [iid]
     ts <- toMap <$> send (DescribeTags [TagResourceId [iid]])
     Tags <$> require roleTag ts
          <*> require envTag ts

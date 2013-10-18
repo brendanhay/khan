@@ -19,6 +19,9 @@ import           Control.Exception
 import           Control.Monad.Error
 import qualified Data.Map                as Map
 import qualified Data.Text               as Text
+import           Data.Text.Format
+import           Data.Text.Format.Params
+import qualified Data.Text.Lazy          as LText
 import           Data.Version
 import           Khan.Internal.Types
 import           Khan.Prelude            hiding (min, max)
@@ -27,6 +30,24 @@ import           Network.AWS.AutoScaling hiding (DescribeTags)
 import           Network.AWS.EC2
 import           Network.AWS.IAM
 import           Network.Http.Client     hiding (get)
+
+assertAWS :: (MonadError AWSError m, MonadIO m, Params ps)
+          => Format
+          -> ps
+          -> Bool
+          -> m ()
+assertAWS f ps True  = throwAWS f ps
+assertAWS _ _  False = return ()
+
+throwAWS :: (Params a, MonadError AWSError m) => Format -> a -> m b
+throwAWS f = throwError . Err . LText.unpack . format f
+
+noteAWS :: (Params ps, MonadError AWSError m)
+        => Format
+        -> ps
+        -> Maybe a
+        -> m a
+noteAWS f ps = hoistError . note (Err . LText.unpack $ format f ps)
 
 sshGroup :: Text -> Text
 sshGroup = (<> "-ssh")

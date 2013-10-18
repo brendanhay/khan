@@ -190,7 +190,7 @@ deploy d@Deploy{..} = do
         deploy d
 
     when (isJust j) $
-        throwFormat "Auto Scaling Group {} already exists." [appName]
+        throwAWS "Auto Scaling Group {} already exists." [appName]
 
     k <- async $ EC2.createKey d dKeys
     r <- async $ IAM.findRole d

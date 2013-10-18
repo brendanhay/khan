@@ -16,6 +16,6 @@ import Khan.Internal.AWS      as Internal
 import Khan.Internal.Defaults as Internal
 import Khan.Internal.IO       as Internal
 import Khan.Internal.Options  as Internal
-import Khan.Internal.Orphans ()
+import Khan.Internal.Orphans  ()
 import Khan.Internal.Program  as Internal
 import Khan.Internal.Types    as Internal

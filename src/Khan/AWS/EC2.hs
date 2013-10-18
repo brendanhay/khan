@@ -72,7 +72,7 @@ updateGroup (names -> n@Names{..}) rules =
         gid <- fmap csgrGroupId . send $
             CreateSecurityGroup groupName groupName Nothing
         log "Group {} created." [gid]
-        findGroup n >>= noteFormat "Unable to find created group {}" [groupName]
+        findGroup n >>= noteAWS "Unable to find created group {}" [groupName]
 
     modify grp = do
         log "Updating group {}..." [groupName]

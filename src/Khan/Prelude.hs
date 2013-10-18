@@ -28,13 +28,9 @@ module Khan.Prelude
     , void
     , lift
 
-    -- * Exceptions
-    , sync
-
     -- * Errors
-    , assertFormat
-    , throwFormat
-    , noteFormat
+    , sync
+    , assert
     , throwError
 
     -- * Variadic Loggers
@@ -80,19 +76,13 @@ import qualified System.IO                 as IO
 sync :: MonadIO m => IO a -> EitherT String m a
 sync = fmapLT show . syncIO
 
-assertFormat :: (MonadError AWSError m, MonadIO m, Params ps)
+assert :: (MonadError String m, MonadIO m, Params ps)
        => Format
        -> ps
        -> Bool
        -> m ()
-assertFormat f ps True  = throwFormat f ps
-assertFormat _ _  False = return ()
-
-throwFormat :: (Params a, MonadError AWSError m) => Format -> a -> m b
-throwFormat f = throwError . Err . unpack . format f
-
-noteFormat :: (Params ps, MonadError AWSError m) => Format -> ps -> Maybe a -> m a
-noteFormat f ps = hoistError . note (Err . unpack $ format f ps)
+assert f ps True  = throwError . unpack $ format f ps
+assert _ _  False = return ()
 
 log, error :: (MonadIO m, Params ps) => Format -> ps -> m ()
 log f   = hprint IO.stdout (f <> "\n")

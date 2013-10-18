@@ -114,7 +114,9 @@ deregister :: Host -> AWS ()
 deregister Host{..} = do
     (ns, Tags{..}) <- describe hId
     zid            <- R53.findZoneId tagDomain
-    maybe (persistent ns zid) (error . show) tagVersion
+    case tagVersion of
+        Nothing -> persistent ns zid
+        Just _  -> error_ "Not implemented"
   where
     persistent Names{..} zid = do
         log "Searching for records matching {} with value {}..."

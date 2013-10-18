@@ -14,7 +14,7 @@
 
 Khan is an infrastructure management and provisioning tool.
 
-It takes key ideas from Netflix's [Asgard](https://github.com/Netflix/asgard)
+It takes ideas from Netflix's [Asgard](https://github.com/Netflix/asgard)
 and my own experiences developing and managing applications using more traditional tools such
 as Chef, Puppet, and Ansible on Amazon Web Services (AWS).
 

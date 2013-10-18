@@ -19,7 +19,7 @@ and my own experiences developing and managing applications using more tradition
 as Chef, Puppet, and Ansible on Amazon Web Services (AWS).
 
 The key tenants behind Khan's approach to management and deployment of cloud applications
-is a convention-over-configuration driven workflow, immutablity, and simplicity.
+are convention-over-configuration, immutablity, and simplicity.
 
 
 ## Contribute

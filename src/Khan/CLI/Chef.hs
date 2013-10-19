@@ -243,7 +243,7 @@ run Host{..} = do
     hs <- if null hHosts then findDNS else return hHosts
     log "Running on hosts: \n{}" [Text.intercalate "\n" hs]
 
-    key <- EC2.keyPath keyName hKeys
+    key <- EC2.keyPath keyName hKeys >>= expandPath
     log "Using private key {}" [key]
 
     forM_ hs $ \h -> shell $ do

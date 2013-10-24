@@ -17,9 +17,7 @@ module Khan.AWS.AutoScaling where
 
 import Khan.Internal
 import Khan.Prelude            hiding (min, max)
-import Network.AWS
 import Network.AWS.AutoScaling hiding (Filter)
-import Network.AWS.Internal
 
 createConfig :: Naming a => a -> Text -> InstanceType -> AWS ()
 createConfig (names -> Names{..}) ami typ = do

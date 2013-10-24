@@ -21,13 +21,12 @@ import           Data.List           ((\\), partition)
 import qualified Data.Text           as Text
 import           Khan.Internal
 import           Khan.Prelude        hiding (min, max)
-import           Network.AWS
 import           Network.AWS.EC2
 import qualified Shelly              as Shell
 
 keyPath :: Text -> FilePath -> AWS FilePath
 keyPath name dir = do
-    reg <- Text.pack . show <$> currentRegion
+    reg <- Text.pack . show <$> getRegion
     return . (dir </>) . Shell.fromText $ Text.concat [reg, ".", name, ".pem"]
 
 createKey :: Naming a => a -> FilePath -> AWS ()
@@ -177,7 +176,7 @@ findImage images = do
 
 findCurrentZones :: AWS [AvailabilityZoneItemType]
 findCurrentZones = do
-    reg <- Text.pack . show <$> currentRegion
+    reg <- Text.pack . show <$> getRegion
     log_ "Finding AZs in current region"
     fmap dazrAvailabilityZoneInfo . send $
         DescribeAvailabilityZones []

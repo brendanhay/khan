@@ -71,7 +71,7 @@ register Host{..} = do
         maybe (create sets) exists $ filterValue hFQDN sets
       where
         create sets = do
-            reg <- currentRegion
+            reg <- getRegion
             let n    = 1 + foldl' newest 0 sets
                 name = address roleName (Text.pack $ show n) envName reg dom
                 vs   = ResourceRecords [hFQDN]
@@ -92,7 +92,7 @@ register Host{..} = do
     -- FIXME: Create and assign health check
     -- FIXME: Handle errors retries gracefully
     ephemeral Names{..} zid dom (safeVersion -> ver) = do
-        reg <- currentRegion
+        reg <- getRegion
         let name  = address roleName ver envName reg dom
             value = Text.intercalate " " ["50", "50", "8080", hFQDN]
         log "Registering {} with {} as ephemeral host..." [hFQDN, name]

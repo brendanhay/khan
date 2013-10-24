@@ -43,15 +43,14 @@ module Khan.Internal.Options
     , customOption
     ) where
 
-import qualified Data.Text                  as Text
+import qualified Data.Text           as Text
 import           Data.Version
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Language.Haskell.TH
 import           Network.AWS.EC2
-import           Network.AWS.Internal.Types
 import           Network.AWS.Route53
-import qualified Options                    as Opts
+import qualified Options             as Opts
 import           Options.OptionTypes
 
 import Options hiding

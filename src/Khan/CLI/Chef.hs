@@ -198,7 +198,7 @@ launch l@Launch{..} = do
 
     ud  <- Text.decodeUtf8 . Base64.encode <$> shell (Shell.readBinary lData)
     az  <- shuffle lZones
-    reg <- currentRegion
+    reg <- getRegion
     ms1 <- EC2.runInstances l ami lType (AZ reg az) lMin lMax ud lOptimised
 
     let ids = map riitInstanceId ms1

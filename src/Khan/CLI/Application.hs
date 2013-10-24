@@ -206,7 +206,7 @@ deploy d@Deploy{..} = do
     ami <- wait a
     log "Found AMI {} named {}" [ami, imageName]
 
-    reg <- currentRegion
+    reg <- getRegion
 
     let zones = map (AZ reg) dZones
 

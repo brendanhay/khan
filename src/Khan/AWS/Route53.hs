@@ -18,7 +18,6 @@ import           Control.Concurrent  (threadDelay)
 import qualified Data.Text           as Text
 import           Data.Text.Format    (Shown(..))
 import           Khan.Prelude        hiding (min, max)
-import           Network.AWS
 import           Network.AWS.Route53
 import           Pipes
 import qualified Pipes.Prelude       as Pipes

@@ -21,10 +21,11 @@ import qualified Data.Text                    as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Prelude
+import           Network.AWS
 import           Network.AWS.EC2
-import           Network.AWS.Internal
-import           Text.ParserCombinators.ReadP (readP_to_S)
+import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
+import qualified Text.Read                    as Read
 
 class Discover a where
     discover :: a -> AWS a
@@ -134,7 +135,7 @@ parseVersionE :: String -> Either String Version
 parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
     . listToMaybe
     . reverse
-    . readP_to_S parseVersion
+    . ReadP.readP_to_S parseVersion
     $ map f s
   where
     f '+' = '-'
@@ -191,3 +192,7 @@ parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0"
             "udp"  -> return UDP
             "icmp" -> return ICMP
             _      -> fail "Failed to parsed protocol"
+
+readAssocList :: [(String, a)] -> Read.ReadPrec a
+readAssocList xs = Read.choice $
+    map (\(x, y) -> Read.lift $ ReadP.string x >> return y) xs

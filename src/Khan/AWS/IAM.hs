@@ -17,7 +17,6 @@ module Khan.AWS.IAM where
 
 import           Khan.Internal
 import           Khan.Prelude
-import           Network.AWS
 import           Network.AWS.IAM
 import qualified Shelly          as Shell
 

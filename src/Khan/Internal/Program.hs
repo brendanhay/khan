@@ -171,16 +171,15 @@ subCommand :: (Show a, Options a, Discover a, Validate a)
            -> SubCommand
 subCommand name action = Options.subcommand name run
   where
-    run k o _ = do
-        khan@Khan{..} <- initialise =<< regionalise k
-        validate khan
+    run khan opts _ = do
+        k@Khan{..} <- initialise =<< regionalise khan
+        validate k
         log "Setting region to {}..." [Shown kRegion]
-        env <- Env (Just kRegion) kDebug <$> credentials (creds khan)
-        res <- lift . runAWS env $ do
-            opts <- disco (not kDisco) o
-            liftEitherT $ validate opts
-            action opts
-        hoistEither res
+        r <- lift . runAWS (creds k) kDebug . within kRegion $ do
+            o <- disco (not kDisco) opts
+            liftEitherT $ validate o
+            action o
+        hoistEither r
 
     regionalise k = do
         p <- isEC2

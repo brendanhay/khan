@@ -27,7 +27,7 @@ import           Pipes
 import           Text.Show.Pretty
 
 defineOptions "Record" $ do
-    textOption "rZone" "domain" ""
+    textOption "rZone" "zone" ""
         "Name of the hosted zone to modify."
 
     recordTypeOption "rRecordType" "type" CNAME
@@ -78,7 +78,7 @@ instance Validate Record where
             "--set-id must be specified for all non-basic routing policies."
 
 defineOptions "Search" $ do
-    textOption "sZone" "domain" ""
+    textOption "sZone" "zone" ""
         "Name of the hosted zone to inspect."
 
     integerOption "sMax" "max" 4

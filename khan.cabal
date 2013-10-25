@@ -19,8 +19,7 @@ extra-source-files:
     README.md
 
 data-files:
-      config/node.json
-    , config/policy.json
+      config/policy.json
     , config/trust.json
     , config/solo.rb
     , config/user-data

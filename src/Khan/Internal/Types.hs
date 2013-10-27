@@ -27,8 +27,8 @@ import           Text.Read
 import qualified Text.Read                    as Read
 
 class Discover a where
-    discover :: a -> AWS a
-    discover = return
+    discover :: Bool -> a -> AWS a
+    discover _ = return
 
 class Validate a where
     validate :: MonadIO m => a -> EitherT AWSError m ()

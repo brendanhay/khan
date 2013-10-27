@@ -72,11 +72,6 @@ defineOptions "Khan" $ do
     regionOption "kRegion" "region" NorthCalifornia
         "Region to operate in."
 
-    boolOption "kDisco" "discovery" False
-        "Discovery of command line parameters from EC2 metadata."
-
--- FIXME: Discovery should only be for EC2 metadata
-
 deriving instance Show Khan
 
 initialise :: (Applicative m, MonadIO m) => Khan -> EitherT AWSError m Khan
@@ -167,31 +162,26 @@ command :: (Show a, Options a, Discover a, Validate a)
 command action name = Command (Options.subcommand name run) name
   where
     run khan opts _ = do
-        k@Khan{..} <- initialise =<< regionalise khan
+        ec2        <- isEC2
+        k@Khan{..} <- regionalise khan ec2 >>= initialise
         validate k
         log "Setting region to {}..." [Shown kRegion]
         r <- lift . runAWS (creds k) kDebug . within kRegion $ do
-            o <- disco kDisco opts
+            o <- discover ec2 opts
             liftEitherT $ validate o
             action o
         hoistEither r
 
-    regionalise k = do
-        p <- isEC2
-        if not p
-            then return k
-            else do
-                az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
-                reg <- fmapLT Err $
-                    tryRead ("Failed to read region from: " ++ az) az
-                return $! k { kRegion = reg }
+    regionalise k False = return k
+    regionalise k True  = do
+        az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
+        reg <- fmapLT Err $
+            tryRead ("Failed to read region from: " ++ az) az
+        return $! k { kRegion = reg }
 
     creds Khan{..}
         | Just r <- kRole = FromRole $! encodeUtf8 r
         | otherwise       = FromKeys (BS.pack kAccess) (BS.pack kSecret)
-
-    disco True  = (log_ "Performing discovery..." >>) . discover
-    disco False = (log_ "Skipping discovery..." >>) . return
 
 wrapLines :: Int -> String -> [String]
 wrapLines n s = reverse . uncurry (:) $ foldl f ([], []) $ words s

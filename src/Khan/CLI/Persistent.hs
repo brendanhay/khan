@@ -17,13 +17,8 @@
 
 module Khan.CLI.Persistent (commands) where
 
-import           Data.Aeson
 import qualified Data.ByteString.Base64    as Base64
-import qualified Data.ByteString.Lazy      as LBS
-import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
-import           Data.Text.Format
-import qualified Filesystem.Path.CurrentOS as Path
 import qualified Khan.AWS.EC2              as EC2
 import qualified Khan.AWS.IAM              as IAM
 import           Khan.Internal
@@ -88,7 +83,7 @@ defineOptions "Launch" $ do
 deriving instance Show Launch
 
 instance Discover Launch where
-    discover l@Launch{..} = do
+    discover _ l@Launch{..} = do
         ud <- defaultDataFile lData "user-data"
         return $! l { lData = ud }
 

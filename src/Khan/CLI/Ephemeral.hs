@@ -43,7 +43,7 @@ defineOptions "Deploy" $ do
         "Version of the application."
 
     stringOption "dZones" "zones" ""
-         "Availability zones suffixes to provision into."
+         "Availability zones suffixes to provision into. Supports discovery"
 
     integerOption "dGrace" "grace" 20
         "Seconds until healthchecks are activated."
@@ -72,7 +72,7 @@ defineOptions "Deploy" $ do
 deriving instance Show Deploy
 
 instance Discover Deploy where
-    discover d = do
+    discover _ d = do
         zs <- map (azSuffix . azitZoneName) <$> EC2.findCurrentZones
         log "Using Availability Zones '{}'" [zs]
         return $! d { dZones = zs }

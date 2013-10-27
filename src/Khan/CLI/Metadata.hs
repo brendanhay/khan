@@ -27,12 +27,13 @@ import           Text.Show.Pretty
 
 defineOptions "Info" $
     textOption "dId" "id" ""
-        "Id of the instance to describe."
+        "Id of the instance to describe. Supports discovery."
 
 deriving instance Show Info
 
 instance Discover Info where
-    discover d
+    discover False d = return d
+    discover True  d
         | not $ invalid (dId d) = return d
         | otherwise = liftEitherT $ do
             iid <- Text.decodeUtf8 <$> metadata InstanceId
@@ -41,18 +42,6 @@ instance Discover Info where
 instance Validate Info where
     validate Info{..} =
         check dId "--instance-id must be specified."
-
-defineOptions "Local" $
-    textOption "dPath" "path" ""
-        "Metadata path to retrieve."
-
-deriving instance Show Local
-
-instance Discover Local
-
-instance Validate Local where
-    validate Local{..} =
-        check dPath "--path must be specified."
 
 commands :: [Command]
 commands =

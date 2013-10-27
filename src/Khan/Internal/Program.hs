@@ -72,8 +72,10 @@ defineOptions "Khan" $ do
     regionOption "kRegion" "region" NorthCalifornia
         "Region to operate in."
 
-    boolOption "kDisco" "no-discovery" False
-        "Skip discovery of command line parameters."
+    boolOption "kDisco" "discovery" False
+        "Discovery of command line parameters from EC2 metadata."
+
+-- FIXME: Discovery should only be for EC2 metadata
 
 deriving instance Show Khan
 
@@ -156,7 +158,6 @@ runProgram cmds = do
         , ""
         ] ++ map (' ':) (wrapLines 80 cmdHelp)
 
-
 command :: (Show a, Options a, Discover a, Validate a)
          => (a -> AWS ())
          -> String
@@ -170,7 +171,7 @@ command action name = Command (Options.subcommand name run) name
         validate k
         log "Setting region to {}..." [Shown kRegion]
         r <- lift . runAWS (creds k) kDebug . within kRegion $ do
-            o <- disco (not kDisco) opts
+            o <- disco kDisco opts
             liftEitherT $ validate o
             action o
         hoistEither r

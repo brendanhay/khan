@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Metadata (cli) where
+module Khan.CLI.Metadata (commands) where
 
 import qualified Data.Text.Encoding       as Text
 import           Data.Text.Format
@@ -54,9 +54,9 @@ instance Validate Local where
     validate Local{..} =
         check dPath "--path must be specified."
 
-cli :: Command
-cli = Command "metadata" "Manage Instance Metadata."
-    [ subCommand "info" info
+commands :: [Command]
+commands =
+    [ command info "info" "Describe an instance." "Some help text"
     ]
 
 info :: Info -> AWS ()

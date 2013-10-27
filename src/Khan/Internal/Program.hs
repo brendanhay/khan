@@ -98,7 +98,7 @@ instance Validate Khan where
         role = isNothing kRole
 
         msg k e = concat
-            [k
+            [ k
             , " must be specified or "
             , e
             , " env must be set if --iam-role is not set."
@@ -152,6 +152,7 @@ runProgram specs = do
     help msg = do
         putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
         forM_ specs $ \(k, cs) -> putStrLn . unlines $ k : map desc cs
+        putStrLn ""
         putStrLn msg
         exitFailure
 

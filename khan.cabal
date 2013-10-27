@@ -54,6 +54,7 @@ executable khan
       , prelude-prime
       , pretty-show
       , random
+      , regex-compat
       , shelly
       , system-filepath
       , template-haskell

@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
 
 -- Module      : Khan.Internal.Program
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -18,9 +19,8 @@
 module Khan.Internal.Program
     (
     -- * Application Options
-      Khan     (..)
-    , Command  (..)
-    , SubCommand
+      Khan    (..)
+    , Command (..)
 
     -- * Validation
     , check
@@ -30,14 +30,15 @@ module Khan.Internal.Program
     -- * Program Helpers
     , defineOptions
     , runProgram
-    , group
-    , subCommand
+    , command
     ) where
 
 import qualified Data.ByteString.Char8    as BS
 import qualified Data.Text                as Text
 import           Data.Text.Encoding
 import           Data.Text.Format         (Shown(..))
+import qualified Data.Text.Format         as Text
+import qualified Data.Text.Lazy           as LText
 import           Khan.Internal.AWS
 import           Khan.Internal.IO
 import           Khan.Internal.Options
@@ -49,6 +50,7 @@ import           Options                  hiding (group, boolOption, stringOptio
 import qualified Shelly                   as Shell
 import           System.Environment
 import           System.Exit
+import           Text.Regex
 
 accessKey, secretKey :: String
 accessKey = "ACCESS_KEY_ID"
@@ -58,7 +60,7 @@ defineOptions "Khan" $ do
     boolOption "kDebug" "debug" False
         "Log debug output."
 
-    maybeTextOption "kRole" "iam-role" Text.empty
+    maybeTextOption "kRole" "iam-role" ""
         "IAM role - if specified takes precendence over access/secret keys."
 
     stringOption "kAccess" "access-key" ""
@@ -104,12 +106,11 @@ instance Validate Khan where
             , " env must be set if --iam-role is not set."
             ]
 
-type SubCommand = Subcommand Khan (EitherT AWSError IO ())
-
 data Command = Command
-    { cmdName :: String
+    { cmdSub  :: Subcommand Khan (EitherT AWSError IO ())
+    , cmdName :: String
     , cmdDesc :: String
-    , cmdSubs :: [SubCommand]
+    , cmdHelp :: String
     }
 
 validKeys :: Khan -> Bool
@@ -126,51 +127,43 @@ checkPath p e = check p msg >> checkIO (not <$> shell (Shell.test_e p)) msg
   where
     msg = Text.unpack (Text.concat ["path '", path p, "'"]) ++ e
 
-runProgram :: [(String, [Command])] -> IO ()
-runProgram specs = do
+runProgram :: [Command] -> IO ()
+runProgram cmds = do
     args <- getArgs
-    case args of
-        []          -> help "Additional subcommand required."
-        (name:rest) -> maybe (help $ "Unknown subcommand \"" ++ name ++ "\".")
-            (run rest . cmdSubs) $ find ((== name) . cmdName) cmds
+    let p = parseSubcommand (map cmdSub cmds) args
+    case parsedSubcommand p of
+        Just cmd -> runScript $ fmapLT show cmd <* log_ "Exiting..."
+        Nothing  -> do
+            maybe (return ()) synopsis $ headMay args
+            help p
+            maybe exitSuccess (\ex -> putStrLn ex >> exitFailure) $
+                parsedError p
   where
-    cmds = concatMap snd specs
+    help p = putStrLn . init $ foldl replace (parsedHelp p) cmds
 
-    run argv subs =
-        let parsed = parseSubcommand subs argv
-        in case parsedSubcommand parsed of
-            Just cmd -> runScript $ fmapLT show cmd <* log_ "Exiting..."
-            Nothing  -> case parsedError parsed of
-                Just ex -> do
-                    putStrLn $ parsedHelp parsed
-                    putStrLn ex
-                    exitFailure
-                Nothing -> do
-                    putStrLn $ parsedHelp parsed
-                    exitSuccess
+    replace s Command{..} = subRegex (mkRegex $ "^  " ++ cmdName) s
+        . LText.unpack
+        $ Text.format "  {}{}{}" [cmdName, pad cmdName, cmdDesc]
 
-    help msg = do
-        putStrLn $ parsedHelp (parseOptions [] :: ParsedOptions Khan)
-        forM_ specs $ \(k, cs) -> putStrLn . unlines $ k : map desc cs
-        putStrLn ""
-        putStrLn msg
-        exitFailure
+    pad = flip replicate ' ' . (28 -) . length
 
-    desc Command{..} = concat
-        [ "  "
-        , cmdName
-        , replicate (28 - length cmdName) ' '
-        , cmdDesc
-        ]
+    synopsis name = maybe (return ()) (putStrLn . about) $
+        find ((name ==) . cmdName) cmds
 
-group :: String -> [Command] -> (String, [Command])
-group = (,)
+    about Command{..} = unlines $
+        [ "Synopsis:"
+        , concat ["  ", cmdName, " - ", cmdDesc]
+        , ""
+        ] ++ map (' ':) (wrapLines 80 cmdHelp)
 
-subCommand :: (Show a, Options a, Discover a, Validate a)
-           => String
-           -> (a -> AWS ())
-           -> SubCommand
-subCommand name action = Options.subcommand name run
+
+command :: (Show a, Options a, Discover a, Validate a)
+         => (a -> AWS ())
+         -> String
+         -> String
+         -> String
+         -> Command
+command action name = Command (Options.subcommand name run) name
   where
     run khan opts _ = do
         k@Khan{..} <- initialise =<< regionalise khan
@@ -198,3 +191,10 @@ subCommand name action = Options.subcommand name run
 
     disco True  = (log_ "Performing discovery..." >>) . discover
     disco False = (log_ "Skipping discovery..." >>) . return
+
+wrapLines :: Int -> String -> [String]
+wrapLines n s = reverse . uncurry (:) $ foldl f ([], []) $ words s
+  where
+    f (ws, ls) w
+        | length ws < n = (concat [ws, " ", w], ls)
+        | otherwise     = ([], ws : ls)

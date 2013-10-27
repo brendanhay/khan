@@ -10,30 +10,29 @@
 
 module Main (main) where
 
-import qualified Khan.CLI.Application as Application
-import qualified Khan.CLI.Chef        as Chef
-import qualified Khan.CLI.DNS         as DNS
-import qualified Khan.CLI.Group       as Group
-import qualified Khan.CLI.Host        as Host
-import qualified Khan.CLI.Metadata    as Metadata
-import qualified Khan.CLI.Profile     as Profile
+import qualified Khan.CLI.Ephemeral    as Ephemeral
+import qualified Khan.CLI.Persistent as Persistent
+
+-- import qualified Khan.CLI.DNS         as DNS
+-- import qualified Khan.CLI.Group       as Group
+-- import qualified Khan.CLI.Host        as Host
+-- import qualified Khan.CLI.Metadata    as Metadata
+-- import qualified Khan.CLI.Profile     as Profile
 import           Khan.Internal
 
 main :: IO ()
 main = runProgram
-    [ group "Ephemeral:"
-        [ Application.cli
-        , Host.cli
-        ]
+     $ Ephemeral.commands
+    ++ Persistent.commands
 
-    , group "Persistent:"
-        [ Chef.cli
-        ]
+    -- , group "Persistent:"
+    --     [ 
+    --     ]
 
-    , group "Direct:"
-        [ DNS.cli
-        , Group.cli
-        , Metadata.cli
-        , Profile.cli
-        ]
-    ]
+    -- , group "Direct:"
+    --     [ DNS.cli
+    --     , Group.cli
+    --     , Metadata.cli
+    --     , Profile.cli
+    --     ]
+    -- ]

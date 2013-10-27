@@ -5,7 +5,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.CLI.Chef
+-- Module      : Khan.CLI.Persistent
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -15,7 +15,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Chef (cli) where
+module Khan.CLI.Persistent (commands) where
 
 import           Data.Aeson
 import qualified Data.ByteString.Base64    as Base64
@@ -110,35 +110,6 @@ instance Validate Launch where
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
 
-defineOptions "Bundle" $ do
-    textOption "tRole" "role" ""
-        "Instance's role."
-
-    pathOption "tSolo" "solo" ""
-        "Chef solo.rb configuration to use."
-
-    pathOption "tTmp" "tmp" defaultTmpPath
-        "Temporary working directory."
-
-deriving instance Show Bundle
-
-instance Discover Bundle where
-    discover t@Bundle{..} = do
-        s <- defaultDataFile tSolo "solo.rb"
-        r <- cookbookMeta tRole "name"
-        return $! t { tRole = r, tSolo = s }
-
-instance Validate Bundle where
-    validate Bundle{..} = do
-        check tRole "--role must be specified."
-        checkPath tSolo " specified by --solo must exist."
-        checkPath tTmp  " specified by --tmp must exist."
-
-instance ToJSON Bundle where
-    toJSON Bundle{..} = object
-        [ "run_list" .= toJSON [format "recipe[{}]" [tRole]]
-        ]
-
 defineOptions "Host" $ do
     textOption "hRole" "role" ""
         "Instance's role."
@@ -149,21 +120,12 @@ defineOptions "Host" $ do
     textsOption "hHosts" "hosts" []
         "Hosts to run on."
 
-    pathOption "hBundle" "bundle" ""
-        "Path to the bundle."
-
     pathOption "hKeys" "keys" defaultKeyPath
         "Directory for private keys."
 
 deriving instance Show Host
 
-instance Discover Host where
-    discover h@Host{..}
-        | not $ invalid hBundle = return h
-        | otherwise = do
-            log_ "No --bundle specified, attempting to create from cwd"
-            tgz <- discover (Bundle hRole "" defaultTmpPath) >>= bundle
-            return $! h { hBundle = tgz }
+instance Discover Host
 
 instance Validate Host where
     validate Host{..} = do
@@ -172,14 +134,14 @@ instance Validate Host where
                  check hEnv  "--env must be specified."
             else check hHosts "--hosts must be specified."
         check hKeys "--keys must be specified."
-        checkPath hBundle " specified by --bundle must exist."
 
-cli :: Command
-cli = Command "chef" "Manage Chef EC2 Instances."
-    [ subCommand "launch" launch
-    , subCommand "bundle" (void . bundle)
-    , subCommand "run"    run
-    , subCommand "stop"   stop
+commands :: [Command]
+commands =
+    [ command launch "launch" "Launch 1..n instances."
+        "Some text about launching."
+
+    , command terminate "terminate" "Terminate a single instance."
+        "Some text about terminating."
     ]
 
 launch :: Launch -> AWS ()
@@ -208,58 +170,5 @@ launch l@Launch{..} = do
   where
     Names{..} = names l
 
-bundle :: Bundle -> AWS FilePath
-bundle t@Bundle{..} = liftEitherT $ do
-    exists "Berksfile"
-    exists "chefignore"
-    sh $ do
-        Shell.rm_rf tTmp
-        Shell.mkdir_p tTmp
-        Shell.cp tSolo solo
-
-    sync . LBS.writeFile (Path.encodeString node) $ encode t
-    tgz <- sh $ Shell.absPath output
-
-    sh $ do
-        Shell.run_ "bundle" ["exec", "berks", "install", "--path", path books]
-        Shell.chdir tTmp $ Shell.run_ "tar" ["zcf", path tgz, "."]
-
-    log "Bundle created at {}" [tgz]
-    return tgz
-  where
-    output = "bundle.tar.gz" :: FilePath
-
-    books = tTmp </> ("cookbooks" :: FilePath)
-    solo  = tTmp </> ("solo.rb"   :: FilePath)
-    node  = tTmp </> ("node.json" :: FilePath)
-
-    exists f = sh (Shell.test_e f) >>=
-        assert "Missing {}, is the current dir a Chef Cookbook?" [f] . not
-
--- FIXME: specify ssh user
-
-run :: Host -> AWS ()
-run Host{..} = do
-    hs <- if null hHosts then findDNS else return hHosts
-    log "Running on hosts: \n{}" [Text.intercalate "\n" hs]
-
-    key <- EC2.keyPath keyName hKeys >>= expandPath
-    log "Using private key {}" [key]
-
-    forM_ hs $ \h -> shell $ do
-        log "Copying {} to {}" [path hBundle, h]
-        Shell.run_ "scp" ["-i", path key, path hBundle, "ubuntu@" <> h <> ":~/"]
-  where
-    findDNS = do
-        is <- EC2.findInstances [] [tag roleTag roleName, tag envTag  envName]
-        forM_ is $ \RunningInstancesItemType{..} -> when (isNothing riitDnsName) $
-            log "No public DNS for {} in state {}"
-                [riitInstanceId, istName riitInstanceState]
-        return . catMaybes $ map riitDnsName is
-
-    tag key = Filter ("tag:" <> key) . (:[])
-
-    Names{..} = unversioned hRole hEnv
-
-stop :: Host -> AWS ()
-stop Host{..} = return ()
+terminate :: Host -> AWS ()
+terminate Host{..} = return ()

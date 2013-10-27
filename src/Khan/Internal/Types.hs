@@ -15,7 +15,6 @@
 
 module Khan.Internal.Types where
 
-import           Data.Attoparsec.Text
 import           Data.List                    ((\\))
 import qualified Data.Text                    as Text
 import           Data.Version
@@ -85,7 +84,7 @@ createNames role env ver = Names
     , profileName = nameEnv
     , groupName   = nameEnv
     , imageName   = Text.concat [role, "_", tver]
-    , appName     = Text.concat [role, tver, ".", env]
+    , appName     = Text.concat [role, "-", tver, "-", env]
     , versionName = mver
     }
   where
@@ -93,6 +92,12 @@ createNames role env ver = Names
 
     tver = fromMaybe "" mver
     mver = safeVersion <$> ver
+
+safeVersion :: Version -> Text
+safeVersion = Text.map f . Text.pack . showVersion
+  where
+    f '-' = '/'
+    f  c  = c
 
 unversioned :: Text -> Text -> Names
 unversioned role env = createNames role env Nothing
@@ -130,67 +135,17 @@ instance Show RoutingPolicy where
     show Weighted = "weighted"
     show Basic    = "basic"
 
-parseVersionE :: String -> Either String Version
-parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
-    . listToMaybe
-    . reverse
-    . ReadP.readP_to_S parseVersion
-    $ map f s
-  where
-    f '+' = '-'
-    f  c  = c
+data OutputFormat = Visual | HAProxy
 
-safeVersion :: Version -> Text
-safeVersion = Text.map f . Text.pack . showVersion
-  where
-    f '-' = '/'
-    f  c  = c
+instance Show OutputFormat where
+    show Visual  = "visual"
+    show HAProxy = "haproxy"
 
-showRules :: Foldable f => f IpPermissionType -> Text
-showRules = Text.intercalate ", " . map rule . toList
-  where
-    rule IpPermissionType{..} = Text.intercalate ":"
-        [ Text.pack $ show iptIpProtocol
-        , Text.pack $ show iptFromPort
-        , Text.pack $ show iptToPort
-        , fromMaybe "" groupOrRange
-        ]
-      where
-        groupOrRange = headMay (mapMaybe uigGroupName $ toList iptGroups)
-            <|> headMay (map irCidrIp $ toList iptIpRanges)
-
-parseRule :: String -> Either String IpPermissionType
-parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0")
-    . parseOnly parser
-    . Text.pack
-  where
-    parser = do
-        p <- protocol
-        f <- decimal <* char ':'
-        t <- decimal <* char ':'
-        g <- eitherP range group
-
-        let perm = IpPermissionType p f t
-
-        return $! either (\x -> perm [] [x])
-                         (\x -> perm [x] []) g
-
-    range = do
-        a <- takeTill (== '.') <* char '.'
-        b <- takeTill (== '.') <* char '.'
-        c <- takeTill (== '.') <* char '.'
-        d <- Text.pack <$> many1 anyChar
-        return . IpRange $ Text.intercalate "." [a, b, c, d]
-
-    group = UserIdGroupPair Nothing Nothing <$> (Just <$> takeText)
-
-    protocol = do
-        p <- takeTill (== ':') <* char ':'
-        case p of
-            "tcp"  -> return TCP
-            "udp"  -> return UDP
-            "icmp" -> return ICMP
-            _      -> fail "Failed to parsed protocol"
+instance Read OutputFormat where
+    readPrec = readAssocList
+      [ ("visual",  Visual)
+      , ("haproxy", HAProxy)
+      ]
 
 readAssocList :: [(String, a)] -> Read.ReadPrec a
 readAssocList xs = Read.choice $

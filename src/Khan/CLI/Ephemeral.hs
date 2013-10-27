@@ -28,22 +28,22 @@ import           Network.AWS.AutoScaling hiding (Filter)
 import           Network.AWS.EC2
 
 defineOptions "Deploy" $ do
-    textOption "dName" "name" ""
-        "Name of the application."
-
-    textOption "dEnv" "env" defaultEnv
-        "Environment to deploy the application into."
+    textOption "dRole" "role" ""
+        "Role of the application. (required)"
 
     textOption "dDomain" "domain" ""
-        "Instance's DNS domain."
+        "Instance's DNS domain. (required)"
 
 -- FIXME: Add port(s) option, and apply to tags
 
     versionOption "dVersion" "version" defaultVersion
-        "Version of the application."
+        "Version of the application. (required)"
+
+    textOption "dEnv" "env" defaultEnv
+        "Environment to deploy the application into."
 
     stringOption "dZones" "zones" ""
-         "Availability zones suffixes to provision into. Supports discovery"
+         "Availability zones suffixes to provision into. (discovered)"
 
     integerOption "dGrace" "grace" 20
         "Seconds until healthchecks are activated."
@@ -79,7 +79,7 @@ instance Discover Deploy where
 
 instance Validate Deploy where
     validate Deploy{..} = do
-        check dName     "--name must be specified."
+        check dRole     "--role must be specified."
         check dEnv      "--env must be specified."
         check dDomain   "--domain must be specified."
         check dGrace    "--grace must be greater than 0."
@@ -94,14 +94,14 @@ instance Validate Deploy where
         check (not $ dDesired >= dMin) "--desired must be greater than or equal to --min."
         check (not $ dDesired <= dMax) "--desired must be less than or equal to --max."
 
-        check (Within dZones "abc")        "--zones must be within [a-e]."
+        check (Within dZones "abcde")      "--zones must be within [a-e]."
         check (defaultVersion == dVersion) "--version must be specified."
 
 instance Naming Deploy where
-    names Deploy{..} = versioned dName dEnv dVersion
+    names Deploy{..} = versioned dRole dEnv dVersion
 
 defineOptions "Scale" $ do
-    textOption "sName" "name" ""
+    textOption "sRole" "role" ""
         "Name of the application."
 
     textOption "sEnv" "env" defaultEnv
@@ -131,7 +131,7 @@ instance Discover Scale
 
 instance Validate Scale where
     validate Scale{..} = do
-        check sName     "--name must be specified."
+        check sRole     "--role must be specified."
         check sEnv      "--env must be specified."
         check sGrace    "--grace must be greater than 0."
         check sMin      "--min must be greater than 0."
@@ -146,10 +146,10 @@ instance Validate Scale where
         check (defaultVersion == sVersion) "--version must be specified."
 
 instance Naming Scale where
-    names Scale{..} = versioned sName sEnv sVersion
+    names Scale{..} = versioned sRole sEnv sVersion
 
 defineOptions "Cluster" $ do
-    textOption "cName" "name" ""
+    textOption "cRole" "role" ""
         "Name of the application."
 
     textOption "cEnv" "env" defaultEnv
@@ -164,24 +164,21 @@ instance Discover Cluster
 
 instance Validate Cluster where
     validate Cluster{..} = do
-        check cName "--name must be specified."
+        check cRole "--role must be specified."
         check cEnv  "--env must be specified."
         check (defaultVersion == cVersion) "--version must be specified."
 
 instance Naming Cluster where
-    names Cluster{..} = versioned cName cEnv cVersion
+    names Cluster{..} = versioned cRole cEnv cVersion
 
 commands :: [Command]
 commands =
     [ command deploy "deploy" "Deploy a versioned cluster."
         "Yo, longth text!"
-
     , command scale "scale" "Update the scaling information for a cluster."
         "Yo, longth text!"
-
     , command promote "promote" "Promote a deployed cluster to serve traffic within the environment."
         "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?"
-
     , command retire "retire" "Retire a specific cluster version."
         "Retire"
     ]
@@ -202,7 +199,7 @@ deploy d@Deploy{..} = do
     r <- async $ IAM.findRole d
     s <- async $ EC2.updateGroup (sshGroup dEnv) sshRules
     g <- async $ EC2.updateGroup d dRules
-    a <- async $ EC2.findImage [imageName]
+    a <- async $ EC2.findImage [Filter "name" [imageName]]
 
     wait_ k
     wait_ r <* log "Found IAM Profile {}" [profileName]

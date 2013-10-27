@@ -1,7 +1,8 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 -- Module      : Khan.AWS.EC2
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -15,14 +16,15 @@
 
 module Khan.AWS.EC2 where
 
-import           Control.Arrow       ((***))
-import           Control.Concurrent  (threadDelay)
-import           Data.List           ((\\), partition)
-import qualified Data.Text           as Text
+import           Control.Arrow         ((***))
+import           Control.Concurrent    (threadDelay)
+import           Data.List             ((\\), partition)
+import qualified Data.Text             as Text
+import           Data.Time.Clock.POSIX
 import           Khan.Internal
-import           Khan.Prelude        hiding (min, max)
+import           Khan.Prelude          hiding (min, max)
 import           Network.AWS.EC2
-import qualified Shelly              as Shell
+import qualified Shelly                as Shell
 
 keyPath :: Text -> FilePath -> AWS FilePath
 keyPath name dir = do
@@ -41,12 +43,11 @@ createKey (names -> Names{..}) dir =
         d <- expandPath dir
         f <- keyPath keyName d
         shell $ do
-
---             timestamp bak suffix
-
              p <- Shell.test_e f
-             when p . Shell.mv f $ f <.> ".bak"
-             liftIO . print . Text.lines $ ckqKeyMaterial k
+             when p $ do
+                 ts :: Integer <- truncate <$> liftIO getPOSIXTime
+                 Shell.mv f $ f <.> Text.pack (show ts)
+                 liftIO . print . Text.lines $ ckqKeyMaterial k
              Shell.mkdir_p d
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", path f]
@@ -111,10 +112,9 @@ runInstances :: Naming a
              -> AvailabilityZone
              -> Integer
              -> Integer
-             -> Text
              -> Bool
              -> AWS [RunningInstancesItemType]
-runInstances (names -> Names{..}) image typ az min max ud opt =
+runInstances (names -> Names{..}) image typ az min max opt =
     fmap rirInstancesSet . send $ RunInstances
         image
         min
@@ -122,7 +122,7 @@ runInstances (names -> Names{..}) image typ az min max ud opt =
         (Just keyName)
         []                            -- Group Ids
         [groupName, sshGroup envName] -- Group Names
-        (Just ud)                     -- User Data
+        Nothing                       -- User Data
         (Just typ)
         (Just $ PlacementType (Just az) Nothing Nothing)
         Nothing
@@ -162,17 +162,16 @@ waitForInstances ids = do
   where
     pending = partition (("pending" ==) . istName . riitInstanceState)
 
-findImage :: [Text] -> AWS Text
-findImage images = do
+findImage :: [Filter] -> AWS Text
+findImage fs = do
     log "Finding AMIs matching: {}" [options]
-    rs  <- fmap (listToMaybe . djImagesSet) . send $
-        DescribeImages [] [] ["self"] [Filter "name" images]
+    rs  <- fmap (listToMaybe . djImagesSet) . send $ DescribeImages [] [] [] fs
     ami <- fmap diritImageId . hoistError $
         note "Failed to find any matching AMIs" rs
     log "Found AMI {} matching {}" [ami, options]
     return ami
   where
-    options = Text.intercalate " | " images
+    options = Text.intercalate " | " $ map (Text.pack . show) fs
 
 findCurrentZones :: AWS [AvailabilityZoneItemType]
 findCurrentZones = do

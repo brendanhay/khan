@@ -13,8 +13,12 @@
 
 module Khan.Internal.Defaults
     (
+    -- * Environment
+      accessKey
+    , secretKey
+
     -- * Defaults
-      defaultKeyPath
+    , defaultKeyPath
     , defaultTmpPath
     , defaultEnv
     , defaultVersion
@@ -23,6 +27,10 @@ module Khan.Internal.Defaults
 
 import Data.Version
 import Khan.Prelude
+
+accessKey, secretKey :: String
+accessKey = "ACCESS_KEY_ID"
+secretKey = "SECRET_ACCESS_KEY"
 
 defaultKeyPath :: FilePath
 defaultKeyPath = "~/.khan/keys"

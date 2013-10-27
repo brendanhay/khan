@@ -21,7 +21,6 @@ extra-source-files:
 data-files:
       config/policy.json
     , config/trust.json
-    , config/solo.rb
     , config/user-data
 
 source-repository head
@@ -36,12 +35,10 @@ executable khan
     ghc-options:       -Wall -rtsopts -threaded
 
     build-depends:
-        aeson
-      , amazonka
+        amazonka
       , async
       , attoparsec
       , base              >= 4.6 && < 5
-      , base64-bytestring
       , bytestring
       , containers
       , directory
@@ -52,7 +49,6 @@ executable khan
       , options
       , pipes             >= 4.0
       , prelude-prime
-      , pretty-show
       , random
       , regex-compat
       , shelly

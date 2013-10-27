@@ -23,6 +23,7 @@ import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy          as LText
 import           Data.Version
+import           Khan.Internal.Parsing
 import           Khan.Internal.Types
 import           Khan.Prelude            hiding (min, max)
 import           Network.AWS

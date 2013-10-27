@@ -38,19 +38,22 @@ module Khan.Internal.Options
     , regionOption
     , routingPolicyOption
     , instanceTypeOption
+    , formatOption
     , rulesOption
     , versionOption
     , customOption
     ) where
 
-import qualified Data.Text           as Text
+import qualified Data.Text              as Text
 import           Data.Version
+import           Khan.Internal.Defaults
+import           Khan.Internal.Parsing
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Language.Haskell.TH
 import           Network.AWS.EC2
 import           Network.AWS.Route53
-import qualified Options             as Opts
+import qualified Options                as Opts
 import           Options.OptionTypes
 
 import Options hiding
@@ -135,6 +138,9 @@ routingPolicyOption = readOption (ConT ''RoutingPolicy)
 instanceTypeOption :: Opt InstanceType
 instanceTypeOption = readOption (ConT ''InstanceType)
 
+formatOption :: Opt OutputFormat
+formatOption = readOption (ConT ''OutputFormat)
+
 rulesOption :: String -> String -> String -> OptionsM ()
 rulesOption name flag desc =
     option name $ \o -> o
@@ -145,12 +151,14 @@ rulesOption name flag desc =
         }
 
 versionOption :: String -> String -> Version -> String -> OptionsM ()
-versionOption name flag (showVersion -> def) desc =
+versionOption name flag def desc =
     option name $ \o -> o
         { optionLongFlags   = [flag]
-        , optionDefault     = def
+        , optionDefault     = showVersion def
         , optionType        = optionTypeVersion
-        , optionDescription = defaultText def desc
+        , optionDescription = if defaultVersion == def
+                                  then desc
+                                  else defaultText (showVersion def) desc
         }
 
 customOption :: Show a
@@ -187,7 +195,7 @@ readEither s = note ("Unable to read: " ++ s) $ readMay s
 
 defaultText :: String -> String -> String
 defaultText ""  desc = desc
-defaultText def desc = desc ++ " default: " ++ def
+defaultText def desc = concat [desc, " (default: ", def, ")"]
 
 optionTypeVersion :: OptionType Version
 optionTypeVersion =

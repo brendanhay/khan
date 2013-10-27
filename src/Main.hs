@@ -13,6 +13,8 @@ module Main (main) where
 import qualified Khan.CLI.Ephemeral  as Ephemeral
 import qualified Khan.CLI.Metadata   as Metadata
 import qualified Khan.CLI.Persistent as Persistent
+import qualified Khan.CLI.Profile    as Profile
+import qualified Khan.CLI.Routing    as Routing
 import           Khan.Internal
 
 main :: IO ()
@@ -20,3 +22,5 @@ main = runProgram
      $ Ephemeral.commands
     ++ Persistent.commands
     ++ Metadata.commands
+    ++ Routing.commands
+    ++ Profile.commands

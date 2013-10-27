@@ -15,13 +15,12 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Profile (cli) where
+module Khan.CLI.Profile (commands) where
 
-import qualified Khan.AWS.IAM           as IAM
+import qualified Khan.AWS.IAM  as IAM
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import           Text.Show.Pretty
 
 defineOptions "Role" $ do
     textOption "rName" "name" ""
@@ -42,7 +41,7 @@ defineOptions "Role" $ do
 deriving instance Show Role
 
 instance Discover Role where
-    discover r@Role{..} = do
+    discover _ r@Role{..} = do
         (p, t) <- (,)
             <$> defaultDataFile rPolicy "policy.json"
             <*> defaultDataFile rTrust  "trust.json"
@@ -58,18 +57,11 @@ instance Validate Role where
 instance Naming Role where
     names Role{..} = unversioned rName rEnv
 
-cli :: Command
-cli = Command "profile" "Manage IAM Roles and Profiles."
-    [ subCommand "info"   info
-    , subCommand "create" create
-    , subCommand "delete" delete
+commands :: [Command]
+commands =
+    [ command profile "profile" "Create or update IAM profiles."
+        "Stuff."
     ]
 
-info :: Role -> AWS ()
-info r = IAM.findRole r >>= liftIO . putStrLn . ppShow
-
-create :: Role -> AWS ()
-create r = IAM.updateRole r (rPolicy r) (rTrust r)
-
-delete :: Role -> AWS ()
-delete Role{..} = return ()
+profile :: Role -> AWS ()
+profile r = IAM.updateRole r (rPolicy r) (rTrust r)

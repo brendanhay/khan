@@ -17,13 +17,11 @@
 module Khan.CLI.Metadata (commands) where
 
 import qualified Data.Text.Encoding       as Text
-import           Data.Text.Format
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
-import           Text.Show.Pretty
 
 defineOptions "Info" $
     textOption "dId" "id" ""
@@ -52,4 +50,4 @@ info :: Info -> AWS ()
 info Info{..} = do
     log "Describing instance {}" [dId]
     is <- dirReservationSet <$> send (DescribeInstances [dId] [])
-    log "{}" . Only $ ppShow is
+    log "{}" $ [foldl1 (\a b -> concat [a, "\n", b]) $ map show is]

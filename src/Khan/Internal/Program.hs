@@ -40,6 +40,7 @@ import           Data.Text.Format         (Shown(..))
 import qualified Data.Text.Format         as Text
 import qualified Data.Text.Lazy           as LText
 import           Khan.Internal.AWS
+import           Khan.Internal.Defaults
 import           Khan.Internal.IO
 import           Khan.Internal.Options
 import           Khan.Internal.Types
@@ -52,22 +53,18 @@ import           System.Environment
 import           System.Exit
 import           Text.Regex
 
-accessKey, secretKey :: String
-accessKey = "ACCESS_KEY_ID"
-secretKey = "SECRET_ACCESS_KEY"
-
 defineOptions "Khan" $ do
     boolOption "kDebug" "debug" False
         "Log debug output."
 
-    maybeTextOption "kRole" "iam-role" ""
-        "IAM role - if specified takes precendence over access/secret keys."
+    maybeTextOption "kRole" "iam-profile" ""
+        "IAM profile to use. (takes precendence over access/secret keys)"
 
-    stringOption "kAccess" "access-key" ""
-        "AWS access key."
+    stringOption "kAccess" "access-key" "" $
+        "AWS access key. (uses " ++ accessKey ++ " if absent)"
 
-    stringOption "kSecret" "secret-key" ""
-        "AWS secret key."
+    stringOption "kSecret" "secret-key" "" $
+        "AWS secret key. (uses " ++ secretKey ++ " if absent)"
 
     regionOption "kRegion" "region" NorthCalifornia
         "Region to operate in."

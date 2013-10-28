@@ -19,10 +19,12 @@
 module Khan.CLI.Host (commands) where
 
 import qualified Data.Text.Encoding       as Text
+import qualified Khan.AWS.EC2             as EC2
 import qualified Khan.AWS.Route53         as R53
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
+import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 import           Network.AWS.Route53
 import           Pipes
@@ -41,17 +43,22 @@ defineOptions "Host" $ do
 deriving instance Show Host
 
 instance Discover Host where
-    discover False h = return h
     discover True  h = liftEitherT $ do
         iid  <- Text.decodeUtf8 <$> metadata InstanceId
         fqdn <- Text.decodeUtf8 <$> metadata PublicHostname
         return $! h { hId = iid, hFQDN = fqdn }
+    discover False h@Host{..}
+        | invalid hId || not (invalid hFQDN) = return h
+        | otherwise = do
+            is  <- EC2.findInstances [hId] []
+            dns <- noteAWS "Unable to find Public DNS for: {}" [hId] .
+                join $ riitDnsName <$> listToMaybe is
+            return $! h { hFQDN = dns }
 
 instance Validate Host where
     validate Host{..} = do
         check hId   "--id must be specified."
         check hFQDN "--fqdn must be specified."
-
         check (not $ hTTL >= 30) "--ttl must be greater than or equal to 30."
 
 commands :: [Command]
@@ -69,7 +76,7 @@ register Host{..} = do
     (ns@Names{..}, ts@Tags{..}) <- describe hId
     zid  <- R53.findZoneId tagDomain
     sets <- findPrefix zid roleName envName
-    maybe (create zid ns ts sets) exists $ filterValue hFQDN sets
+    maybe (create zid ns ts sets) exists $ findValue hFQDN sets
   where
     exists r = log "Record {} exists, skipping..." [rrsName r]
 
@@ -88,23 +95,16 @@ register Host{..} = do
         showDNS (DNS roleName tagVersion n envName $ R53.abbreviate reg) tagDomain
 
 deregister :: Host -> AWS ()
-deregister Host{..} = return ()
-    -- (ns, Tags{..}) <- describe hId
-    -- zid            <- R53.findZoneId tagDomain
-    -- case tagVersion of
-    --     Nothing -> persistent ns zid
-    --     Just _  -> error_ "Not implemented"
---  where
-    -- persistent Names{..} zid = do
-    --     log "Searching for records matching {} with value {}..."
-    --         [roleName, hFQDN]
-    --     mset <- filterValue hFQDN <$> findPrefix zid roleName
-    --     maybe (log_ "No record found, skipping...") delete
-    --           mset
-
-    -- delete set = do
-    --     log_ "Deleting record..."
-    --     R53.updateRecordSet zid [Change DeleteAction set]
+deregister Host{..} = do
+    (_, Tags{..}) <- describe hId
+    zid <- R53.findZoneId tagDomain
+    log "Searching for records for {} with value {}..." [tagRole, hFQDN]
+    set <- findValue hFQDN <$> findPrefix zid tagRole tagEnv
+    maybe (log_ "No record found, skipping...") (delete zid) set
+  where
+    delete zid set = do
+        log "Deleting record {}..." [rrsName set]
+        R53.updateRecordSet zid [Change DeleteAction set]
 
 describe :: Text -> AWS (Names, Tags)
 describe iid = do
@@ -122,8 +122,8 @@ findPrefix zid pre env = Pipes.toListM $ paginate start
 
     match DNS{..} = dnsRole == pre && dnsEnv == env
 
-filterValue :: Text -> [ResourceRecordSet] -> Maybe ResourceRecordSet
-filterValue v sets = match `find` sets
+findValue :: Text -> [ResourceRecordSet] -> Maybe ResourceRecordSet
+findValue v sets = match `find` sets
   where
     match BasicRecordSet{..} = v `elem` rrValues rrsResourceRecords
     match _                  = False

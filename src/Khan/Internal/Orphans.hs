@@ -18,9 +18,11 @@
 module Khan.Internal.Orphans where
 
 import           Data.Aeson
+import qualified Data.Map            as Map
 import qualified Data.Text           as Text
 import           Data.Text.Buildable
 import qualified Data.Text.Lazy      as LText
+import           Khan.Internal.AWS
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           Shelly
@@ -41,40 +43,25 @@ instance ToJSON RunningInstancesItemType where
     toJSON RunningInstancesItemType{..} = object
         [ "instanceId"       .= riitInstanceId
         , "imageId"          .= riitImageId
-        , "instanceState"    .= riitInstanceState
-        , "stateReason"      .= riitStateReason
+        , "instanceState"    .= istName riitInstanceState
+        , "stateReason"      .= fmap srtMessage riitStateReason
         , "instanceType"     .= riitInstanceType
         , "dnsName"          .= riitDnsName
         , "privateDnsName"   .= riitPrivateDnsName
         , "ipAddress"        .= riitIpAddress
         , "privateIpAddress" .= riitPrivateIpAddress
-        , "placement"        .= riitPlacement
-        , "tagSet"           .= riitTagSet
+        , "availabilityZone" .= pruAvailabilityZone riitPlacement
+        , "env"              .= lookup envTag tags
+        , "role"             .= lookup roleTag tags
+        , "domain"           .= lookup domainTag tags
+        , "name"             .= lookup nameTag tags
+        , "version"          .= lookup versionTag tags
         ]
-
-instance ToJSON InstanceStateType where
-    toJSON InstanceStateType{..} = object
-        [ "code" .= istCode
-        , "name" .= istName
-        ]
-
-instance ToJSON StateReasonType where
-    toJSON StateReasonType{..} = object
-        [ "code"    .= srtCode
-        , "message" .= srtMessage
-        ]
+      where
+        tags = map (\i -> (rtsitKey i, rtsitValue i)) riitTagSet
 
 instance ToJSON InstanceType where
     toJSON = toJSON . show
 
-instance ToJSON PlacementType where
-    toJSON = toJSON . pruAvailabilityZone
-
 instance ToJSON AvailabilityZone where
     toJSON = toJSON . show
-
-instance ToJSON ResourceTagSetItemType where
-    toJSON ResourceTagSetItemType{..} = object
-        [ "key"   .= rtsitKey
-        , "value" .= rtsitValue
-        ]

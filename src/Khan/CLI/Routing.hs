@@ -53,7 +53,7 @@ instance Discover Routes where
             then return $! r { rZones = zs }
             else do
                 iid <- liftEitherT $ Text.decodeUtf8 <$> metadata InstanceId
-                Tags{..} <- requiredTags iid
+                Tags{..} <- findRequiredTags iid
                 return $! r { rDomain = tagDomain, rEnv = tagEnv, rZones = zs }
 
 instance Validate Routes where
@@ -72,8 +72,8 @@ routes :: Routes -> AWS ()
 routes Routes{..} = do
     log "Describing environment {}" [rEnv]
     reg <- getRegion
-    is  <- EC2.findInstances [] $ filters reg
-    mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty) is
+    is  <- EC2.findInstances [] (filters reg)
+    mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty . EC2.Instance) is
   where
     filters reg =
         [ Filter "availability-zone" $ map (Text.pack . show . AZ reg) rZones

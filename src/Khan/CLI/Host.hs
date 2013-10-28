@@ -108,7 +108,7 @@ deregister Host{..} = do
 
 describe :: Text -> AWS (Names, Tags)
 describe iid = do
-    t@Tags{..} <- requiredTags iid
+    t@Tags{..} <- findRequiredTags iid
     return . (,t) $
         maybe (unversioned tagRole tagEnv) (versioned tagRole tagEnv) tagVersion
 

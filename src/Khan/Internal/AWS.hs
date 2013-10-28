@@ -2,6 +2,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.Internal.AWS
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -22,13 +23,12 @@ import qualified Data.Text               as Text
 import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy          as LText
-import           Data.Version
 import           Khan.Internal.Parsing
 import           Khan.Internal.Types
 import           Khan.Prelude            hiding (min, max)
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (DescribeTags)
-import           Network.AWS.EC2
+import           Network.AWS.EC2 as EC2
 import           Network.AWS.IAM
 import           Network.Http.Client     hiding (get)
 
@@ -70,19 +70,20 @@ defaultTags Names{..} dom =
     , (domainTag, dom)
     ] ++ maybe [] (\v -> [(versionTag, v)]) versionName
 
-requiredTags :: Text -> AWS Tags
-requiredTags iid = do
+findRequiredTags :: Text -> AWS Tags
+findRequiredTags iid = do
     log "Describing tags for instance-id {}..." [iid]
-    ts <- toMap <$> send (DescribeTags [TagResourceId [iid]])
-    Tags <$> require roleTag ts
-         <*> require envTag ts
-         <*> require domainTag ts
-         <*> pure (join $ parseSafeVersionM <$> Map.lookup versionTag ts)
+    send (DescribeTags [TagResourceId [iid]]) >>= lookupTags . tags
   where
-    toMap = Map.fromList
-        . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
-        . dtagsrTagSet
+    tags = map (\TagSetItemType{..} -> (tsitKey, tsitValue)) . dtagsrTagSet
 
+lookupTags :: (Applicative m, MonadError AWSError m) => [(Text, Text)] -> m Tags
+lookupTags (Map.fromList -> ts) = Tags
+    <$> require roleTag ts
+    <*> require envTag ts
+    <*> require domainTag ts
+    <*> pure (join $ parseSafeVersionM <$> Map.lookup versionTag ts)
+  where
     require k m = hoistError . note (message k m) $ Map.lookup k m
 
     message k m = Err . Text.unpack $

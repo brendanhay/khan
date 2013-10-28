@@ -10,6 +10,7 @@
 
 module Main (main) where
 
+import qualified Khan.CLI.Ansible    as Ansible
 import qualified Khan.CLI.Ephemeral  as Ephemeral
 import qualified Khan.CLI.Host       as Host
 import qualified Khan.CLI.Metadata   as Metadata
@@ -26,3 +27,4 @@ main = runProgram
     ++ Host.commands
     ++ Routing.commands
     ++ Profile.commands
+    ++ Ansible.commands

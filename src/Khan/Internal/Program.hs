@@ -126,7 +126,7 @@ runProgram cmds = do
     args <- getArgs
     let p = parseSubcommand (map cmdSub cmds) args
     case parsedSubcommand p of
-        Just cmd -> runScript $ fmapLT show cmd <* log_ "Exiting..."
+        Just cmd -> runScript $ fmapLT show cmd
         Nothing  -> do
             maybe (return ()) synopsis $ headMay args
             help p
@@ -162,8 +162,8 @@ command action name = Command (Options.subcommand name run) name
         ec2        <- isEC2
         k@Khan{..} <- regionalise khan ec2 >>= initialise
         validate k
-        log "Setting region to {}..." [Shown kRegion]
         r <- lift . runAWS (creds k) kDebug . within kRegion $ do
+            debug "Running in region {}..." [Shown kRegion]
             o <- discover ec2 opts
             liftEitherT $ validate o
             action o

@@ -41,8 +41,8 @@ defaultCfgPath = do
     p <- doesDirectoryExist path
     decodeString <$>
         if p
-            then return $ path ++ "/config"
-            else getExecutablePath
+            then return path
+            else (++ "/config") <$> getCurrentDirectory
   where
     path = "/etc/khan"
 

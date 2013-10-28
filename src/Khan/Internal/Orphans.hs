@@ -36,30 +36,6 @@ instance Buildable [LText.Text] where
 instance Buildable FilePath where
     build = build . toTextIgnore
 
-instance ToJSON ReservationInfoType where
-    toJSON = toJSON . map toJSON . ritInstancesSet
-
-instance ToJSON RunningInstancesItemType where
-    toJSON RunningInstancesItemType{..} = object
-        [ "instanceId"       .= riitInstanceId
-        , "imageId"          .= riitImageId
-        , "instanceState"    .= istName riitInstanceState
-        , "stateReason"      .= fmap srtMessage riitStateReason
-        , "instanceType"     .= riitInstanceType
-        , "dnsName"          .= riitDnsName
-        , "privateDnsName"   .= riitPrivateDnsName
-        , "ipAddress"        .= riitIpAddress
-        , "privateIpAddress" .= riitPrivateIpAddress
-        , "availabilityZone" .= pruAvailabilityZone riitPlacement
-        , "env"              .= lookup envTag tags
-        , "role"             .= lookup roleTag tags
-        , "domain"           .= lookup domainTag tags
-        , "name"             .= lookup nameTag tags
-        , "version"          .= lookup versionTag tags
-        ]
-      where
-        tags = map (\i -> (rtsitKey i, rtsitValue i)) riitTagSet
-
 instance ToJSON InstanceType where
     toJSON = toJSON . show
 

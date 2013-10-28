@@ -52,4 +52,4 @@ info :: Info -> AWS ()
 info Info{..} = do
     log "Describing instance {}" [dId]
     is <- EC2.findInstances [dId] []
-    mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty) is
+    mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty . EC2.Instance) is

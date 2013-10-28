@@ -18,13 +18,37 @@ module Khan.AWS.EC2 where
 
 import           Control.Arrow         ((***))
 import           Control.Concurrent    (threadDelay)
+import           Data.Aeson
 import           Data.List             ((\\), partition)
 import qualified Data.Text             as Text
 import           Data.Time.Clock.POSIX
 import           Khan.Internal
 import           Khan.Prelude          hiding (min, max)
-import           Network.AWS.EC2
+import           Network.AWS.EC2       hiding (Instance)
 import qualified Shelly                as Shell
+
+newtype Instance = Instance RunningInstancesItemType
+
+instance ToJSON Instance where
+    toJSON (Instance RunningInstancesItemType{..}) = object
+        [ "instanceId"       .= riitInstanceId
+        , "imageId"          .= riitImageId
+        , "instanceState"    .= istName riitInstanceState
+        , "stateReason"      .= fmap srtMessage riitStateReason
+        , "instanceType"     .= riitInstanceType
+        , "dnsName"          .= riitDnsName
+        , "privateDnsName"   .= riitPrivateDnsName
+        , "ipAddress"        .= riitIpAddress
+        , "privateIpAddress" .= riitPrivateIpAddress
+        , "availabilityZone" .= pruAvailabilityZone riitPlacement
+        , "env"              .= lookup envTag tags
+        , "role"             .= lookup roleTag tags
+        , "domain"           .= lookup domainTag tags
+        , "name"             .= lookup nameTag tags
+        , "version"          .= lookup versionTag tags
+        ]
+      where
+        tags = map (\i -> (rtsitKey i, rtsitValue i)) riitTagSet
 
 keyPath :: Text -> FilePath -> AWS FilePath
 keyPath name dir = do

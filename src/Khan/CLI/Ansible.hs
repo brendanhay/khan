@@ -16,12 +16,10 @@
 
 module Khan.CLI.Ansible (commands) where
 
-import           Data.Aeson
 import           Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Map                   as Map
 import qualified Data.Set                   as Set
-import qualified Data.Text                  as Text
 import qualified Khan.AWS.EC2               as EC2
 import           Khan.Internal
 import           Khan.Prelude
@@ -59,20 +57,18 @@ inventory :: Inventory -> AWS ()
 inventory Inventory{..} =
     maybe list (const $ return "{}") iHost >>= liftIO . LBS.putStrLn
   where
-    list = do
-        is <- EC2.findInstances [] filters
-        m  <- foldl1 (Map.intersectionWith (<>)) <$> mapM instanceMap is
-        return $ Aeson.encodePretty m
+    list = EC2.findInstances [] filters >>=
+        fmap Aeson.encodePretty . foldlM attrs Map.empty
 
     filters =
         [ Filter ("tag:" <> envTag)    [iEnv]
         , Filter ("tag:" <> domainTag) [iDomain]
         ]
 
-     instanceMap RunningInstancesItemType{..} = do
+    attrs m RunningInstancesItemType{..} = do
         Tags{..} <- lookupTags $ tags riitTagSet
         let Names{..} = createNames tagRole tagEnv tagVersion
-            upd m k   = Map.insertWith (<>) k (Set.singleton riitDnsName) m
-        return $ foldl' upd Map.empty [roleName]
+            upd m' k   = Map.insertWith (<>) k (Set.singleton riitDnsName) m'
+        return $ foldl' upd m [roleName]
 
     tags = map (\ResourceTagSetItemType{..} -> (rtsitKey, rtsitValue))

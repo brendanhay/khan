@@ -16,11 +16,13 @@
 
 module Khan.CLI.Metadata (commands) where
 
-import qualified Data.Text.Encoding       as Text
+import           Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.Text.Encoding         as Text
+import qualified Khan.AWS.EC2               as EC2
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2
 import           Network.AWS.EC2.Metadata
 
 defineOptions "Info" $
@@ -49,5 +51,5 @@ commands =
 info :: Info -> AWS ()
 info Info{..} = do
     log "Describing instance {}" [dId]
-    is <- dirReservationSet <$> send (DescribeInstances [dId] [])
-    log "{}" $ [foldl1 (\a b -> concat [a, "\n", b]) $ map show is]
+    is <- EC2.findInstances [dId] []
+    mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty) is

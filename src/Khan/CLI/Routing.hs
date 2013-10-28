@@ -72,7 +72,7 @@ routes :: Routes -> AWS ()
 routes Routes{..} = do
     log "Describing environment {}" [rEnv]
     reg <- getRegion
-    is  <- dirReservationSet <$> send (DescribeInstances [] $ filters reg)
+    is  <- EC2.findInstances [] $ filters reg
     mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty) is
   where
     filters reg =

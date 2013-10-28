@@ -16,15 +16,16 @@
 
 module Khan.CLI.Routing (commands) where
 
-import qualified Data.Text                as Text
-import qualified Data.Text.Encoding       as Text
-import qualified Khan.AWS.EC2             as EC2
+import           Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
+import qualified Khan.AWS.EC2               as EC2
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2          hiding (ec2)
+import           Network.AWS.EC2            hiding (ec2)
 import           Network.AWS.EC2.Metadata
-import           Text.Show.Pretty
 
 defineOptions "Routes" $ do
     textOption "rDomain" "domain" ""
@@ -39,8 +40,8 @@ defineOptions "Routes" $ do
     stringOption "rZones" "zones" ""
          "Availability zones suffixes restriction. (discovered)"
 
-    formatOption "rFmt" "format" Visual
-        "Output format, supports visual or haproxy."
+    formatOption "rFmt" "format" JSON
+        "Output format, supports json or haproxy."
 
 deriving instance Show Routes
 
@@ -76,7 +77,7 @@ routes Routes{..} = do
     log "Describing environment {}" [rEnv]
     reg <- getRegion
     is  <- dirReservationSet <$> send (DescribeInstances [] $ filters reg)
-    mapM_ (log_ . Text.pack . ppShow) is
+    mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty) is
   where
     filters reg =
         [ Filter "availability-zone" $ map (Text.pack . show . AZ reg) rZones

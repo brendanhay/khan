@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RecordWildCards      #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -16,10 +17,12 @@
 
 module Khan.Internal.Orphans where
 
+import           Data.Aeson
 import qualified Data.Text           as Text
 import           Data.Text.Buildable
 import qualified Data.Text.Lazy      as LText
 import           Khan.Prelude
+import           Network.AWS.EC2
 import           Shelly
 
 instance Buildable [Text] where
@@ -30,3 +33,48 @@ instance Buildable [LText.Text] where
 
 instance Buildable FilePath where
     build = build . toTextIgnore
+
+instance ToJSON ReservationInfoType where
+    toJSON = toJSON . map toJSON . ritInstancesSet
+
+instance ToJSON RunningInstancesItemType where
+    toJSON RunningInstancesItemType{..} = object
+        [ "instanceId"       .= riitInstanceId
+        , "imageId"          .= riitImageId
+        , "instanceState"    .= riitInstanceState
+        , "stateReason"      .= riitStateReason
+        , "instanceType"     .= riitInstanceType
+        , "dnsName"          .= riitDnsName
+        , "privateDnsName"   .= riitPrivateDnsName
+        , "ipAddress"        .= riitIpAddress
+        , "privateIpAddress" .= riitPrivateIpAddress
+        , "placement"        .= riitPlacement
+        , "tagSet"           .= riitTagSet
+        ]
+
+instance ToJSON InstanceStateType where
+    toJSON InstanceStateType{..} = object
+        [ "code" .= istCode
+        , "name" .= istName
+        ]
+
+instance ToJSON StateReasonType where
+    toJSON StateReasonType{..} = object
+        [ "code"    .= srtCode
+        , "message" .= srtMessage
+        ]
+
+instance ToJSON InstanceType where
+    toJSON = toJSON . show
+
+instance ToJSON PlacementType where
+    toJSON = toJSON . pruAvailabilityZone
+
+instance ToJSON AvailabilityZone where
+    toJSON = toJSON . show
+
+instance ToJSON ResourceTagSetItemType where
+    toJSON ResourceTagSetItemType{..} = object
+        [ "key"   .= rtsitKey
+        , "value" .= rtsitValue
+        ]

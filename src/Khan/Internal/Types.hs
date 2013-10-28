@@ -135,15 +135,15 @@ instance Show RoutingPolicy where
     show Weighted = "weighted"
     show Basic    = "basic"
 
-data OutputFormat = Visual | HAProxy
+data OutputFormat = JSON | HAProxy
 
 instance Show OutputFormat where
-    show Visual  = "visual"
+    show JSON    = "json"
     show HAProxy = "haproxy"
 
 instance Read OutputFormat where
     readPrec = readAssocList
-      [ ("visual",  Visual)
+      [ ("json",    JSON)
       , ("haproxy", HAProxy)
       ]
 

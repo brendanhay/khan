@@ -35,7 +35,9 @@ executable khan
     ghc-options:       -Wall -rtsopts -threaded
 
     build-depends:
-        amazonka
+        aeson
+      , aeson-pretty
+      , amazonka
       , async
       , attoparsec
       , base              >= 4.6 && < 5
@@ -49,7 +51,6 @@ executable khan
       , options
       , pipes             >= 4.0
       , prelude-prime
-      , pretty-show
       , random
       , regex-compat
       , shelly

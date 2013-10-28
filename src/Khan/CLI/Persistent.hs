@@ -139,7 +139,7 @@ commands =
 
 launch :: Launch -> AWS ()
 launch l@Launch{..} = do
-    ami <- EC2.findImage . (:[]) $ maybe (Filter "name" [roleName])
+    ami <- EC2.findImage . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
 
     log "Using Image {}" [ami]

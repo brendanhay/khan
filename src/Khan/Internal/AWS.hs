@@ -70,13 +70,6 @@ defaultTags Names{..} dom =
     , (domainTag, dom)
     ] ++ maybe [] (\v -> [(versionTag, v)]) versionName
 
-data Tags = Tags
-    { tagRole    :: !Text
-    , tagEnv     :: !Text
-    , tagDomain  :: !Text
-    , tagVersion :: Maybe Version
-    }
-
 requiredTags :: Text -> AWS Tags
 requiredTags iid = do
     log "Describing tags for instance-id {}..." [iid]
@@ -84,7 +77,7 @@ requiredTags iid = do
     Tags <$> require roleTag ts
          <*> require envTag ts
          <*> require domainTag ts
-         <*> pure (join $ parse <$> Map.lookup versionTag ts)
+         <*> pure (join $ parseSafeVersionM <$> Map.lookup versionTag ts)
   where
     toMap = Map.fromList
         . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
@@ -98,8 +91,6 @@ requiredTags iid = do
     render = Text.intercalate ","
         . map (\(k, v) -> Text.concat [k, "=", v])
         . Map.toList
-
-    parse = hush . parseVersionE . Text.unpack
 
 verifyAS :: Text -> Either AutoScalingErrorResponse a -> AWS ()
 verifyAS  = (`verify` (aseCode . aserError))

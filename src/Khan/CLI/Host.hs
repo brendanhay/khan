@@ -35,6 +35,9 @@ defineOptions "Host" $ do
     textOption "hFQDN" "fqdn" ""
         "FQDN."
 
+    integerOption "hTTL" "ttl" 120
+        "TTL."
+
 deriving instance Show Host
 
 instance Discover Host where
@@ -49,11 +52,13 @@ instance Validate Host where
         check hId   "--id must be specified."
         check hFQDN "--fqdn must be specified."
 
+        check (not $ hTTL >= 30) "--ttl must be greater than or equal to 30."
+
 commands :: [Command]
 commands =
-    [ command register "register" "Register with DNS."
+    [ command register "register" "Register an instance with DNS."
         "blah."
-    , command deregister "deregister" "Deregister from DNS."
+    , command deregister "deregister" "Deregister an instance from DNS."
         "blah."
     ]
 
@@ -73,7 +78,7 @@ register Host{..} = do
         let n   = 1 + foldl' newest 0 sets
             dns = name ns ts reg n
             vs  = ResourceRecords [hFQDN]
-            set = BasicRecordSet dns CNAME 60 vs Nothing
+            set = BasicRecordSet dns CNAME hTTL vs Nothing
         log "Creating record {} with value {}..." [dns, hFQDN]
         R53.updateRecordSet zid [Change CreateAction set]
 

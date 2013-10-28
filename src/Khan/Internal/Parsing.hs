@@ -27,8 +27,7 @@ import qualified Text.ParserCombinators.ReadP as ReadP
 showDNS :: DNS -> Text -> Text
 showDNS DNS{..} dom = Text.concat
     [ dnsRole
-    , Text.pack $ ver dnsVer
-    , "-"
+    , maybe "" (`Text.snoc` '-') $ safeVersion <$> dnsVer
     , Text.pack $ show dnsOrd
     , "."
     , dnsEnv
@@ -37,26 +36,26 @@ showDNS DNS{..} dom = Text.concat
     , "."
     , dom
     ]
-  where
-    ver (Just (Version (ma:mi:p:_) _)) =
-        concat [show ma, "m", show mi, "p", show p]
-    ver _ = ""
 
 parseDNS :: Text -> Either String DNS
 parseDNS = parseOnly parser
   where
     parser = DNS
         <$> takeTill isDigit
-        <*> option Nothing version
+        <*> option Nothing (Just <$> parseSafeVersion <* char '-')
         <*> (decimal <* char '.')
         <*> (takeTill (== '.') <* char '.')
         <*> (takeTill (== '.') <* char '.')
 
-    version = do
-        ma <- decimal <* char 'm'
-        mi <- decimal <* char 'p'
-        p  <- decimal <* char '-'
-        return . Just $ Version [ma, mi, p] []
+parseSafeVersionM :: Text -> Maybe Version
+parseSafeVersionM = hush . parseOnly parseSafeVersion
+
+parseSafeVersion :: Parser Version
+parseSafeVersion = do
+    ma <- decimal <* char 'm'
+    mi <- decimal <* char 'p'
+    p  <- decimal
+    return $! Version [ma, mi, p] []
 
 parseVersionE :: String -> Either String Version
 parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)

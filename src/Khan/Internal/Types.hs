@@ -66,6 +66,21 @@ data Within a = Within [a] [a]
 instance Eq a => Invalid (Within a) where
     invalid (Within xs ys) = not . null $ xs \\ ys
 
+data Tags = Tags
+    { tagRole    :: !Text
+    , tagEnv     :: !Text
+    , tagDomain  :: !Text
+    , tagVersion :: Maybe Version
+    } deriving (Show)
+
+data DNS = DNS
+    { dnsRole :: !Text
+    , dnsVer  :: Maybe Version
+    , dnsOrd  :: !Integer
+    , dnsEnv  :: !Text
+    , dnsReg  :: !Text
+    } deriving (Show)
+
 data Names = Names
     { envName     :: !Text
     , keyName     :: !Text
@@ -75,7 +90,7 @@ data Names = Names
     , imageName   :: !Text
     , appName     :: !Text
     , versionName :: Maybe Text
-    }
+    } deriving (Show)
 
 createNames :: Text -> Text -> Maybe Version -> Names
 createNames role env ver = Names
@@ -84,21 +99,19 @@ createNames role env ver = Names
     , roleName    = role
     , profileName = nameEnv
     , groupName   = nameEnv
-    , imageName   = Text.concat [role, "_", tver]
-    , appName     = Text.concat [role, "-", tver, "-", env]
-    , versionName = mver
+    , imageName   = Text.concat [role, maybe "" (Text.cons '_') safeVer]
+    , appName     = Text.concat [role, fromMaybe "" safeVer, ".", env]
+    , versionName = safeVer
     }
   where
     nameEnv = Text.concat [env, "-", role]
-
-    tver = fromMaybe "" mver
-    mver = safeVersion <$> ver
+    safeVer = safeVersion <$> ver
 
 safeVersion :: Version -> Text
-safeVersion = Text.map f . Text.pack . showVersion
-  where
-    f '-' = '/'
-    f  c  = c
+safeVersion ver = Text.pack $
+    case ver of
+        (Version (ma:mi:p:_) _) -> concat [show ma, "m", show mi, "p", show p]
+        _                       -> showVersion ver
 
 unversioned :: Text -> Text -> Names
 unversioned role env = createNames role env Nothing
@@ -151,11 +164,3 @@ instance Read OutputFormat where
 readAssocList :: [(String, a)] -> Read.ReadPrec a
 readAssocList xs = Read.choice $
     map (\(x, y) -> Read.lift $ ReadP.string x >> return y) xs
-
-data DNS = DNS
-    { dnsRole :: !Text
-    , dnsVer  :: Maybe Version
-    , dnsOrd  :: !Integer
-    , dnsEnv  :: !Text
-    , dnsReg  :: !Text
-    } deriving (Show)

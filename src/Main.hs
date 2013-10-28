@@ -11,6 +11,7 @@
 module Main (main) where
 
 import qualified Khan.CLI.Ephemeral  as Ephemeral
+import qualified Khan.CLI.Host       as Host
 import qualified Khan.CLI.Metadata   as Metadata
 import qualified Khan.CLI.Persistent as Persistent
 import qualified Khan.CLI.Profile    as Profile
@@ -22,5 +23,6 @@ main = runProgram
      $ Ephemeral.commands
     ++ Persistent.commands
     ++ Metadata.commands
+    ++ Host.commands
     ++ Routing.commands
     ++ Profile.commands

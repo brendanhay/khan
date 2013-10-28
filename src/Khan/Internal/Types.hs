@@ -151,3 +151,11 @@ instance Read OutputFormat where
 readAssocList :: [(String, a)] -> Read.ReadPrec a
 readAssocList xs = Read.choice $
     map (\(x, y) -> Read.lift $ ReadP.string x >> return y) xs
+
+data DNS = DNS
+    { dnsRole :: !Text
+    , dnsVer  :: Maybe Version
+    , dnsOrd  :: !Integer
+    , dnsEnv  :: !Text
+    , dnsReg  :: !Text
+    } deriving (Show)

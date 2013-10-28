@@ -16,11 +16,47 @@
 module Khan.Internal.Parsing where
 
 import           Data.Attoparsec.Text
+import           Data.Char                    (isDigit)
 import qualified Data.Text                    as Text
 import           Data.Version
+import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS.EC2
 import qualified Text.ParserCombinators.ReadP as ReadP
+
+showDNS :: DNS -> Text -> Text
+showDNS DNS{..} dom = Text.concat
+    [ dnsRole
+    , Text.pack $ ver dnsVer
+    , "-"
+    , Text.pack $ show dnsOrd
+    , "."
+    , dnsEnv
+    , "."
+    , dnsReg
+    , "."
+    , dom
+    ]
+  where
+    ver (Just (Version (ma:mi:p:_) _)) =
+        concat [show ma, "m", show mi, "p", show p]
+    ver _ = ""
+
+parseDNS :: Text -> Either String DNS
+parseDNS = parseOnly parser
+  where
+    parser = DNS
+        <$> takeTill isDigit
+        <*> option Nothing version
+        <*> (decimal <* char '.')
+        <*> (takeTill (== '.') <* char '.')
+        <*> (takeTill (== '.') <* char '.')
+
+    version = do
+        ma <- decimal <* char 'm'
+        mi <- decimal <* char 'p'
+        p  <- decimal <* char '-'
+        return . Just $ Version [ma, mi, p] []
 
 parseVersionE :: String -> Either String Version
 parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)

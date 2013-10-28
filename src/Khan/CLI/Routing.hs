@@ -77,7 +77,8 @@ routes Routes{..} = do
   where
     filters reg =
         [ Filter "availability-zone" $ map (Text.pack . show . AZ reg) rZones
-        , Filter ("tag:" <> envTag) [rEnv]
+        , Filter ("tag:" <> envTag)    [rEnv]
+        , Filter ("tag:" <> domainTag) [rDomain]
         ] ++ if null rRoles
                  then []
                  else [Filter ("tag:" <> roleTag) rRoles]

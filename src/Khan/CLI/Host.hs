@@ -16,11 +16,8 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Host (cli) where
+module Khan.CLI.Host (commands) where
 
-import           Data.Char                (isDigit)
-import           Data.List                (nub)
-import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import qualified Khan.AWS.Route53         as R53
 import           Khan.Internal
@@ -41,7 +38,8 @@ defineOptions "Host" $ do
 deriving instance Show Host
 
 instance Discover Host where
-    discover h = liftEitherT $ do
+    discover False h = return h
+    discover True  h = liftEitherT $ do
         iid  <- Text.decodeUtf8 <$> metadata InstanceId
         fqdn <- Text.decodeUtf8 <$> metadata PublicHostname
         return $! h { hId = iid, hFQDN = fqdn }
@@ -51,83 +49,57 @@ instance Validate Host where
         check hId   "--id must be specified."
         check hFQDN "--fqdn must be specified."
 
-cli :: Command
-cli = Command "host" "Manage EC2 Hosts."
-    [ subCommand "register"   register
-    , subCommand "deregister" deregister
+commands :: [Command]
+commands =
+    [ command register "register" "Register with DNS."
+        "blah."
+    , command deregister "deregister" "Deregister from DNS."
+        "blah."
     ]
 
+-- FIXME: Handle errors retries gracefully
 register :: Host -> AWS ()
 register Host{..} = do
-    (ns, Tags{..}) <- describe hId
-    zid            <- R53.findZoneId tagDomain
-    maybe (persistent ns zid tagDomain) (ephemeral ns zid tagDomain) tagVersion
+    log "Registering host {}..." [hFQDN]
+    (ns@Names{..}, ts@Tags{..}) <- describe hId
+    zid  <- R53.findZoneId tagDomain
+    sets <- findPrefix zid roleName envName
+    maybe (create zid ns ts sets) exists $ filterValue hFQDN sets
   where
-    -- FIXME: Create and assign health check
-    -- FIXME: Handle errors retries gracefully
-    persistent Names{..} zid dom = do
-        log_ "Registering as persistent host..."
-        sets <- findPrefix zid roleName
-        maybe (create sets) exists $ filterValue hFQDN sets
-      where
-        create sets = do
-            reg <- getRegion
-            let n    = 1 + foldl' newest 0 sets
-                name = address roleName (Text.pack $ show n) envName reg dom
-                vs   = ResourceRecords [hFQDN]
-                set  = BasicRecordSet name CNAME 60 vs Nothing
-            log "Creating record {} with value {}..." [name, hFQDN]
-            R53.updateRecordSet zid [Change CreateAction set]
+    exists r = log "Record {} exists, skipping..." [rrsName r]
 
-        exists r = log "Record {} exists, skipping..." [rrsName r]
-
-        newest acc x = max (int $ rrsName x) acc
-
-        int = fromMaybe (0 :: Integer)
-            . readMay
-            . (:[])
-            . Text.last
-            . Text.takeWhile (/= '.')
-
-    -- FIXME: Create and assign health check
-    -- FIXME: Handle errors retries gracefully
-    ephemeral Names{..} zid dom (safeVersion -> ver) = do
+    create zid ns ts sets = do
         reg <- getRegion
-        let name  = address roleName ver envName reg dom
-            value = Text.intercalate " " ["50", "50", "8080", hFQDN]
-        log "Registering {} with {} as ephemeral host..." [hFQDN, name]
-        mset <- R53.findRecordSet zid ((name ==) . rrsName)
-        R53.updateRecordSet zid $ maybe (create name value) (update value) mset
-      where
-        create n v =
-            [ Change CreateAction $
-                BasicRecordSet n SRV 60 (ResourceRecords [v]) Nothing
-            ]
+        let n   = 1 + foldl' newest 0 sets
+            dns = name ns ts reg n
+            vs  = ResourceRecords [hFQDN]
+            set = BasicRecordSet dns CNAME 60 vs Nothing
+        log "Creating record {} with value {}..." [dns, hFQDN]
+        R53.updateRecordSet zid [Change CreateAction set]
 
-        update v s =
-            let vs = ResourceRecords . nub $ v : rrValues (rrsResourceRecords s)
-            in [ Change DeleteAction s
-               , Change CreateAction $ s { rrsResourceRecords = vs }
-               ]
+    newest acc x = max (either (const 0) dnsOrd . parseDNS $ rrsName x) acc
+
+    name Names{..} Tags{..} reg n =
+        showDNS (DNS roleName tagVersion n envName $ R53.abbreviate reg) tagDomain
 
 deregister :: Host -> AWS ()
-deregister Host{..} = do
-    (ns, Tags{..}) <- describe hId
-    zid            <- R53.findZoneId tagDomain
-    case tagVersion of
-        Nothing -> persistent ns zid
-        Just _  -> error_ "Not implemented"
-  where
-    persistent Names{..} zid = do
-        log "Searching for records matching {} with value {}..."
-            [roleName, hFQDN]
-        mset <- filterValue hFQDN <$> findPrefix zid roleName
-        maybe (log_ "No record found, skipping...") delete
-              mset
-      where
-        delete set = do
-            log_ "Deleting record..."
-            R53.updateRecordSet zid [Change DeleteAction set]
+deregister Host{..} = return ()
+    -- (ns, Tags{..}) <- describe hId
+    -- zid            <- R53.findZoneId tagDomain
+    -- case tagVersion of
+    --     Nothing -> persistent ns zid
+    --     Just _  -> error_ "Not implemented"
+--  where
+    -- persistent Names{..} zid = do
+    --     log "Searching for records matching {} with value {}..."
+    --         [roleName, hFQDN]
+    --     mset <- filterValue hFQDN <$> findPrefix zid roleName
+    --     maybe (log_ "No record found, skipping...") delete
+    --           mset
+
+    -- delete set = do
+    --     log_ "Deleting record..."
+    --     R53.updateRecordSet zid [Change DeleteAction set]
 
 describe :: Text -> AWS (Names, Tags)
 describe iid = do
@@ -135,24 +107,18 @@ describe iid = do
     return . (,t) $
         maybe (unversioned tagRole tagEnv) (versioned tagRole tagEnv) tagVersion
 
-findPrefix :: HostedZoneId -> Text -> AWS [ResourceRecordSet]
-findPrefix zid k = Pipes.toListM $ paginate start
+findPrefix :: HostedZoneId -> Text -> Text -> AWS [ResourceRecordSet]
+findPrefix zid pre env = Pipes.toListM $ paginate start
     >-> Pipes.map lrrsrResourceRecordSets
     >-> Pipes.concat
-    >-> Pipes.filter ((k ==) . Text.takeWhile (not . isDigit) . rrsName)
+    >-> Pipes.filter (either (const False) match . parseDNS . rrsName)
   where
     start = ListResourceRecordSets zid Nothing Nothing Nothing Nothing
+
+    match DNS{..} = dnsRole == pre && dnsEnv == env
 
 filterValue :: Text -> [ResourceRecordSet] -> Maybe ResourceRecordSet
 filterValue v sets = match `find` sets
   where
     match BasicRecordSet{..} = v `elem` rrValues rrsResourceRecords
     match _                  = False
-
-address :: Text -> Text -> Text -> Region -> Text -> Text
-address role ver env reg dom = Text.intercalate "."
-    [ role <> ver
-    , R53.abbreviate reg
-    , env
-    , dom
-    ]

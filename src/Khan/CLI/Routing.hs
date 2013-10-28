@@ -46,19 +46,15 @@ defineOptions "Routes" $ do
 deriving instance Show Routes
 
 instance Discover Routes where
-    discover ec2
-        | ec2       = (populateZones =<<) . populateTags
-        | otherwise = populateZones
-      where
-        populateTags r = do
-            iid      <- liftEitherT $ Text.decodeUtf8 <$> metadata InstanceId
-            Tags{..} <- requiredTags iid
-            return $! r { rDomain = tagDomain, rEnv = tagEnv }
-
-        populateZones r = do
-            zs <- map (azSuffix . azitZoneName) <$> EC2.findCurrentZones
-            log "Using Availability Zones '{}'" [zs]
-            return $! r { rZones = zs }
+    discover ec2 r@Routes{..} = do
+        zs <- EC2.defaultZoneSuffixes rZones
+        log "Using Availability Zones '{}'" [zs]
+        if not ec2
+            then return $! r { rZones = zs }
+            else do
+                iid <- liftEitherT $ Text.decodeUtf8 <$> metadata InstanceId
+                Tags{..} <- requiredTags iid
+                return $! r { rDomain = tagDomain, rEnv = tagEnv, rZones = zs }
 
 instance Validate Routes where
     validate Routes{..} = do

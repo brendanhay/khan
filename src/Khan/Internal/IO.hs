@@ -16,16 +16,12 @@ module Khan.Internal.IO
     -- * Shell
       sh
     , shell
+
+    -- * Files
     , path
+    , defaultPath
     , expandPath
     , writeFile
-
-    -- * Caba Data Files
-    , defaultDataFile
-    , dataFile
-
-    -- * metadata.rb
-    , cookbookMeta
 
     -- * Psuedo Randomisation
     , shuffle
@@ -38,12 +34,11 @@ module Khan.Internal.IO
 
 import           Data.String
 import qualified Data.Text                 as Text
-import qualified Data.Text.IO              as Text
 import           Data.Time.Clock.POSIX
-import           Filesystem.Path.CurrentOS (fromText, parent)
+import qualified Filesystem.Path.CurrentOS as Path
+import           Khan.Internal.Defaults
 import           Khan.Internal.Types
 import           Khan.Prelude
-import           Paths_khan                (getDataFileName)
 import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                    as Shell
 import           System.Directory          (getHomeDirectory)
@@ -58,18 +53,23 @@ shell = shellyNoDir
 path :: FilePath -> Text
 path = toTextIgnore
 
+defaultPath :: (Functor m, MonadIO m) => String -> FilePath -> m FilePath
+defaultPath def p
+    | invalid p = (</> Path.decodeString def) <$> liftIO defaultCfgPath
+    | otherwise = return p
+
 expandPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 expandPath f =
     case "~/" `Text.stripPrefix` path f of
         Nothing -> return f
         Just x  -> do
             h <- liftIO getHomeDirectory
-            shell . absPath $ h </> fromText x
+            shell . absPath $ h </> Path.fromText x
 
 writeFile :: (Functor m, MonadIO m) => FilePath -> Text -> Text -> m ()
 writeFile file mode contents = shell $ do
     backup file
-    Shell.mkdir_p $ parent file
+    Shell.mkdir_p $ Path.parent file
     Shell.writefile file contents
     Shell.run_ "chmod" [mode, path file]
   where
@@ -77,36 +77,6 @@ writeFile file mode contents = shell $ do
         ts <- liftIO (truncate <$> getPOSIXTime :: IO Integer)
         Shell.mv f $ f <.> Text.pack (show ts)
         backup f
-
-defaultDataFile :: (Functor m, MonadIO m) => FilePath -> String -> m FilePath
-defaultDataFile f name
-    | mempty /= f = return f
-    | otherwise   = dataFile name
-
-dataFile :: (Functor m, MonadIO m) => String -> m FilePath
-dataFile name = liftIO (getDataFileName name) >>= shell . absPath . fromString
-
-cookbookMeta :: MonadIO m => Text -> Text -> m Text
-cookbookMeta def key
-    | not $ invalid def = return def
-    | otherwise         = do
-        p <- shell $ Shell.test_e "metadata.rb"
-        r <- liftIO $ extract p
-        log "Using role '{}'" [r]
-        return r
-  where
-    extract False = return def
-    extract True  = do
-        log_ "Reading metadata.rb"
-        strip . fromMaybe def . split . Text.lines <$>
-            Text.readFile "metadata.rb"
-
-    split = fmap (Text.dropAround separator . Text.dropWhile (not . separator)) .
-        find (key `Text.isPrefixOf`)
-
-    separator c = c == '\'' || c == '"'
-
-    strip s = fromMaybe s $ Text.stripSuffix "-role" s
 
 shuffle :: MonadIO m => [a] -> m a
 shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)

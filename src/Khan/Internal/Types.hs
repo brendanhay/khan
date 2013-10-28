@@ -53,8 +53,9 @@ instance Invalid Char where
     invalid _ = False
 
 instance Invalid FilePath where
-    invalid "" = True
-    invalid f  = not $ Path.valid f
+    invalid f
+        | Path.null f = True
+        | otherwise   = not $ Path.valid f
 
 instance Invalid a => Invalid (Maybe a) where
     invalid (Just x) = invalid x

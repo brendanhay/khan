@@ -18,25 +18,36 @@ module Khan.Internal.Defaults
     , secretKey
 
     -- * Defaults
-    , defaultKeyPath
-    , defaultTmpPath
+    , defaultCfgPath
+    , defaultKeyDir
     , defaultEnv
     , defaultVersion
     , defaultUser
     ) where
 
+import Control.Applicative
 import Data.Version
+import Filesystem.Path.CurrentOS
 import Khan.Prelude
+import System.Directory
+import System.Environment
 
 accessKey, secretKey :: String
 accessKey = "ACCESS_KEY_ID"
 secretKey = "SECRET_ACCESS_KEY"
 
-defaultKeyPath :: FilePath
-defaultKeyPath = "~/.khan/keys"
+defaultCfgPath :: IO FilePath
+defaultCfgPath = do
+    p <- doesDirectoryExist path
+    decodeString <$>
+        if p
+            then return $ path ++ "/config"
+            else getExecutablePath
+  where
+    path = "/etc/khan"
 
-defaultTmpPath :: FilePath
-defaultTmpPath = ".khan"
+defaultKeyDir :: String
+defaultKeyDir = "keys"
 
 defaultEnv :: Text
 defaultEnv = "dev"

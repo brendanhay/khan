@@ -17,14 +17,12 @@
 
 module Khan.CLI.Persistent (commands) where
 
-import qualified Data.Text.Encoding        as Text
 import qualified Khan.AWS.EC2              as EC2
 import qualified Khan.AWS.IAM              as IAM
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
-import qualified Shelly                    as Shell
 
 defineOptions "Launch" $ do
     textOption "lRole" "role" ""
@@ -66,8 +64,8 @@ defineOptions "Launch" $ do
     intOption "lTimeout" "timeout" 60
         "SSH timeout."
 
-    pathOption "lKeys" "keys" defaultKeyPath
-        "Directory for private keys."
+    pathOption "lKeys" "keys" ""
+        "Directory for private keys. (default: /etc/khan or <bin>/config)"
 
     -- Block Device Mappings
     -- Monitoring
@@ -78,7 +76,13 @@ defineOptions "Launch" $ do
 
 deriving instance Show Launch
 
-instance Discover Launch
+instance Discover Launch where
+    discover _ l@Launch{..} = do
+        ks <- defaultPath defaultKeyDir lKeys
+        log "Using Key Path {}" [ks]
+        zs <- EC2.defaultZoneSuffixes lZones
+        log "Using Availability Zones '{}'" [zs]
+        return $! l { lKeys = ks, lZones = zs }
 
 instance Validate Launch where
     validate Launch{..} = do
@@ -106,12 +110,16 @@ defineOptions "Host" $ do
     textsOption "hHosts" "hosts" []
         "Hosts to run on."
 
-    pathOption "hKeys" "keys" defaultKeyPath
+    pathOption "hKeys" "keys" ""
         "Directory for private keys."
 
 deriving instance Show Host
 
-instance Discover Host
+instance Discover Host where
+    discover _ h@Host{..}= do
+        ks <- defaultPath defaultKeyDir hKeys
+        log "Using Key Path {}" [ks]
+        return $! h { hKeys = ks }
 
 instance Validate Host where
     validate Host{..} = do

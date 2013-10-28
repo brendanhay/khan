@@ -66,16 +66,18 @@ defineOptions "Deploy" $ do
     rulesOption "dRules" "rules"
         "IP permission specifications."
 
-    pathOption "dKeys" "keys" defaultKeyPath
-        "Directory for private keys."
+    pathOption "dKeys" "keys" ""
+        "Directory for private keys. (default: /etc/khan or <bin>/config)"
 
 deriving instance Show Deploy
 
 instance Discover Deploy where
-    discover _ d = do
-        zs <- map (azSuffix . azitZoneName) <$> EC2.findCurrentZones
+    discover _ d@Deploy{..} = do
+        ks <- defaultPath defaultKeyDir dKeys
+        log "Using Key Path {}" [ks]
+        zs <- EC2.defaultZoneSuffixes dZones
         log "Using Availability Zones '{}'" [zs]
-        return $! d { dZones = zs }
+        return $! d { dKeys = ks, dZones = zs }
 
 instance Validate Deploy where
     validate Deploy{..} = do

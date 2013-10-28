@@ -30,22 +30,20 @@ defineOptions "Role" $ do
         "Environment of the application."
 
     pathOption "rPolicy" "policy" ""
-        "Role policy file."
+        "Role policy file. (default: /etc/khan/policy.json or <bin>/config/policy.json)"
 
     pathOption "rTrust" "trust" ""
-        "Trust relationship file."
-
-    pathOption "rCerts" "certs" defaultKeyPath
-        "Directory for private keys."
+        "Trust relationship file. (default: /etc/khan/trust.json or <bin>/config/trust.json)"
 
 deriving instance Show Role
 
 instance Discover Role where
     discover _ r@Role{..} = do
         (p, t) <- (,)
-            <$> defaultDataFile rPolicy "policy.json"
-            <*> defaultDataFile rTrust  "trust.json"
+            <$> defaultPath "policy.json" rPolicy
+            <*> defaultPath "trust.json"  rTrust
         return $! r { rPolicy = p, rTrust  = t }
+      where
 
 instance Validate Role where
     validate Role{..} = do

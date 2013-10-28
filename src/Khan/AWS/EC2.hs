@@ -37,7 +37,7 @@ createKey (names -> Names{..}) dir =
   where
     exist e = do
         verifyEC2 "InvalidKeyPair.Duplicate" (Left e)
-        log "KeyPair {} exists, not updating." [keyName]
+        log "Key Pair {} exists, not updating." [keyName]
 
     write k = do
         d <- expandPath dir
@@ -51,13 +51,13 @@ createKey (names -> Names{..}) dir =
              Shell.mkdir_p d
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", path f]
-        log "Wrote new KeyPair to {}" [f]
+        log "Wrote new Key Pair to {}" [f]
 
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
 findGroup (names -> Names{..}) = do
-    log "Searching for group {}" [groupName]
+    log "Searching for Security Group {}" [groupName]
     mg <- fmap groupMay . sendCatch $ DescribeSecurityGroups [groupName] [] []
-    when (isNothing mg) $ log "Unable to find group {}" [groupName]
+    when (isNothing mg) $ log "Unable to find Security Group {}" [groupName]
     return mg
   where
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
@@ -68,14 +68,15 @@ updateGroup (names -> n@Names{..}) rules =
     findGroup n >>= maybe (create >>= modify) modify
   where
     create = do
-        log "{} not found, creating..." [groupName]
+        log "Security Group {} not found, creating..." [groupName]
         gid <- fmap csgrGroupId . send $
             CreateSecurityGroup groupName groupName Nothing
-        log "Group {} created." [gid]
-        findGroup n >>= noteAWS "Unable to find created group {}" [groupName]
+        log "Security Group {} created." [gid]
+        findGroup n >>=
+            noteAWS "Unable to find created Security Group {}" [groupName]
 
     modify grp = do
-        log "Updating group {}..." [groupName]
+        log "Updating Security Group {}..." [groupName]
 
         let gid  = sgitGroupId grp
             strip1 = map (UserIdGroupPair Nothing Nothing . uigGroupName)
@@ -93,13 +94,13 @@ updateGroup (names -> n@Names{..}) rules =
             log "Revoking {} on {}..." [showRules rev, groupName]
             send_ $ RevokeSecurityGroupIngress (Just gid) Nothing rev
 
-        log "Group {} updated." [groupName]
+        log "Security Group {} updated." [groupName]
 
 deleteGroup :: Naming a => a -> AWS ()
 deleteGroup (names -> Names{..}) = do
-    log "Deleting group {}..." [groupName]
+    log "Deleting Security Group {}..." [groupName]
     send_ $ DeleteSecurityGroup (Just groupName) Nothing
-    log_ "Group deleted."
+    log_ "Security Group deleted."
 
 findInstances :: [Text] -> [Filter] -> AWS [RunningInstancesItemType]
 findInstances ids = fmap (concatMap ritInstancesSet . dirReservationSet) .
@@ -164,11 +165,11 @@ waitForInstances ids = do
 
 findImage :: [Filter] -> AWS Text
 findImage fs = do
-    log "Finding AMIs matching: {}" [options]
+    log "Finding Images matching: {}" [options]
     rs  <- fmap (listToMaybe . djImagesSet) . send $ DescribeImages [] [] [] fs
     ami <- fmap diritImageId . hoistError $
-        note "Failed to find any matching AMIs" rs
-    log "Found AMI {} matching {}" [ami, options]
+        note "Failed to find any matching Images" rs
+    log "Found Image {} matching {}" [ami, options]
     return ami
   where
     options = Text.intercalate " | " $ map (Text.pack . show) fs
@@ -176,9 +177,14 @@ findImage fs = do
 findCurrentZones :: AWS [AvailabilityZoneItemType]
 findCurrentZones = do
     reg <- Text.pack . show <$> getRegion
-    log_ "Finding AZs in current region"
+    log_ "Finding Availability Zones in current region"
     fmap dazrAvailabilityZoneInfo . send $
         DescribeAvailabilityZones []
             [ Filter "region-name" [reg]
             , Filter "state" ["available"]
             ]
+
+defaultZoneSuffixes :: [Char] -> AWS [Char]
+defaultZoneSuffixes sufs
+    | invalid sufs = map (azSuffix . azitZoneName) <$> findCurrentZones
+    | otherwise    = return sufs

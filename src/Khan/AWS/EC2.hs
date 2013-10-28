@@ -140,7 +140,7 @@ runInstances (names -> Names{..}) image typ az min max opt =
 
 tagInstances :: Naming a => a -> Text -> [Text] -> AWS ()
 tagInstances (names -> n) dom ids = do
-    log_ "Tagging instances with Group, Role, and Env..."
+    log_ "Tagging instances..."
     send_ . CreateTags ids . map (uncurry ResourceTagSetItemType) $
         defaultTags n dom
 

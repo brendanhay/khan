@@ -24,6 +24,7 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2          hiding (ec2)
 import           Network.AWS.EC2.Metadata
+import           Text.Show.Pretty
 
 defineOptions "Routes" $ do
     textOption "rDomain" "domain" ""
@@ -44,16 +45,19 @@ defineOptions "Routes" $ do
 deriving instance Show Routes
 
 instance Discover Routes where
-    discover ec2 r' = do
-        r@Routes{..} <- if ec2 then populate else return r'
-        zs <- map (azSuffix . azitZoneName) <$> EC2.findCurrentZones
-        log "Using Availability Zones '{}'" [zs]
-        return $! r { rZones = zs }
+    discover ec2
+        | ec2       = (populateZones =<<) . populateTags
+        | otherwise = populateZones
       where
-        populate = do
+        populateTags r = do
             iid      <- liftEitherT $ Text.decodeUtf8 <$> metadata InstanceId
             Tags{..} <- requiredTags iid
-            return $! r' { rDomain = tagDomain, rEnv = tagEnv }
+            return $! r { rDomain = tagDomain, rEnv = tagEnv }
+
+        populateZones r = do
+            zs <- map (azSuffix . azitZoneName) <$> EC2.findCurrentZones
+            log "Using Availability Zones '{}'" [zs]
+            return $! r { rZones = zs }
 
 instance Validate Routes where
     validate Routes{..} = do
@@ -71,9 +75,12 @@ routes :: Routes -> AWS ()
 routes Routes{..} = do
     log "Describing environment {}" [rEnv]
     reg <- getRegion
-    is  <- fmap dirReservationSet . send $ DescribeInstances []
+    is  <- dirReservationSet <$> send (DescribeInstances [] $ filters reg)
+    mapM_ (log_ . Text.pack . ppShow) is
+  where
+    filters reg =
         [ Filter "availability-zone" $ map (Text.pack . show . AZ reg) rZones
         , Filter ("tag:" <> envTag) [rEnv]
-        , Filter ("tag:" <> roleTag) rRoles
-        ]
-    mapM_ (liftIO . print) is
+        ] ++ if null rRoles
+                 then []
+                 else [Filter ("tag:" <> roleTag) rRoles]

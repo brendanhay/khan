@@ -49,6 +49,7 @@ executable khan
       , options
       , pipes             >= 4.0
       , prelude-prime
+      , pretty-show
       , random
       , regex-compat
       , shelly

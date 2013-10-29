@@ -35,10 +35,9 @@ import           Network.Http.Client     hiding (get)
 assertAWS :: (MonadError AWSError m, MonadIO m, Params ps)
           => Format
           -> ps
-          -> Bool
+          -> m Bool
           -> m ()
-assertAWS f ps True  = throwAWS f ps
-assertAWS _ _  False = return ()
+assertAWS f ps action = unlessM action $ throwAWS f ps
 
 throwAWS :: (Params a, MonadError AWSError m) => Format -> a -> m b
 throwAWS f = throwError . Err . LText.unpack . format f

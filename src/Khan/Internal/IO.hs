@@ -26,6 +26,9 @@ module Khan.Internal.IO
     , expandPath
     , writeFile
 
+    -- * Templates
+    , render
+
     -- * Psuedo Randomisation
     , shuffle
 
@@ -35,18 +38,23 @@ module Khan.Internal.IO
     , (<.>)
     ) where
 
+import qualified Data.Aeson                 as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import           Data.String
-import qualified Data.Text                 as Text
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
 import           Data.Time.Clock.POSIX
-import qualified Filesystem.Path.CurrentOS as Path
+import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal.Defaults
 import           Khan.Internal.Types
 import           Khan.Prelude
-import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
-import qualified Shelly                    as Shell
+import           Shelly                     (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
+import qualified Shelly                     as Shell
 import           System.Directory
 import           System.Environment
-import           System.Random             (randomRIO)
+import           System.Random              (randomRIO)
+import           Text.Hastache
+import           Text.Hastache.Aeson
 
 sh :: MonadIO m => Sh a -> EitherT String m a
 sh = fmapLT show . syncIO . shell
@@ -101,6 +109,17 @@ writeFile file mode contents = shell $ do
         ts <- liftIO (truncate <$> getPOSIXTime :: IO Integer)
         Shell.mv f $ f <.> Text.pack (show ts)
         backup f
+
+--render :: (Functor m, MonadIO m) => FilePath -> Value -> m Text
+render f x = do
+    t <- readTemplate f
+    hastacheStr defaultConfig t $ jsonValueContext x
+
+--  where
+--    json = Text.decodeUtf8 . LBS.toStrict $ Aeson.encode x
+
+-- readTemplate :: (Functor m, MonadIO m) => FilePath -> m Text
+readTemplate f = configFile f >>= shell . Shell.readBinary
 
 shuffle :: MonadIO m => [a] -> m a
 shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)

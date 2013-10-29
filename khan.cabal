@@ -45,6 +45,8 @@ executable khan
       , containers
       , directory
       , errors
+      , hastache
+      , hastache-aeson
       , http-streams
       , io-streams
       , mtl
@@ -61,3 +63,5 @@ executable khan
       , time
       , transformers
       , unix
+      , unordered-containers
+      , vector

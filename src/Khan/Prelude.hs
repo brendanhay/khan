@@ -24,13 +24,14 @@ module Khan.Prelude
     , forever
     , join
     , when
+    , whenM
     , unless
+    , unlessM
     , void
     , lift
 
     -- * Errors
     , sync
-    , assert
     , throwError
 
     -- * Variadic Loggers
@@ -71,18 +72,11 @@ import           Data.Text.Lazy            (unpack)
 import           Filesystem.Path.CurrentOS (FilePath)
 import           Network.AWS
 import           Prelude.Prime             as Prime hiding (FilePath, error, log, writeFile)
+import           Shelly                    (whenM, unlessM)
 import qualified System.IO                 as IO
 
 sync :: MonadIO m => IO a -> EitherT String m a
 sync = fmapLT show . syncIO
-
-assert :: (MonadError String m, MonadIO m, Params ps)
-       => Format
-       -> ps
-       -> Bool
-       -> m ()
-assert f ps True  = throwError . unpack $ format f ps
-assert _ _  False = return ()
 
 log, error :: (MonadIO m, Params ps) => Format -> ps -> m ()
 log f   = hprint IO.stdout (f <> "\n")

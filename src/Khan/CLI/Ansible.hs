@@ -20,8 +20,9 @@ import qualified Data.Aeson                 as Aeson
 import           Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.HashMap.Strict        as Map
-import           Data.List                  (intercalate, nub)
+import           Data.List                  (intercalate)
 import qualified Data.Set                   as Set
+import qualified Data.Text                  as Text
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import qualified Khan.AWS.EC2               as EC2
@@ -60,6 +61,9 @@ instance Validate Inventory where
         check iEnv "--env must be specified."
 
 defineOptions "Ansible" $ do
+    maybeTextOption "aBin" "bin" ""
+        "Ansible binary name to exec."
+
     textOption "aEnv" "env" defaultEnv
         "Environment."
 
@@ -91,6 +95,7 @@ instance Discover Ansible where
 
 instance Validate Ansible where
     validate Ansible{..} = do
+        check aBin     "--bin must be specified."
         check aEnv     "--env must be specified."
         check aRetain  "--retention must be greater than 0."
         checkPath aKey " specified by --key must exist."
@@ -107,8 +112,8 @@ commands =
         "Stuff."
     , command ansible "ansible" "Ansible."
         "Stuff."
-    -- , command playbook "playbook" "Ansible Playbook."
-    --     "Stuff."
+    , command playbook "playbook" "Ansible Playbook."
+        "Stuff."
     ]
 
 inventory :: Inventory -> AWS ()
@@ -145,12 +150,18 @@ ansible Ansible{..} = do
         log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]
         inventory $ Inventory aEnv True Nothing aCache True
     log "ansible {}" [intercalate " " args]
-    liftIO $ Posix.executeFile "ansible" True args Nothing
+    liftIO $ Posix.executeFile bin True args Nothing
   where
-    args = nub $ aArgs ++
-        ["-u", "ubuntu", "-i", inv, "--private-key", Path.encodeString aKey]
+    args = aArgs ++ foldr' add []
+        [ ("-u", "ubuntu")
+        , ("-i", inv)
+        , ("--private-key", Path.encodeString aKey)
+        ]
 
-    inv = Path.encodeString aCache
+    add (k, v) xs =
+        if k `elem` aArgs
+            then xs
+            else k : v : xs
 
     exceeds = liftIO $ do
         p <- doesFileExist inv
@@ -161,3 +172,11 @@ ansible Ansible{..} = do
                 ts <- getPOSIXTime
                 return $
                     ts - Posix.modificationTimeHiRes s > fromIntegral aRetain
+
+    bin = Text.unpack $ fromMaybe "ansible" aBin
+    inv = Path.encodeString aCache
+
+playbook :: Ansible -> AWS ()
+playbook a@Ansible{..} = ansible $ a
+    { aBin = maybe (Just "ansible-playbook") Just aBin
+    }

@@ -18,7 +18,7 @@ module Khan.Internal.Defaults
     , secretKey
 
     -- * Defaults
-    , defaultCfgPath
+    , defaultInventory
     , defaultKeyDir
     , defaultEnv
     , defaultVersion
@@ -27,26 +27,16 @@ module Khan.Internal.Defaults
 
 import Control.Applicative
 import Data.Version
-import Filesystem.Path.CurrentOS
 import Khan.Prelude
-import System.Directory
-import System.Environment
 
 accessKey, secretKey :: String
 accessKey = "ACCESS_KEY_ID"
 secretKey = "SECRET_ACCESS_KEY"
 
-defaultCfgPath :: IO FilePath
-defaultCfgPath = do
-    p <- doesDirectoryExist path
-    decodeString <$>
-        if p
-            then return path
-            else (++ "/config") <$> getCurrentDirectory
-  where
-    path = "/etc/khan"
+defaultInventory :: FilePath
+defaultInventory = "inventory"
 
-defaultKeyDir :: String
+defaultKeyDir :: FilePath
 defaultKeyDir = "keys"
 
 defaultEnv :: Text

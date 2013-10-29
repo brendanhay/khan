@@ -46,8 +46,9 @@ defineOptions "Routes" $ do
 deriving instance Show Routes
 
 instance Discover Routes where
-    discover ec2 r@Routes{..} = do
-        zs <- EC2.defaultZoneSuffixes rZones
+    discover _ r@Routes{..} = do
+        ec2 <- isEC2
+        zs  <- EC2.defaultZoneSuffixes rZones
         log "Using Availability Zones '{}'" [zs]
         if not ec2
             then return $! r { rZones = zs }

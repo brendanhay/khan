@@ -21,6 +21,7 @@ module Khan.Internal.Options
     , maybeTextOption
     , textsOption
     , stringOption
+    , stringsOption
     , intOption
     , integerOption
     , maybeIntegerOption
@@ -44,6 +45,7 @@ module Khan.Internal.Options
     , customOption
     ) where
 
+import           Data.List              (intercalate)
 import qualified Data.Text              as Text
 import           Data.Version
 import           Khan.Internal.Defaults
@@ -63,6 +65,7 @@ import Options hiding
      , integerOption
      , boolOption
      , stringOption
+     , stringsOption
      , pathOption
      )
 
@@ -88,6 +91,10 @@ textsOption name flag def = Opts.textsOption name flag def
 stringOption :: Opt String
 stringOption name flag def = Opts.stringOption name flag def
     . defaultText def
+
+stringsOption :: Opt [String]
+stringsOption name flag def = Opts.stringsOption name flag def
+    . defaultText (intercalate ", " def)
 
 intOption :: Opt Int
 intOption name flag def = Opts.intOption name flag def

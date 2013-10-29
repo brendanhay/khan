@@ -73,7 +73,7 @@ deriving instance Show Deploy
 
 instance Discover Deploy where
     discover _ d@Deploy{..} = do
-        ks <- defaultPath defaultKeyDir dKeys
+        ks <- defaultPath dKeys $ configFile defaultKeyDir
         log "Using Key Path {}" [ks]
         zs <- EC2.defaultZoneSuffixes dZones
         log "Using Availability Zones '{}'" [zs]

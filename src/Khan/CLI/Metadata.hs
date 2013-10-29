@@ -32,12 +32,15 @@ defineOptions "Info" $
 deriving instance Show Info
 
 instance Discover Info where
-    discover False d = return d
-    discover True  d
-        | not $ invalid (dId d) = return d
-        | otherwise = liftEitherT $ do
-            iid <- Text.decodeUtf8 <$> metadata InstanceId
-            return $! d { dId = iid }
+    discover _ d = do
+        ec2 <- isEC2
+        if not . invalid $ dId d
+            then return d
+            else if not ec2
+                     then return d
+                     else liftEitherT $ do
+                         iid <- Text.decodeUtf8 <$> metadata InstanceId
+                         return $! d { dId = iid }
 
 instance Validate Info where
     validate Info{..} =

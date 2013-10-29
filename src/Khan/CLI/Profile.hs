@@ -40,8 +40,8 @@ deriving instance Show Role
 instance Discover Role where
     discover _ r@Role{..} = do
         (p, t) <- (,)
-            <$> defaultPath "policy.json" rPolicy
-            <*> defaultPath "trust.json"  rTrust
+            <$> defaultPath rPolicy (configFile "policy.json")
+            <*> defaultPath rTrust  (configFile "trust.json")
         return $! r { rPolicy = p, rTrust  = t }
       where
 

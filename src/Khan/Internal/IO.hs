@@ -20,6 +20,9 @@ module Khan.Internal.IO
     -- * Files
     , path
     , defaultPath
+    , cachePath
+    , configFile
+    , configPath
     , expandPath
     , writeFile
 
@@ -41,7 +44,8 @@ import           Khan.Internal.Types
 import           Khan.Prelude
 import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                    as Shell
-import           System.Directory          (getHomeDirectory)
+import           System.Directory
+import           System.Environment
 import           System.Random             (randomRIO)
 
 sh :: MonadIO m => Sh a -> EitherT String m a
@@ -53,10 +57,30 @@ shell = shellyNoDir
 path :: FilePath -> Text
 path = toTextIgnore
 
-defaultPath :: (Functor m, MonadIO m) => String -> FilePath -> m FilePath
-defaultPath def p
-    | invalid p = (</> Path.decodeString def) <$> liftIO defaultCfgPath
+defaultPath :: (Functor m, MonadIO m) => FilePath -> m FilePath -> m FilePath
+defaultPath p def
+    | invalid p = def
     | otherwise = return p
+
+cachePath :: MonadIO m => m FilePath
+cachePath = ensurePath True "/var/cache/khan" "cache"
+
+configFile :: (Functor m, MonadIO m) => FilePath -> m FilePath
+configFile f = (</> f) <$> configPath
+
+configPath :: MonadIO m => m FilePath
+configPath = ensurePath False "/etc/khan" "config"
+
+ensurePath :: MonadIO m => Bool -> FilePath -> FilePath -> m FilePath
+ensurePath parent dir sub = liftIO $ do
+    p <- doesDirectoryExist $ Path.encodeString d
+    f <- if p
+             then return dir
+             else (</> sub) . Path.decodeString <$> getCurrentDirectory
+    createDirectoryIfMissing False $ Path.encodeString f
+    return f
+  where
+    d = if parent then Path.parent dir else dir
 
 expandPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 expandPath f =

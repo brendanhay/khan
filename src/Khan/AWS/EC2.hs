@@ -27,29 +27,6 @@ import           Khan.Prelude          hiding (min, max)
 import           Network.AWS.EC2       hiding (Instance)
 import qualified Shelly                as Shell
 
-newtype Instance = Instance RunningInstancesItemType
-
-instance ToJSON Instance where
-    toJSON (Instance RunningInstancesItemType{..}) = object
-        [ "instanceId"       .= riitInstanceId
-        , "imageId"          .= riitImageId
-        , "instanceState"    .= istName riitInstanceState
-        , "stateReason"      .= fmap srtMessage riitStateReason
-        , "instanceType"     .= riitInstanceType
-        , "dnsName"          .= riitDnsName
-        , "privateDnsName"   .= riitPrivateDnsName
-        , "ipAddress"        .= riitIpAddress
-        , "privateIpAddress" .= riitPrivateIpAddress
-        , "availabilityZone" .= pruAvailabilityZone riitPlacement
-        , "env"              .= lookup envTag tags
-        , "role"             .= lookup roleTag tags
-        , "domain"           .= lookup domainTag tags
-        , "name"             .= lookup nameTag tags
-        , "version"          .= lookup versionTag tags
-        ]
-      where
-        tags = map (\i -> (rtsitKey i, rtsitValue i)) riitTagSet
-
 keyPath :: Text -> FilePath -> AWS FilePath
 keyPath name dir = do
     reg <- Text.pack . show <$> getRegion
@@ -71,7 +48,7 @@ createKey (names -> Names{..}) dir =
              when p $ do
                  ts :: Integer <- truncate <$> liftIO getPOSIXTime
                  Shell.mv f $ f <.> Text.pack (show ts)
-                 liftIO . print . Text.lines $ ckqKeyMaterial k
+             liftIO . print . Text.lines $ ckqKeyMaterial k
              Shell.mkdir_p d
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", path f]
@@ -212,3 +189,26 @@ defaultZoneSuffixes :: [Char] -> AWS [Char]
 defaultZoneSuffixes sufs
     | invalid sufs = map (azSuffix . azitZoneName) <$> findCurrentZones
     | otherwise    = return sufs
+
+newtype Instance = Instance RunningInstancesItemType
+
+instance ToJSON Instance where
+    toJSON (Instance RunningInstancesItemType{..}) = object
+        [ "instanceId"       .= riitInstanceId
+        , "imageId"          .= riitImageId
+        , "instanceState"    .= istName riitInstanceState
+        , "stateReason"      .= fmap srtMessage riitStateReason
+        , "instanceType"     .= riitInstanceType
+        , "dnsName"          .= riitDnsName
+        , "privateDnsName"   .= riitPrivateDnsName
+        , "ipAddress"        .= riitIpAddress
+        , "privateIpAddress" .= riitPrivateIpAddress
+        , "availabilityZone" .= pruAvailabilityZone riitPlacement
+        , "env"              .= lookup envTag tags
+        , "role"             .= lookup roleTag tags
+        , "domain"           .= lookup domainTag tags
+        , "name"             .= lookup nameTag tags
+        , "version"          .= lookup versionTag tags
+        ]
+      where
+        tags = map (\i -> (rtsitKey i, rtsitValue i)) riitTagSet

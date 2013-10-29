@@ -60,3 +60,4 @@ executable khan
       , text-format
       , time
       , transformers
+      , unix

@@ -78,10 +78,10 @@ deriving instance Show Launch
 
 instance Discover Launch where
     discover _ l@Launch{..} = do
-        ks <- defaultPath defaultKeyDir lKeys
-        log "Using Key Path {}" [ks]
+        ks <- defaultPath lKeys $ configFile defaultKeyDir
+        debug "Using Key Path {}" [ks]
         zs <- EC2.defaultZoneSuffixes lZones
-        log "Using Availability Zones '{}'" [zs]
+        debug "Using Availability Zones '{}'" [zs]
         return $! l { lKeys = ks, lZones = zs }
 
 instance Validate Launch where
@@ -117,7 +117,7 @@ deriving instance Show Host
 
 instance Discover Host where
     discover _ h@Host{..}= do
-        ks <- defaultPath defaultKeyDir hKeys
+        ks <- defaultPath hKeys $ configFile defaultKeyDir
         log "Using Key Path {}" [ks]
         return $! h { hKeys = ks }
 

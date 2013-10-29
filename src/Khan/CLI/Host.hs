@@ -24,7 +24,7 @@ import qualified Khan.AWS.Route53         as R53
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2
+import           Network.AWS.EC2          hiding (ec2)
 import           Network.AWS.EC2.Metadata
 import           Network.AWS.Route53
 import           Pipes
@@ -43,17 +43,20 @@ defineOptions "Host" $ do
 deriving instance Show Host
 
 instance Discover Host where
-    discover True  h = liftEitherT $ do
-        iid  <- Text.decodeUtf8 <$> metadata InstanceId
-        fqdn <- Text.decodeUtf8 <$> metadata PublicHostname
-        return $! h { hId = iid, hFQDN = fqdn }
-    discover False h@Host{..}
-        | invalid hId || not (invalid hFQDN) = return h
-        | otherwise = do
-            is  <- EC2.findInstances [hId] []
-            dns <- noteAWS "Unable to find Public DNS for: {}" [hId] .
-                join $ riitDnsName <$> listToMaybe is
-            return $! h { hFQDN = dns }
+    discover _ h@Host{..} = do
+        ec2 <- isEC2
+        if ec2
+           then liftEitherT $ do
+               iid  <- Text.decodeUtf8 <$> metadata InstanceId
+               fqdn <- Text.decodeUtf8 <$> metadata PublicHostname
+               return $! h { hId = iid, hFQDN = fqdn }
+            else if invalid hId || not (invalid hFQDN)
+                 then return h
+                 else do
+                     is  <- EC2.findInstances [hId] []
+                     dns <- noteAWS "Unable to find Public DNS for: {}" [hId] .
+                         join $ riitDnsName <$> listToMaybe is
+                     return $! h { hFQDN = dns }
 
 instance Validate Host where
     validate Host{..} = do

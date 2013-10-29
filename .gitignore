@@ -9,12 +9,13 @@ cabal.sandbox.config
 
 # Dirs
 .cabal-sandbox
-
 .khan
 bin
 dist
 tmp
 vendor
+cache
+config
 metadata
 
 # CTAGS

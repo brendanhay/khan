@@ -26,7 +26,7 @@ import           Text.Read
 import qualified Text.Read                    as Read
 
 class Discover a where
-    discover :: Bool -> a -> AWS a
+    discover :: [String] -> a -> AWS a
     discover _ = return
 
 class Validate a where

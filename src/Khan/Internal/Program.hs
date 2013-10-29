@@ -126,13 +126,16 @@ runProgram cmds = do
     args <- getArgs
     let p = parseSubcommand (map cmdSub cmds) args
     case parsedSubcommand p of
-        Just cmd -> runScript $ fmapLT show cmd
+        Just cmd -> runScript $ fmapLT fmt cmd
         Nothing  -> do
             maybe (return ()) synopsis $ headMay args
             help p
             maybe exitSuccess (\ex -> putStrLn ex >> exitFailure) $
                 parsedError p
   where
+    fmt (Err msg) = msg
+    fmt ex        = show ex
+
     help p = putStrLn . init $ foldl replace (parsedHelp p) cmds
 
     replace s Command{..} = subRegex (mkRegex $ "^  " ++ cmdName) s
@@ -158,13 +161,12 @@ command :: (Show a, Options a, Discover a, Validate a)
          -> Command
 command action name = Command (Options.subcommand name run) name
   where
-    run khan opts _ = do
-        ec2        <- isEC2
-        k@Khan{..} <- regionalise khan ec2 >>= initialise
+    run khan opts args = do
+        k@Khan{..} <- isEC2 >>= regionalise khan >>= initialise
         validate k
         r <- lift . runAWS (creds k) kDebug . within kRegion $ do
             debug "Running in region {}..." [Shown kRegion]
-            o <- discover ec2 opts
+            o <- discover args opts
             liftEitherT $ validate o
             action o
         hoistEither r

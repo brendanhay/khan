@@ -12,6 +12,7 @@ tmp
 log
 dist
 .cabal-sandbox
+/certs
 /.khan
 /vendor
 /cache

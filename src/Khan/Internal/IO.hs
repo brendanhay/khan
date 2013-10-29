@@ -72,9 +72,11 @@ defaultPath p def
 
 keyPath :: Names -> AWS FilePath
 keyPath Names{..} = do
-    d   <- configPath "keys" >>= expandPath
-    reg <- Text.pack . show <$> getRegion
-    return . (d </>) . Shell.fromText $ Text.concat [reg, "_", keyName, ".pem"]
+    r <- Text.pack . show <$> getRegion
+    certPath . Shell.fromText $ Text.concat [r, "_", keyName, ".pem"]
+
+certPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
+certPath f = (</> f) <$> ensurePath True "/etc/ssl/khan" "certs"
 
 cachePath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 cachePath f = (</> f) <$> ensurePath True "/var/cache/khan" "cache"
@@ -89,7 +91,7 @@ ensurePath parent dir sub = liftIO $ do
              then return dir
              else format <$> Env.getExecutablePath
     createDirectoryIfMissing False $ Path.encodeString f
-    return f
+    expandPath f
   where
     full = if parent then Path.parent dir else dir
 

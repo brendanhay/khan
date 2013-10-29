@@ -1,16 +1,17 @@
 SHELL := /usr/bin/env bash
 FLAGS := -j --disable-documentation --disable-library-coverage
 DEPS  := vendor/options
+BIN   := dist/build/khan/khan
 
 .PHONY: test lint doc
 
 all: build
 
 build:
-	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS)))
+	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS))) && cp $(BIN) .
 
 strip: build
-	strip -o dist/khan dist/build/khan/khan && upx dist/khan
+	strip -o dist/khan $(BIN) && upx dist/khan
 
 install: $(DEPS) cabal.sandbox.config add-sources
 	cabal install $(FLAGS)

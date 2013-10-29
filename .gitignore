@@ -8,15 +8,15 @@
 cabal.sandbox.config
 
 # Dirs
-.cabal-sandbox
-.khan
-bin
-dist
 tmp
-vendor
-cache
-config
-metadata
+log
+dist
+.cabal-sandbox
+/.khan
+/vendor
+/cache
+/config
+/metadata
 
 # CTAGS
 TAGS
@@ -36,3 +36,6 @@ tags
 
 # Output
 *.pem
+
+# Binaries
+/khan

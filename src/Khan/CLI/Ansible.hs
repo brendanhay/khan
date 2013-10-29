@@ -32,7 +32,6 @@ import           Network.AWS.EC2
 import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
-import qualified System.Environment         as Env
 
 defineOptions "Inventory" $ do
     textOption "iEnv" "env" defaultEnv

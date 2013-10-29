@@ -84,14 +84,16 @@ configPath f = (</> f) <$> ensurePath False "/etc/khan" "config"
 
 ensurePath :: MonadIO m => Bool -> FilePath -> FilePath -> m FilePath
 ensurePath parent dir sub = liftIO $ do
-    p <- doesDirectoryExist $ Path.encodeString d
+    p <- doesDirectoryExist $ Path.encodeString full
     f <- if p
              then return dir
-             else (</> sub) . Path.decodeString <$> Env.getExecutablePath
+             else format <$> Env.getExecutablePath
     createDirectoryIfMissing False $ Path.encodeString f
     return f
   where
-    d = if parent then Path.parent dir else dir
+    full = if parent then Path.parent dir else dir
+
+    format = (</> sub) . Path.parent . Path.decodeString
 
 expandPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 expandPath f =

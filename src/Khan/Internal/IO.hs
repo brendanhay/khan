@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.Internal.IO
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -20,8 +21,8 @@ module Khan.Internal.IO
     -- * Files
     , path
     , defaultPath
+    , keyPath
     , cachePath
-    , configFile
     , configPath
     , expandPath
     , writeFile
@@ -42,16 +43,14 @@ import qualified Data.Aeson                 as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import           Data.String
 import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
-import           Khan.Internal.Defaults
 import           Khan.Internal.Types
 import           Khan.Prelude
+import           Network.AWS
 import           Shelly                     (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                     as Shell
 import           System.Directory
-import           System.Environment
 import           System.Random              (randomRIO)
 import           Text.Hastache
 import           Text.Hastache.Aeson
@@ -70,14 +69,17 @@ defaultPath p def
     | invalid p = def
     | otherwise = return p
 
-cachePath :: MonadIO m => m FilePath
-cachePath = ensurePath True "/var/cache/khan" "cache"
+keyPath :: Names -> AWS FilePath
+keyPath Names{..} = do
+    d   <- configPath "keys" >>= expandPath
+    reg <- Text.pack . show <$> getRegion
+    return . (d </>) . Shell.fromText $ Text.concat [reg, "_", keyName, ".pem"]
 
-configFile :: (Functor m, MonadIO m) => FilePath -> m FilePath
-configFile f = (</> f) <$> configPath
+cachePath :: (Functor m, MonadIO m) => FilePath -> m FilePath
+cachePath f = (</> f) <$> ensurePath True "/var/cache/khan" "cache"
 
-configPath :: MonadIO m => m FilePath
-configPath = ensurePath False "/etc/khan" "config"
+configPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
+configPath f = (</> f) <$> ensurePath False "/etc/khan" "config"
 
 ensurePath :: MonadIO m => Bool -> FilePath -> FilePath -> m FilePath
 ensurePath parent dir sub = liftIO $ do
@@ -110,16 +112,13 @@ writeFile file mode contents = shell $ do
         Shell.mv f $ f <.> Text.pack (show ts)
         backup f
 
---render :: (Functor m, MonadIO m) => FilePath -> Value -> m Text
+render :: (Functor m, MonadIO m) => FilePath -> Aeson.Value -> m LBS.ByteString
 render f x = do
     t <- readTemplate f
     hastacheStr defaultConfig t $ jsonValueContext x
 
---  where
---    json = Text.decodeUtf8 . LBS.toStrict $ Aeson.encode x
-
--- readTemplate :: (Functor m, MonadIO m) => FilePath -> m Text
-readTemplate f = configFile f >>= shell . Shell.readBinary
+readTemplate :: (Functor m, MonadIO m) => FilePath -> m ByteString
+readTemplate f = configPath f >>= shell . Shell.readBinary
 
 shuffle :: MonadIO m => [a] -> m a
 shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)

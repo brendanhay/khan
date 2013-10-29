@@ -64,4 +64,3 @@ executable khan
       , transformers
       , unix
       , unordered-containers
-      , vector

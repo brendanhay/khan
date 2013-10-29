@@ -18,7 +18,6 @@
 module Khan.Internal.Orphans where
 
 import           Data.Aeson
-import qualified Data.Map            as Map
 import qualified Data.Text           as Text
 import           Data.Text.Buildable
 import qualified Data.Text.Lazy      as LText

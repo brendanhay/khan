@@ -16,24 +16,20 @@
 
 module Khan.AWS.EC2 where
 
-import           Control.Arrow         ((***))
-import           Control.Concurrent    (threadDelay)
+import           Control.Arrow             ((***))
+import           Control.Concurrent        (threadDelay)
 import           Data.Aeson
-import           Data.List             ((\\), partition)
-import qualified Data.Text             as Text
+import           Data.List                 ((\\), partition)
+import qualified Data.Text                 as Text
 import           Data.Time.Clock.POSIX
+import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
-import           Khan.Prelude          hiding (min, max)
-import           Network.AWS.EC2       hiding (Instance)
-import qualified Shelly                as Shell
+import           Khan.Prelude              hiding (min, max)
+import           Network.AWS.EC2           hiding (Instance)
+import qualified Shelly                    as Shell
 
-keyPath :: Text -> FilePath -> AWS FilePath
-keyPath name dir = do
-    reg <- Text.pack . show <$> getRegion
-    return . (dir </>) . Shell.fromText $ Text.concat [reg, ".", name, ".pem"]
-
-createKey :: Naming a => a -> FilePath -> AWS ()
-createKey (names -> Names{..}) dir =
+createKey :: Naming a => a -> AWS ()
+createKey (names -> n@Names{..}) =
     sendCatch (CreateKeyPair keyName) >>= either exist write
   where
     exist e = do
@@ -41,15 +37,14 @@ createKey (names -> Names{..}) dir =
         log "Key Pair {} exists, not updating." [keyName]
 
     write k = do
-        d <- expandPath dir
-        f <- keyPath keyName d
+        f <- keyPath n
         shell $ do
              p <- Shell.test_e f
              when p $ do
                  ts :: Integer <- truncate <$> liftIO getPOSIXTime
                  Shell.mv f $ f <.> Text.pack (show ts)
              liftIO . print . Text.lines $ ckqKeyMaterial k
-             Shell.mkdir_p d
+             Shell.mkdir_p $ Path.parent f
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", path f]
         log "Wrote new Key Pair to {}" [f]

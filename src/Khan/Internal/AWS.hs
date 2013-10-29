@@ -18,7 +18,7 @@ module Khan.Internal.AWS where
 
 import           Control.Exception
 import           Control.Monad.Error
-import qualified Data.Map                as Map
+import qualified Data.HashMap.Strict     as Map
 import qualified Data.Text               as Text
 import           Data.Text.Format
 import           Data.Text.Format.Params
@@ -28,7 +28,7 @@ import           Khan.Internal.Types
 import           Khan.Prelude            hiding (min, max)
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (DescribeTags)
-import           Network.AWS.EC2 as EC2
+import           Network.AWS.EC2         as EC2
 import           Network.AWS.IAM
 import           Network.Http.Client     hiding (get)
 

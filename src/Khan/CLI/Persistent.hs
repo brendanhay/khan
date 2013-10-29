@@ -64,9 +64,6 @@ defineOptions "Launch" $ do
     intOption "lTimeout" "timeout" 60
         "SSH timeout."
 
-    pathOption "lKeys" "keys" ""
-        "Directory for private keys. (default: /etc/khan or <bin>/config)"
-
     -- Block Device Mappings
     -- Monitoring
     -- Disable Api Termination
@@ -78,11 +75,9 @@ deriving instance Show Launch
 
 instance Discover Launch where
     discover _ l@Launch{..} = do
-        ks <- defaultPath lKeys $ configFile defaultKeyDir
-        debug "Using Key Path {}" [ks]
         zs <- EC2.defaultZoneSuffixes lZones
         debug "Using Availability Zones '{}'" [zs]
-        return $! l { lKeys = ks, lZones = zs }
+        return $! l { lZones = zs }
 
 instance Validate Launch where
     validate Launch{..} = do
@@ -92,7 +87,6 @@ instance Validate Launch where
         check lMin    "--min must be greater than 0."
         check lMax    "--max must be greater than 0."
         check lZones  "--zones must be specified."
-        check lKeys   "--keys must be specified."
 
         check (not $ lMin <= lMax)    "--min must be less than or equal to --max."
         check (Within lZones "abcde") "--zones must be within [a-e]."
@@ -110,16 +104,17 @@ defineOptions "Host" $ do
     textsOption "hHosts" "hosts" []
         "Hosts to run on."
 
-    pathOption "hKeys" "keys" ""
-        "Directory for private keys."
+    pathOption "hKey" "key" ""
+        "Private key to use."
 
 deriving instance Show Host
 
 instance Discover Host where
-    discover _ h@Host{..}= do
-        ks <- defaultPath hKeys $ configFile defaultKeyDir
-        log "Using Key Path {}" [ks]
-        return $! h { hKeys = ks }
+    discover _ h@Host{..}
+        | not $ invalid hKey = return h
+        | otherwise = do
+            f <- keyPath $ names h
+            return $! h { hKey = f }
 
 instance Validate Host where
     validate Host{..} = do
@@ -127,7 +122,10 @@ instance Validate Host where
             then check hRole "--role must be specified." >>
                  check hEnv  "--env must be specified."
             else check hHosts "--hosts must be specified."
-        check hKeys "--keys must be specified."
+        checkPath hKey " specified by --key must exist."
+
+instance Naming Host where
+    names Host{..} = unversioned hRole hEnv
 
 commands :: [Command]
 commands =
@@ -145,7 +143,7 @@ launch l@Launch{..} = do
     log "Using Image {}" [ami]
 
     i <- async $ IAM.findRole l
-    k <- async $ EC2.createKey l lKeys
+    k <- async $ EC2.createKey l
     s <- async $ EC2.updateGroup (sshGroup lEnv) sshRules
     g <- async $ EC2.updateGroup l lRules
 

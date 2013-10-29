@@ -42,6 +42,9 @@ instance Invalid Bool where
 instance Invalid Text where
     invalid = Text.null
 
+instance Invalid Int where
+    invalid = (< 1)
+
 instance Invalid Integer where
     invalid = (< 1)
 

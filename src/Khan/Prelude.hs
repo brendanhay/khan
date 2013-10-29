@@ -16,7 +16,6 @@ module Khan.Prelude
     (
     -- * Types
       ByteString
-    , Map
     , Text
     , FilePath
 
@@ -60,7 +59,6 @@ import           Control.Monad.Error       (MonadError, throwError)
 import           Control.Monad.IO.Class    as MonadIO
 import           Control.Monad.Trans.Class (lift)
 import           Data.ByteString           (ByteString)
-import           Data.Map                  (Map)
 import           Data.Maybe                as Maybe
 import           Data.Monoid               as Monoid
 import           Data.String
@@ -68,7 +66,6 @@ import           Data.Text                 (Text)
 import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Data.Text.IO              as Text
-import           Data.Text.Lazy            (unpack)
 import           Filesystem.Path.CurrentOS (FilePath)
 import           Network.AWS
 import           Prelude.Prime             as Prime hiding (FilePath, error, log, writeFile)

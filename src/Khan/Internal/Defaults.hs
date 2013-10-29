@@ -18,26 +18,18 @@ module Khan.Internal.Defaults
     , secretKey
 
     -- * Defaults
-    , defaultInventory
-    , defaultKeyDir
     , defaultEnv
     , defaultVersion
     , defaultUser
+    , defaultCache
     ) where
 
-import Control.Applicative
 import Data.Version
 import Khan.Prelude
 
 accessKey, secretKey :: String
 accessKey = "ACCESS_KEY_ID"
 secretKey = "SECRET_ACCESS_KEY"
-
-defaultInventory :: FilePath
-defaultInventory = "inventory"
-
-defaultKeyDir :: FilePath
-defaultKeyDir = "keys"
 
 defaultEnv :: Text
 defaultEnv = "dev"
@@ -47,3 +39,6 @@ defaultVersion = Version [0] []
 
 defaultUser :: Text
 defaultUser = "ubuntu"
+
+defaultCache :: Int
+defaultCache = 180

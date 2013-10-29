@@ -66,18 +66,13 @@ defineOptions "Deploy" $ do
     rulesOption "dRules" "rules"
         "IP permission specifications."
 
-    pathOption "dKeys" "keys" ""
-        "Directory for private keys. (default: /etc/khan or <bin>/config)"
-
 deriving instance Show Deploy
 
 instance Discover Deploy where
     discover _ d@Deploy{..} = do
-        ks <- defaultPath dKeys $ configFile defaultKeyDir
-        log "Using Key Path {}" [ks]
         zs <- EC2.defaultZoneSuffixes dZones
-        log "Using Availability Zones '{}'" [zs]
-        return $! d { dKeys = ks, dZones = zs }
+        debug "Using Availability Zones '{}'" [zs]
+        return $! d { dZones = zs }
 
 instance Validate Deploy where
     validate Deploy{..} = do
@@ -90,7 +85,6 @@ instance Validate Deploy where
         check dDesired  "--desired must be greater than 0."
         check dCooldown "--cooldown must be greater than 0."
         check dZones    "--zones must be specified."
-        check dKeys     "--keys must be specified."
 
         check (not $ dMax >= dMin)     "--max must be greater than or equal to --max."
         check (not $ dDesired >= dMin) "--desired must be greater than or equal to --min."
@@ -197,7 +191,7 @@ deploy d@Deploy{..} = do
     when (isJust j) $
         throwAWS "Auto Scaling Group {} already exists." [appName]
 
-    k <- async $ EC2.createKey d dKeys
+    k <- async $ EC2.createKey d
     r <- async $ IAM.findRole d
     s <- async $ EC2.updateGroup (sshGroup dEnv) sshRules
     g <- async $ EC2.updateGroup d dRules

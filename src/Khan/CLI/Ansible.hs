@@ -18,30 +18,21 @@ module Khan.CLI.Ansible (commands) where
 
 import qualified Data.Aeson                 as Aeson
 import           Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.ByteString.Char8      as BS
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import           Data.List                  (intercalate, nub)
-import qualified Data.Text.Encoding         as Text
-import qualified Data.Text.IO               as Text
-import qualified Data.Vector                as Vector
--- import qualified Data.Map                   as Map
 import qualified Data.HashMap.Strict        as Map
+import           Data.List                  (intercalate, nub)
 import qualified Data.Set                   as Set
-import qualified Data.Text                  as Text
-import qualified Data.Text.Lazy.Builder     as Build
+import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import qualified Khan.AWS.EC2               as EC2
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS.EC2
-import qualified Shelly                     as Shell
 import           System.Directory
-import qualified System.Posix.Process       as Process
+import qualified System.Posix.Files         as Posix
+import qualified System.Posix.Process       as Posix
 
 defineOptions "Inventory" $ do
-    textOption "iDomain" "domain" ""
-        "DNS domain. (required)"
-
     textOption "iEnv" "env" defaultEnv
         "Environment."
 
@@ -51,30 +42,41 @@ defineOptions "Inventory" $ do
     maybeTextOption "iHost" "host" ""
         "Host."
 
+    pathOption "iCache" "cache" ""
+        "Path to the output inventory file cache."
+
     boolOption "iSilent" "silent" False
         "Don't output inventory results to stdout."
 
 deriving instance Show Inventory
 
-instance Discover Inventory
+instance Discover Inventory where
+    discover _ i@Inventory{..} = do
+        c <- defaultPath iCache (cachePath "inventory")
+        return $! i { iCache = c }
 
 instance Validate Inventory where
-    validate Inventory{..} = do
-        check iEnv    "--env must be specified."
-        check iDomain "--domain must be specified."
+    validate Inventory{..} =
+        check iEnv "--env must be specified."
 
 defineOptions "Ansible" $ do
-    textOption "aDomain" "domain" ""
-        "DNS domain. (required)"
-
     textOption "aEnv" "env" defaultEnv
         "Environment."
 
-    pathOption "aKeys" "keys" ""
-        "Directory for private keys."
+    pathOption "aKey" "key" ""
+        "Path to the private key to use."
 
     boolOption "aSilent" "no-silent" True
         "Output inventory results to stdout."
+
+    intOption "aRetain" "retention" defaultCache
+        "Number of seconds to cache inventory results for."
+
+    pathOption "aCache" "cache" ""
+        "Path to the inventory file cache."
+
+    boolOption "aForce" "force" False
+        "Force update of any previously cached results."
 
     stringsOption "aArgs" "pass-through" []
         "Pass through arguments to ansible by specifying: -- [options]"
@@ -83,15 +85,21 @@ deriving instance Show Ansible
 
 instance Discover Ansible where
     discover args a@Ansible{..} = do
-        ks <- defaultPath aKeys $ configFile defaultKeyDir
-        log "Using Key Path {}" [ks]
-        return $! a { aArgs = aArgs ++ args, aKeys = ks }
+        f <- if invalid aKey then keyPath $ names a else return aKey
+        c <- defaultPath aCache (cachePath "inventory")
+        return $! a { aKey = f, aCache = c, aArgs = aArgs ++ args }
 
 instance Validate Ansible where
     validate Ansible{..} = do
-        check aEnv    "--env must be specified."
-        check aDomain "--domain must be specified."
-        check aKeys   "--keys must be specified."
+        check aEnv     "--env must be specified."
+        check aRetain  "--retention must be greater than 0."
+        checkPath aKey " specified by --key must exist."
+
+        check aArgs "Pass ansible options through using the -- delimiter.\n\
+                    \Usage: khan ansible [KHAN OPTIONS] -- [ANSIBLE OPTIONS]."
+
+instance Naming Ansible where
+    names Ansible{..} = unversioned "base" aEnv
 
 commands :: [Command]
 commands =
@@ -103,30 +111,16 @@ commands =
     --     "Stuff."
     ]
 
--- FIXME: remove all 'keys'/keytpath style path options and use paths to explicit
--- resources like the .pem file directly
--- or inventory path
 inventory :: Inventory -> AWS ()
 inventory Inventory{..} = do
     i <- maybe list (const $ return Map.empty) iHost
-    f <- Path.encodeString <$> inventoryPath
-
-    let x = map (\(k, vs) -> Map.fromList [("name" :: Text, Aeson.toJSON k), ("values", Aeson.toJSON vs)]) $ Map.toList i
-        q = Aeson.toJSON $ Map.singleton ("sections" :: Text) x
-
-    t <- render "inventory.mustache" q
-
-    liftIO . LBS.putStrLn $ Aeson.encodePretty i
-    liftIO $ LBS.writeFile f t
-
-    --liftIO $ unless iSilent (LBS.putStrLn lbs) >> LBS.writeFile file lbs
+    t <- render "inventory.mustache" . Aeson.toJSON $ sections i
+    debug "Writing inventory to {}" [iCache]
+    liftIO $ LBS.putStrLn (Aeson.encodePretty i)
+    liftIO $ LBS.writeFile (Path.encodeString iCache) t
   where
-    list = EC2.findInstances [] filters >>= foldlM attrs Map.empty
-
-    filters =
-        [ Filter ("tag:" <> envTag)    [iEnv]
-        , Filter ("tag:" <> domainTag) [iDomain]
-        ]
+    list = EC2.findInstances [] [Filter ("tag:" <> envTag) [iEnv]] >>=
+        foldlM attrs Map.empty
 
     attrs m RunningInstancesItemType{..} = case riitDnsName of
         Nothing  -> return m
@@ -138,24 +132,32 @@ inventory Inventory{..} = do
 
     tags = map (\ResourceTagSetItemType{..} -> (rtsitKey, rtsitValue))
 
+    sections = Map.singleton ("sections" :: Text) . map vars . Map.toList
+
+    vars (k, vs) = Map.fromList
+        [ ("name" :: Text, Aeson.toJSON k)
+        , ("values", Aeson.toJSON vs)
+        ]
+
 ansible :: Ansible -> AWS ()
 ansible Ansible{..} = do
-    d <- expandPath aKeys
-    f <- Path.encodeString <$> EC2.keyPath keyName d
-
-    assertAWS "Unable to find {}" [f] . liftIO $ doesFileExist f
-
-    inv <- inventoryPath
-
-    let args = nub $ aArgs ++ ["-i", Path.encodeString inv, "--private-key", f]
-
-    log "Writing inventory to {}" [inv]
-    inventory $ Inventory aDomain aEnv True Nothing True
-
+    whenM ((|| aForce) <$> exceeds) $ do
+        log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]
+        inventory $ Inventory aEnv True Nothing aCache True
     log "ansible {}" [intercalate " " args]
-    liftIO $ Process.executeFile "ansible" True args Nothing
+    liftIO $ Posix.executeFile "ansible" True args Nothing
   where
-    Names{..} = createNames "base" aEnv Nothing
+    args = nub $ aArgs ++
+        ["-u", "ubuntu", "-i", inv, "--private-key", Path.encodeString aKey]
 
-inventoryPath :: AWS FilePath
-inventoryPath = (</> defaultInventory) <$> cachePath
+    inv = Path.encodeString aCache
+
+    exceeds = liftIO $ do
+        p <- doesFileExist inv
+        if not p
+            then return True
+            else do
+                s  <- Posix.getFileStatus inv
+                ts <- getPOSIXTime
+                return $
+                    ts - Posix.modificationTimeHiRes s > fromIntegral aRetain

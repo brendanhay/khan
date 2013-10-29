@@ -32,6 +32,7 @@ import           Network.AWS.EC2
 import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
+import qualified System.Environment         as Env
 
 defineOptions "Inventory" $ do
     textOption "iEnv" "env" defaultEnv
@@ -119,7 +120,7 @@ commands =
 inventory :: Inventory -> AWS ()
 inventory Inventory{..} = do
     i <- maybe list (const $ return Map.empty) iHost
-    t <- render "inventory.mustache" . Aeson.toJSON $ sections i
+    t <- render "inventory.mustache" $ sections i
     debug "Writing inventory to {}" [iCache]
     liftIO $ LBS.putStrLn (Aeson.encodePretty i)
     liftIO $ LBS.writeFile (Path.encodeString iCache) t

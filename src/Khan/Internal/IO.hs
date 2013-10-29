@@ -51,6 +51,7 @@ import           Network.AWS
 import           Shelly                     (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                     as Shell
 import           System.Directory
+import qualified System.Environment         as Env
 import           System.Random              (randomRIO)
 import           Text.Hastache
 import           Text.Hastache.Aeson
@@ -86,7 +87,7 @@ ensurePath parent dir sub = liftIO $ do
     p <- doesDirectoryExist $ Path.encodeString d
     f <- if p
              then return dir
-             else (</> sub) . Path.decodeString <$> getCurrentDirectory
+             else (</> sub) . Path.decodeString <$> Env.getExecutablePath
     createDirectoryIfMissing False $ Path.encodeString f
     return f
   where
@@ -112,10 +113,13 @@ writeFile file mode contents = shell $ do
         Shell.mv f $ f <.> Text.pack (show ts)
         backup f
 
-render :: (Functor m, MonadIO m) => FilePath -> Aeson.Value -> m LBS.ByteString
+render :: (Functor m, MonadIO m, Aeson.ToJSON a)
+       => FilePath
+       -> a
+       -> m LBS.ByteString
 render f x = do
     t <- readTemplate f
-    hastacheStr defaultConfig t $ jsonValueContext x
+    hastacheStr defaultConfig t . jsonValueContext $ Aeson.toJSON x
 
 readTemplate :: (Functor m, MonadIO m) => FilePath -> m ByteString
 readTemplate f = configPath f >>= shell . Shell.readBinary

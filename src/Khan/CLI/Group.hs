@@ -3,7 +3,6 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 -- Module      : Khan.CLI.Group
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -15,20 +14,19 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Group (cli) where
+module Khan.CLI.Group (commands) where
 
-import qualified Khan.AWS.EC2     as EC2
+import qualified Khan.AWS.EC2  as EC2
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import           Text.Show.Pretty
 
 defineOptions "Group" $ do
-    textOption "gName" "name" ""
-        "A name."
+    textOption "gRole" "role" ""
+        "Role of the application."
 
     textOption "gEnv" "env" defaultEnv
-        "Environment of the group."
+        "Environment of the application."
 
     rulesOption "gRules" "rules"
         "IP permission specifications."
@@ -38,24 +36,25 @@ deriving instance Show Group
 instance Discover Group
 
 instance Validate Group where
-    validate Group{..} =
-        check gName  "--name must be specified."
+    validate Group{..} = do
+        check gRole "--role must be specified."
+        check gEnv  "--env must be specified."
 
 instance Naming Group where
-    names Group{..} = unversioned gName gEnv
+    names Group{..} = unversioned gRole gEnv
 
-cli :: Command
-cli = Command "group" "Manage security groups and rules."
-    [ subCommand "info"   info
-    , subCommand "update" update
-    , subCommand "delete" delete
+commands :: [Command]
+commands =
+    [ command group "group" "Create or update Security Groups."
+        "Comprehensive rule specification, or else!"
     ]
 
-info :: Group -> AWS ()
-info g = EC2.findGroup g >>= liftIO . putStrLn . ppShow
+group :: Group -> AWS ()
+group g = EC2.updateGroup g (gRules g)
 
-update :: Group -> AWS ()
-update g = EC2.updateGroup g (gRules g)
+-- info :: Group -> AWS ()
+-- info g = EC2.findGroup g >>= liftIO . putStrLn . ppShow
 
-delete :: Group -> AWS ()
-delete = EC2.deleteGroup
+-- delete :: Group -> AWS ()
+-- delete = EC2.deleteGroup
+

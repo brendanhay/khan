@@ -20,6 +20,7 @@ module Main (main) where
 import qualified Data.Text           as Text
 import qualified Khan.CLI.Ansible    as Ansible
 import qualified Khan.CLI.Ephemeral  as Ephemeral
+import qualified Khan.CLI.Group      as Group
 import qualified Khan.CLI.Host       as Host
 import qualified Khan.CLI.Metadata   as Metadata
 import qualified Khan.CLI.Persistent as Persistent
@@ -59,6 +60,7 @@ commands = concat
     , Routing.commands
     , Profile.commands
     , Ansible.commands
+    , Group.commands
     ]
 
 main :: IO ()

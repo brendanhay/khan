@@ -23,8 +23,8 @@ import           Khan.Prelude
 import           Network.AWS
 
 defineOptions "Role" $ do
-    textOption "rName" "name" ""
-        "Name of the application."
+    textOption "rRole" "role" ""
+        "Role of the application."
 
     textOption "rEnv" "env" defaultEnv
         "Environment of the application."
@@ -47,13 +47,13 @@ instance Discover Role where
 
 instance Validate Role where
     validate Role{..} = do
-        check rName "--name must be specified."
+        check rRole "--name must be specified."
         check rEnv  "--env must be specified."
         checkPath rPolicy " specified by --policy must exist."
         checkPath rTrust  " specified by --trust must exist."
 
 instance Naming Role where
-    names Role{..} = unversioned rName rEnv
+    names Role{..} = unversioned rRole rEnv
 
 commands :: [Command]
 commands =

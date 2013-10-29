@@ -41,4 +41,4 @@ defaultUser :: Text
 defaultUser = "ubuntu"
 
 defaultCache :: Int
-defaultCache = 180
+defaultCache = 240

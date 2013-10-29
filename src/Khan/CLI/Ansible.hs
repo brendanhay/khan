@@ -70,9 +70,6 @@ defineOptions "Ansible" $ do
     pathOption "aKey" "key" ""
         "Path to the private key to use."
 
-    boolOption "aSilent" "no-silent" True
-        "Output inventory results to stdout."
-
     intOption "aRetain" "retention" defaultCache
         "Number of seconds to cache inventory results for."
 
@@ -121,7 +118,7 @@ inventory Inventory{..} = do
     i <- maybe list (const $ return Map.empty) iHost
     t <- render "inventory.mustache" $ sections i
     debug "Writing inventory to {}" [iCache]
-    liftIO $ LBS.putStrLn (Aeson.encodePretty i)
+    unless iSilent . liftIO $ LBS.putStrLn (Aeson.encodePretty i)
     liftIO $ LBS.writeFile (Path.encodeString iCache) t
   where
     list = EC2.findInstances [] [Filter ("tag:" <> envTag) [iEnv]] >>=

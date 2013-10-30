@@ -130,7 +130,7 @@ inventory Inventory{..} = do
             Tags{..} <- lookupTags $ tags riitTagSet
             let Names{..} = createNames tagRole tagEnv tagVersion
                 upd m' k  = Map.insertWith (<>) k (Set.singleton dns) m'
-            return $ foldl' upd m [roleName, appName, imageName]
+            return $ foldl' upd m [roleName, envName]
 
     tags = map (\ResourceTagSetItemType{..} -> (rtsitKey, rtsitValue))
 

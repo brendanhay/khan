@@ -53,7 +53,7 @@ deriving instance Show Inventory
 
 instance Discover Inventory where
     discover _ i@Inventory{..} = do
-        c <- defaultPath iCache (cachePath "inventory")
+        c <- defaultPath iCache . cachePath $ Path.fromText iEnv
         return $! i { iCache = c }
 
 instance Validate Inventory where
@@ -87,7 +87,7 @@ deriving instance Show Ansible
 instance Discover Ansible where
     discover args a@Ansible{..} = do
         f <- if invalid aKey then keyPath $ names a else return aKey
-        c <- defaultPath aCache (cachePath "inventory")
+        c <- defaultPath aCache . cachePath $ Path.fromText aEnv
         return $! a { aKey = f, aCache = c, aArgs = aArgs ++ args }
 
 instance Validate Ansible where
@@ -127,10 +127,11 @@ inventory Inventory{..} = do
     attrs m RunningInstancesItemType{..} = case riitDnsName of
         Nothing  -> return m
         Just dns -> do
+            reg      <- Text.pack . show <$> getRegion
             Tags{..} <- lookupTags $ tags riitTagSet
             let Names{..} = createNames tagRole tagEnv tagVersion
                 upd m' k  = Map.insertWith (<>) k (Set.singleton dns) m'
-            return $ foldl' upd m [roleName, envName]
+            return $ foldl' upd m [roleName, envName, reg]
 
     tags = map (\ResourceTagSetItemType{..} -> (rtsitKey, rtsitValue))
 
@@ -150,8 +151,7 @@ ansible Ansible{..} = do
     liftIO $ Posix.executeFile bin True args Nothing
   where
     args = aArgs ++ foldr' add []
-        [ ("-u", "ubuntu")
-        , ("-i", inv)
+        [ ("-i", inv)
         , ("--private-key", Path.encodeString aKey)
         ]
 

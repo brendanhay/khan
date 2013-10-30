@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Ensure expected dirs are created,
+# and ensure dpkg removes them on uninstall:
+mkdir -p /etc/khan
+mkdir -p /etc/ssl/khan
+mkdir -p /var/cache/khan

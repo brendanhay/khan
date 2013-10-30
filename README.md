@@ -9,26 +9,41 @@
 
 ## Terminology and Concepts
 
-Nomenclature is mapped directly to the AWS usage where possible to avoid any confusion.
-
-I've re-iterated the key terms here in an attempt to provide a comprehensive overview.
+An overview of the key terms here in an attempt to provide a somewhat comprehensive
+introduction, with AWS nomenclature mapped directly to usage where possible to avoid
+any confusion.
 
 ### Immutability
 
 The key tenant behind Khan's approach to infrastructure provisioning is immutability,
 with opinion a close second.
 
-Although as you will see we immediately throw the first tenant to the wolves as
-necessitated by the following architecture:
+Khan provides a workflow centered around immutable build artifacts (in the form of AMIs)
+which are continuously deployed into `[1..n]` segregated environments.
+
+These versioned artifacts are then launched into an environment which dicates what
+traffic and other service instances are visible.
+
+be promoted and retired, ensuring that
+entire (or subsets thereof) environments are consistent and reproducible.
+
+
+### Persistent vs Ephemeral
+
+Terminology and workflow is described to outline a layer of separation between the
+stateful and stateless infrastructure services.
 
 <p align="center">
   <img src="http://brendanhay.github.io/khan/img/immutability.png" alt="immutability">
 </p>
 
-### Persistent vs Ephemeral
+The lower persistent half of the diagram is comprised of services that don't (easily or sanely)
+fit with a continuous deployment paradigm due to requirements such as exclusive durable storage,
+or sensitive orchestration scenarios over which fine grained control is required.
 
-Terminology and workflow is used to outline a layer of separation between the
-stateful and stateless infrastructure services.
+This style of service has good pre-existing tooling for both Orchestration and
+Configuration Management - we attempt to leverage these to avoid reinventing the
+wheel where possible.
 
 #### Persistent
 

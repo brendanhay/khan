@@ -59,6 +59,10 @@ findGroup (names -> Names{..}) = do
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
     groupMay (Left  _) = Nothing
 
+-- FIXME:
+Create group, which ignores supplied perms if group already exists
+to avoid overwriting?
+
 updateGroup :: Naming a => a -> [IpPermissionType] -> AWS ()
 updateGroup (names -> n@Names{..}) rules =
     findGroup n >>= maybe (create >>= modify) modify

@@ -27,8 +27,6 @@ import           Data.List                  (intercalate)
 import qualified Data.Set                   as Set
 import           Data.Set                   (Set)
 import qualified Data.Text                  as Text
-import qualified Data.Text.Lazy             as LText
-import qualified Data.Text.Lazy.Encoding    as LText
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import qualified Khan.AWS.EC2               as EC2
@@ -38,33 +36,6 @@ import           Network.AWS.EC2
 import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
-
-defineOptions "Inventory" $ do
-    textOption "iEnv" "env" defaultEnv
-        "Environment."
-
-    boolOption "iList" "list" True
-        "List."
-
-    maybeTextOption "iHost" "host" ""
-        "Host."
-
-    pathOption "iCache" "cache" ""
-        "Path to the output inventory file cache."
-
-    boolOption "iSilent" "silent" False
-        "Don't output inventory results to stdout."
-
-deriving instance Show Inventory
-
-instance Discover Inventory where
-    discover _ i@Inventory{..} = do
-        c <- defaultPath iCache . cachePath $ Path.fromText iEnv
-        return $! i { iCache = c }
-
-instance Validate Inventory where
-    validate Inventory{..} =
-        check iEnv "--env must be specified."
 
 defineOptions "Ansible" $ do
     maybeTextOption "aBin" "bin" ""
@@ -109,45 +80,42 @@ instance Validate Ansible where
 instance Naming Ansible where
     names Ansible{..} = unversioned "base" aEnv
 
+defineOptions "Inventory" $ do
+    textOption "iEnv" "env" defaultEnv
+        "Environment."
+
+    boolOption "iList" "list" True
+        "List."
+
+    maybeTextOption "iHost" "host" ""
+        "Host."
+
+    pathOption "iCache" "cache" ""
+        "Path to the output inventory file cache."
+
+    boolOption "iSilent" "silent" False
+        "Don't output inventory results to stdout."
+
+deriving instance Show Inventory
+
+instance Discover Inventory where
+    discover _ i@Inventory{..} = do
+        c <- defaultPath iCache . cachePath $ Path.fromText iEnv
+        return $! i { iCache = c }
+
+instance Validate Inventory where
+    validate Inventory{..} =
+        check iEnv "--env must be specified."
+
 commands :: [Command]
 commands =
-    [ command inventory "inventory" "Output ansible compatible inventory."
-        "Stuff."
-    , command ansible "ansible" "Ansible."
+    [ command ansible "ansible" "Ansible."
         "Stuff."
     , command playbook "playbook" "Ansible Playbook."
         "Stuff."
+    , command inventory "inventory" "Output ansible compatible inventory."
+        "Stuff."
     ]
-
-inventory :: Inventory -> AWS ()
-inventory Inventory{..} = do
-    inv <- maybe list (const $ return Map.empty) iHost
-    t   <- render "inventory.mustache" $ INI inv
-    debug "Writing inventory to {}" [iCache]
-    liftIO $ LBS.writeFile (Path.encodeString iCache) t
-    unless iSilent . liftIO . LBS.putStrLn . Aeson.encodePretty $ JS inv
-  where
-    list = EC2.findInstances [] [Filter ("tag:" <> envTag) [iEnv]] >>=
-        foldlM hosts Map.empty
-
-    hosts m RunningInstancesItemType{..} = case riitDnsName of
-        Nothing   -> return m
-        Just fqdn -> do
-            reg      <- Text.pack . show <$> getRegion
-            Tags{..} <- lookupTags $ map tag riitTagSet
-
-            let n@Names{..} = createNames tagRole tagEnv tagVersion
-                host        = Host fqdn tagDomain n reg
-                update k    = Map.insertWith (<>) k (Set.singleton host)
-
-            return $! foldl' (flip update) m
-                [ roleName
-                , envName
-                , reg
-                , Text.concat [envName, "-", reg]
-                ]
-
-    tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
 ansible :: Ansible -> AWS ()
 ansible Ansible{..} = do
@@ -184,6 +152,36 @@ playbook :: Ansible -> AWS ()
 playbook a@Ansible{..} = ansible $ a
     { aBin = maybe (Just "ansible-playbook") Just aBin
     }
+
+inventory :: Inventory -> AWS ()
+inventory Inventory{..} = do
+    inv <- maybe list (const $ return Map.empty) iHost
+    t   <- render "inventory.mustache" $ INI inv
+    debug "Writing inventory to {}" [iCache]
+    liftIO $ LBS.writeFile (Path.encodeString iCache) t
+    unless iSilent . liftIO . LBS.putStrLn . Aeson.encodePretty $ JS inv
+  where
+    list = EC2.findInstances [] [Filter ("tag:" <> envTag) [iEnv]] >>=
+        foldlM hosts Map.empty
+
+    hosts m RunningInstancesItemType{..} = case riitDnsName of
+        Nothing   -> return m
+        Just fqdn -> do
+            reg      <- Text.pack . show <$> getRegion
+            Tags{..} <- lookupTags $ map tag riitTagSet
+
+            let n@Names{..} = createNames tagRole tagEnv tagVersion
+                host        = Host fqdn tagDomain n reg
+                update k    = Map.insertWith (<>) k (Set.singleton host)
+
+            return $! foldl' (flip update) m
+                [ roleName
+                , envName
+                , reg
+                , Text.concat [envName, "-", reg]
+                ]
+
+    tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
 data Format a
     = Meta { unwrap :: a }

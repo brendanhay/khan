@@ -171,8 +171,8 @@ inventory Inventory{..} = do
             Tags{..} <- lookupTags $ map tag riitTagSet
 
             let n@Names{..} = createNames tagRole tagEnv tagVersion
-                host        = Host fqdn tagDomain n reg
-                update k    = Map.insertWith (<>) k (Set.singleton host)
+                host     = Host fqdn tagDomain n reg
+                update k = Map.insertWith (<>) k (Set.singleton host)
 
             return $! foldl' (flip update) m
                 [ roleName
@@ -199,18 +199,28 @@ data Host = Host
     } deriving (Eq, Ord)
 
 instance ToJSON (Format (HashMap Text (Set Host))) where
-    toJSON (Meta m) = object ["_meta" .= object ["hostvars" .= Map.map Meta m]]
-    toJSON (JS   m) = toJSON (Map.map JS m) `mappendJSON` toJSON (Meta m)
-    toJSON (INI  m) = object
-        [ "sections" .= map
-            (\(k, vs) -> object ["name" .= k, "values" .= INI vs])
-            (Map.toList m)
-        ]
+    toJSON (Meta m) = object ["_meta" .= object ["hostvars" .= vars]]
+      where
+        vars = foldl' (flip f) Map.empty . Set.unions $ Map.elems m
+        f h  = Map.insert (hvFQDN h) (Meta h)
+
+    toJSON (JS m) = toJSON (Map.map JS m) `f` toJSON (Meta m)
+      where
+        f (Object x) (Object y) = Object $ x <> y
+        f _          x          = x
+
+    toJSON (INI m) = object ["sections" .= vars]
+      where
+        vars   = map (uncurry f) $ Map.toList m
+        f k vs = object ["name" .= k, "values" .= INI vs]
 
 instance ToJSON (Format (Set Host)) where
-    toJSON (Meta s) = toJSON $ Set.map Meta s
-    toJSON (JS   s) = toJSON $ Set.map JS s
-    toJSON (INI  s) = toJSON $ Set.map INI s
+    toJSON x = case x of
+        (Meta _) -> f Meta
+        (JS   _) -> f JS
+        (INI  _) -> f INI
+      where
+        f c = toJSON . map c . Set.toList $ unwrap x
 
 instance ToJSON (Format Host) where
     toJSON x = case x of
@@ -239,7 +249,3 @@ instance ToJSON (Format Host) where
                , ("khan_app",     pack appName)
                , ("khan_version", toJSON versionName)
                ]
-
-mappendJSON :: Value -> Value -> Value
-mappendJSON (Object x) (Object y) = Object $ x <> y
-mappendJSON _          x          = x

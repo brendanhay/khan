@@ -216,7 +216,7 @@ instance ToJSON (Format (Set Host)) where
 
 instance ToJSON (Format Host) where
     toJSON x = case x of
-        (Meta _) -> toJSON vars
+        (Meta _) -> object vars
         (JS   _) -> pack hvFQDN
         (INI  _) -> pack host
       where

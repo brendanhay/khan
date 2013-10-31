@@ -1,8 +1,10 @@
-{-# LANGUAGE NoImplicitPrelude  #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 -- Module      : Khan.CLI.Ansible
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -16,13 +18,17 @@
 
 module Khan.CLI.Ansible (commands) where
 
-import qualified Data.Aeson                 as Aeson
+import           Data.Aeson                 as Aeson
 import           Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.HashMap.Strict        as Map
+import           Data.HashMap.Strict        (HashMap)
 import           Data.List                  (intercalate)
 import qualified Data.Set                   as Set
+import           Data.Set                   (Set)
 import qualified Data.Text                  as Text
+import qualified Data.Text.Lazy             as LText
+import qualified Data.Text.Lazy.Encoding    as LText
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import qualified Khan.AWS.EC2               as EC2
@@ -115,32 +121,39 @@ commands =
 
 inventory :: Inventory -> AWS ()
 inventory Inventory{..} = do
-    i <- maybe list (const $ return Map.empty) iHost
-    t <- render "inventory.mustache" $ sections i
+    inv <- maybe list (const $ return Map.empty) iHost
+    t   <- render "inventory.mustache" $ INI inv
+
+    liftIO . LBS.putStrLn $ Aeson.encodePretty $ Meta inv
+    liftIO . LBS.putStrLn $ Aeson.encodePretty $ JS inv
+    liftIO . LBS.putStrLn $ Aeson.encodePretty $ INI inv
+
     debug "Writing inventory to {}" [iCache]
-    unless iSilent . liftIO $ LBS.putStrLn (Aeson.encodePretty i)
     liftIO $ LBS.writeFile (Path.encodeString iCache) t
+
+    unless iSilent . liftIO . LBS.putStrLn . Aeson.encodePretty $ JS inv
   where
     list = EC2.findInstances [] [Filter ("tag:" <> envTag) [iEnv]] >>=
-        foldlM attrs Map.empty
+        foldlM hosts Map.empty
 
-    attrs m RunningInstancesItemType{..} = case riitDnsName of
-        Nothing  -> return m
-        Just dns -> do
+    hosts m RunningInstancesItemType{..} = case riitDnsName of
+        Nothing   -> return m
+        Just fqdn -> do
             reg      <- Text.pack . show <$> getRegion
-            Tags{..} <- lookupTags $ tags riitTagSet
-            let Names{..} = createNames tagRole tagEnv tagVersion
-                upd m' k  = Map.insertWith (<>) k (Set.singleton dns) m'
-            return $ foldl' upd m [roleName, envName, reg]
+            Tags{..} <- lookupTags $ map tag riitTagSet
 
-    tags = map (\ResourceTagSetItemType{..} -> (rtsitKey, rtsitValue))
+            let n@Names{..} = createNames tagRole tagEnv tagVersion
+                host        = Host fqdn tagDomain n reg
+                update k    = Map.insertWith (<>) k (Set.singleton host)
 
-    sections = Map.singleton ("sections" :: Text) . map vars . Map.toList
+            return $! foldl' (flip update) m
+                [ roleName
+                , envName
+                , reg
+                , Text.concat [envName, "-", reg]
+                ]
 
-    vars (k, vs) = Map.fromList
-        [ ("name" :: Text, Aeson.toJSON k)
-        , ("values", Aeson.toJSON vs)
-        ]
+    tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
 ansible :: Ansible -> AWS ()
 ansible Ansible{..} = do
@@ -177,3 +190,64 @@ playbook :: Ansible -> AWS ()
 playbook a@Ansible{..} = ansible $ a
     { aBin = maybe (Just "ansible-playbook") Just aBin
     }
+
+data Format a
+    = Meta { unwrap :: a }
+    | JS   { unwrap :: a }
+    | INI  { unwrap :: a }
+
+deriving instance Eq  a => Eq (Format a)
+deriving instance Ord a => Ord (Format a)
+
+data Host = Host
+    { hvFQDN   :: !Text
+    , hvDomain :: !Text
+    , hvNames  :: !Names
+    , hvRegion :: !Text
+    } deriving (Eq, Ord)
+
+instance ToJSON (Format (HashMap Text (Set Host))) where
+    toJSON (Meta m) = object ["_meta" .= object ["hostvars" .= Map.map Meta m]]
+    toJSON (JS   m) = toJSON (Map.map JS m) `mappendJSON` toJSON (Meta m)
+    toJSON (INI  m) = object
+        [ "sections" .= map
+            (\(k, vs) -> object ["name" .= k, "values" .= INI vs])
+            (Map.toList m)
+        ]
+
+instance ToJSON (Format (Set Host)) where
+    toJSON (Meta s) = toJSON $ Set.map Meta s
+    toJSON (JS   s) = toJSON $ Set.map JS s
+    toJSON (INI  s) = toJSON $ Set.map INI s
+
+instance ToJSON (Format Host) where
+    toJSON x = case x of
+        (Meta _) -> toJSON vars
+        (JS   _) -> pack hvFQDN
+        (INI  _) -> pack host
+      where
+        Host{..}  = unwrap x
+        Names{..} = hvNames
+
+        host = Text.concat . (hvFQDN :) $ concatMap (uncurry text) vars
+
+        text k (Aeson.String v) = [" ", k, "=", v]
+        text _ _                = []
+
+        pack = Aeson.String
+
+        vars = [ ("khan_region",  pack hvRegion)
+               , ("khan_domain",  pack hvDomain)
+               , ("khan_env",     pack envName)
+               , ("khan_key",     pack keyName)
+               , ("khan_role",    pack roleName)
+               , ("khan_profile", pack profileName)
+               , ("khan_group",   pack groupName)
+               , ("khan_image",   pack imageName)
+               , ("khan_app",     pack appName)
+               , ("khan_version", toJSON versionName)
+               ]
+
+mappendJSON :: Value -> Value -> Value
+mappendJSON (Object x) (Object y) = Object $ x <> y
+mappendJSON _          x          = x

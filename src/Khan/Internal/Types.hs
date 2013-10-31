@@ -74,7 +74,7 @@ data Tags = Tags
     , tagEnv     :: !Text
     , tagDomain  :: !Text
     , tagVersion :: Maybe Version
-    } deriving (Show)
+    } deriving (Eq, Ord, Show)
 
 data DNS = DNS
     { dnsRole :: !Text
@@ -82,7 +82,7 @@ data DNS = DNS
     , dnsOrd  :: !Integer
     , dnsEnv  :: !Text
     , dnsReg  :: !Text
-    } deriving (Show)
+    } deriving (Eq, Ord, Show)
 
 data Names = Names
     { envName     :: !Text
@@ -93,7 +93,7 @@ data Names = Names
     , imageName   :: !Text
     , appName     :: !Text
     , versionName :: Maybe Text
-    } deriving (Show)
+    } deriving (Eq, Ord, Show)
 
 createNames :: Text -> Text -> Maybe Version -> Names
 createNames role env ver = Names

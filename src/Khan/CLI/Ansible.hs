@@ -123,14 +123,8 @@ inventory :: Inventory -> AWS ()
 inventory Inventory{..} = do
     inv <- maybe list (const $ return Map.empty) iHost
     t   <- render "inventory.mustache" $ INI inv
-
-    liftIO . LBS.putStrLn $ Aeson.encodePretty $ Meta inv
-    liftIO . LBS.putStrLn $ Aeson.encodePretty $ JS inv
-    liftIO . LBS.putStrLn $ Aeson.encodePretty $ INI inv
-
     debug "Writing inventory to {}" [iCache]
     liftIO $ LBS.writeFile (Path.encodeString iCache) t
-
     unless iSilent . liftIO . LBS.putStrLn . Aeson.encodePretty $ JS inv
   where
     list = EC2.findInstances [] [Filter ("tag:" <> envTag) [iEnv]] >>=

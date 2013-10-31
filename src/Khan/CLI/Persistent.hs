@@ -137,17 +137,19 @@ commands =
 
 launch :: Launch -> AWS ()
 launch l@Launch{..} = do
-    ami <- EC2.findImage . (:[]) $ maybe (Filter "name" [imageName])
+    a <- async . EC2.findImage . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
+    i <- async $ IAM.findRole l
 
+    ami <- wait a
     log "Using Image {}" [ami]
 
-    i <- async $ IAM.findRole l
+    wait_ i <* log "Found IAM Profile {}" [profileName]
+
     k <- async $ EC2.createKey l
     s <- async $ EC2.updateGroup (sshGroup lEnv) sshRules
     g <- async $ EC2.updateGroup l lRules
 
-    wait_ i <* log "Found IAM Profile {}" [profileName]
     wait_ k <* log "Found KeyPair {}" [keyName]
     wait_ s <* log "Found SSH Group {}" [sshGroup lEnv]
     wait_ g <* log "Found Role Group {}" [groupName]

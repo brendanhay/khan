@@ -178,7 +178,7 @@ inventory Inventory{..} = do
                 [ roleName
                 , envName
                 , reg
-                , Text.concat [envName, "-", reg]
+                , "khan"
                 ]
 
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)

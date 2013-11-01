@@ -45,8 +45,6 @@ executable khan
       , containers
       , directory
       , errors
-      , hastache
-      , hastache-aeson
       , http-streams
       , io-streams
       , mtl

@@ -21,12 +21,14 @@ module Khan.CLI.Ansible (commands) where
 import           Data.Aeson                 as Aeson
 import           Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.HashMap.Strict        as Map
 import           Data.HashMap.Strict        (HashMap)
+import qualified Data.HashMap.Strict        as Map
 import           Data.List                  (intercalate)
-import qualified Data.Set                   as Set
 import           Data.Set                   (Set)
+import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
+import qualified Data.Text.Format           as Format
+import qualified Data.Text.Lazy.IO          as LText
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import qualified Khan.AWS.EC2               as EC2
@@ -122,11 +124,19 @@ ansible Ansible{..} = do
     whenM ((|| aForce) <$> exceeds) $ do
         log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]
         inventory $ Inventory aEnv True Nothing aCache True
+
+    debug "Writing inventory script to {}" [script]
+    liftIO . LText.writeFile script $
+        Format.format "#!/usr/bin/env bash\nset -e\nexec cat {}\n" [inv]
+
+    debug "Setting +rwx on {}" [script]
+    liftIO $ Posix.setFileMode script Posix.ownerModes
+
     log "ansible {}" [intercalate " " args]
     liftIO $ Posix.executeFile bin True args Nothing
   where
     args = aArgs ++ foldr' add []
-        [ ("-i", inv)
+        [ ("-i", script)
         , ("--private-key", Path.encodeString aKey)
         ]
 
@@ -145,8 +155,9 @@ ansible Ansible{..} = do
                 return $
                     ts - Posix.modificationTimeHiRes s > fromIntegral aRetain
 
-    bin = Text.unpack $ fromMaybe "ansible" aBin
-    inv = Path.encodeString aCache
+    bin    = Text.unpack $ fromMaybe "ansible" aBin
+    script = Path.encodeString $ aCache <.> "sh"
+    inv    = Path.encodeString aCache
 
 playbook :: Ansible -> AWS ()
 playbook a@Ansible{..} = ansible $ a
@@ -155,11 +166,14 @@ playbook a@Ansible{..} = ansible $ a
 
 inventory :: Inventory -> AWS ()
 inventory Inventory{..} = do
-    inv <- maybe list (const $ return Map.empty) iHost
-    t   <- render "inventory.mustache" $ INI inv
+    j <- (<> "\n") . Aeson.encodePretty . JS <$>
+        maybe list (const $ return Map.empty) iHost
+
     debug "Writing inventory to {}" [iCache]
-    liftIO $ LBS.writeFile (Path.encodeString iCache) t
-    unless iSilent . liftIO . LBS.putStrLn . Aeson.encodePretty $ JS inv
+    liftIO $ LBS.writeFile (Path.encodeString iCache) j
+
+    debug_ "Writing inventory to stdout"
+    unless iSilent . liftIO $ LBS.putStrLn j
   where
     list = EC2.findInstances [] [Filter ("tag:" <> envTag) [iEnv]] >>=
         foldlM hosts Map.empty
@@ -175,18 +189,13 @@ inventory Inventory{..} = do
                 update k = Map.insertWith (<>) k (Set.singleton host)
 
             return $! foldl' (flip update) m
-                [ roleName
-                , envName
-                , reg
-                , "khan"
-                ]
+                [roleName, envName, reg, "khan", tagDomain]
 
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
 data Format a
     = Meta { unwrap :: a }
     | JS   { unwrap :: a }
-    | INI  { unwrap :: a }
 
 deriving instance Eq  a => Eq (Format a)
 deriving instance Ord a => Ord (Format a)
@@ -209,16 +218,10 @@ instance ToJSON (Format (HashMap Text (Set Host))) where
         f (Object x) (Object y) = Object $ x <> y
         f _          x          = x
 
-    toJSON (INI m) = object ["sections" .= vars]
-      where
-        vars   = map (uncurry f) $ Map.toList m
-        f k vs = object ["name" .= k, "values" .= INI vs]
-
 instance ToJSON (Format (Set Host)) where
     toJSON x = case x of
         (Meta _) -> f Meta
         (JS   _) -> f JS
-        (INI  _) -> f INI
       where
         f c = toJSON . map c . Set.toList $ unwrap x
 
@@ -226,15 +229,9 @@ instance ToJSON (Format Host) where
     toJSON x = case x of
         (Meta _) -> object vars
         (JS   _) -> pack hvFQDN
-        (INI  _) -> pack host
       where
         Host{..}  = unwrap x
         Names{..} = hvNames
-
-        host = Text.concat . (hvFQDN :) $ concatMap (uncurry text) vars
-
-        text k (Aeson.String v) = [" ", k, "=", v]
-        text _ _                = []
 
         pack = Aeson.String
 

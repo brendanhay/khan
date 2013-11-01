@@ -26,9 +26,7 @@ module Khan.Internal.IO
     , configPath
     , expandPath
     , writeFile
-
-    -- * Templates
-    , render
+    , readConfig
 
     -- * Psuedo Randomisation
     , shuffle
@@ -53,8 +51,6 @@ import qualified Shelly                     as Shell
 import           System.Directory
 import qualified System.Environment         as Env
 import           System.Random              (randomRIO)
-import           Text.Hastache
-import           Text.Hastache.Aeson
 
 sh :: MonadIO m => Sh a -> EitherT String m a
 sh = fmapLT show . syncIO . shell
@@ -117,16 +113,8 @@ writeFile file mode contents = shell $ do
         Shell.mv f $ f <.> Text.pack (show ts)
         backup f
 
-render :: (Functor m, MonadIO m, Aeson.ToJSON a)
-       => FilePath
-       -> a
-       -> m LBS.ByteString
-render f x = do
-    t <- readTemplate f
-    hastacheStr defaultConfig t . jsonValueContext $ Aeson.toJSON x
-
-readTemplate :: (Functor m, MonadIO m) => FilePath -> m ByteString
-readTemplate f = configPath f >>= shell . Shell.readBinary
+readConfig :: (Functor m, MonadIO m) => FilePath -> m ByteString
+readConfig f = configPath f >>= shell . Shell.readBinary
 
 shuffle :: MonadIO m => [a] -> m a
 shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)

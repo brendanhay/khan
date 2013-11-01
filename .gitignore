@@ -16,8 +16,7 @@ dist
 /.khan
 /vendor
 /cache
-/config
-/metadata
+/metadata/latest
 
 # CTAGS
 TAGS

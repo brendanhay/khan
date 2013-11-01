@@ -166,11 +166,10 @@ playbook a@Ansible{..} = ansible $ a
 
 inventory :: Inventory -> AWS ()
 inventory Inventory{..} = do
-    j <- (<> "\n") . Aeson.encodePretty . JS <$>
-        maybe list (const $ return Map.empty) iHost
+    j <- Aeson.encodePretty . JS <$> maybe list (const $ return Map.empty) iHost
 
     debug "Writing inventory to {}" [iCache]
-    liftIO $ LBS.writeFile (Path.encodeString iCache) j
+    liftIO $ LBS.writeFile (Path.encodeString iCache) (j <> "\n")
 
     debug_ "Writing inventory to stdout"
     unless iSilent . liftIO $ LBS.putStrLn j
@@ -213,8 +212,10 @@ instance ToJSON (Format (HashMap Text (Set Host))) where
         vars = foldl' (flip f) Map.empty . Set.unions $ Map.elems m
         f h  = Map.insert (hvFQDN h) (Meta h)
 
-    toJSON (JS m) = toJSON (Map.map JS m) `f` toJSON (Meta m)
+    toJSON (JS m) = toJSON (Map.map JS m) `f` toJSON (Meta m) `f` local
       where
+        local = object ["localhost" .= ["localhost" :: Text]]
+
         f (Object x) (Object y) = Object $ x <> y
         f _          x          = x
 

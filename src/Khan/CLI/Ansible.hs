@@ -39,6 +39,14 @@ import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
 
+inventoryPath :: FilePath -> Text -> AWS FilePath
+inventoryPath f env = do
+    r <- Text.pack . show <$> getRegion
+    defaultPath f
+        . cachePath
+        . Path.fromText
+        $ Text.concat [r, "_", env]
+
 defineOptions "Ansible" $ do
     maybeTextOption "aBin" "bin" ""
         "Ansible binary name to exec."
@@ -66,7 +74,7 @@ deriving instance Show Ansible
 instance Discover Ansible where
     discover args a@Ansible{..} = do
         f <- if invalid aKey then keyPath $ names a else return aKey
-        c <- defaultPath aCache . cachePath $ Path.fromText aEnv
+        c <- inventoryPath aCache aEnv
         return $! a { aKey = f, aCache = c, aArgs = aArgs ++ args }
 
 instance Validate Ansible where
@@ -102,8 +110,9 @@ deriving instance Show Inventory
 
 instance Discover Inventory where
     discover _ i@Inventory{..} = do
-        c <- defaultPath iCache . cachePath $ Path.fromText iEnv
+        c <- inventoryPath iCache iEnv
         return $! i { iCache = c }
+      where
 
 instance Validate Inventory where
     validate Inventory{..} =
@@ -160,9 +169,14 @@ ansible Ansible{..} = do
     inv    = Path.encodeString aCache
 
 playbook :: Ansible -> AWS ()
-playbook a@Ansible{..} = ansible $ a
-    { aBin = maybe (Just "ansible-playbook") Just aBin
-    }
+playbook a@Ansible{..} = do
+    reg <- show <$> getRegion
+    ansible $ a
+        { aBin  = maybe (Just "ansible-playbook") Just aBin
+        , aArgs = aArgs ++
+            [ "--extra-vars"
+            , concat ["khan_region=", r, " khan_env=", Text.unpack aEnv]
+        }
 
 inventory :: Inventory -> AWS ()
 inventory Inventory{..} = do

@@ -63,9 +63,6 @@ defineOptions "Deploy" $ do
     instanceTypeOption "dType" "instance" M1_Medium
         "Type of instance to provision."
 
-    rulesOption "dRules" "rules"
-        "IP permission specifications."
-
 deriving instance Show Deploy
 
 instance Discover Deploy where
@@ -194,7 +191,7 @@ deploy d@Deploy{..} = do
     k <- async $ EC2.createKey d
     r <- async $ IAM.findRole d
     s <- async $ EC2.updateGroup (sshGroup dEnv) sshRules
-    g <- async $ EC2.updateGroup d dRules
+    g <- async $ EC2.createGroup d
     a <- async $ EC2.findImage [Filter "name" [imageName]]
 
     wait_ k

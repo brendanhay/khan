@@ -52,9 +52,6 @@ defineOptions "Launch" $ do
     boolOption "lOptimised" "optimised" False
         "EBS optimisation."
 
-    rulesOption "lRules" "rules"
-        "IP permission specifications."
-
     stringOption "lZones" "zones" "abc"
          "Availability zones suffixes to provision into (psuedo-random)."
 
@@ -148,7 +145,7 @@ launch l@Launch{..} = do
 
     k <- async $ EC2.createKey l
     s <- async $ EC2.updateGroup (sshGroup lEnv) sshRules
-    g <- async $ EC2.updateGroup l lRules
+    g <- async $ EC2.createGroup l
 
     wait_ k <* log "Found KeyPair {}" [keyName]
     wait_ s <* log "Found SSH Group {}" [sshGroup lEnv]

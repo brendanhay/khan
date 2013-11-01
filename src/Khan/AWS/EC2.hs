@@ -59,13 +59,8 @@ findGroup (names -> Names{..}) = do
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
     groupMay (Left  _) = Nothing
 
--- FIXME:
-Create group, which ignores supplied perms if group already exists
-to avoid overwriting?
-
-updateGroup :: Naming a => a -> [IpPermissionType] -> AWS ()
-updateGroup (names -> n@Names{..}) rules =
-    findGroup n >>= maybe (create >>= modify) modify
+createGroup :: Naming a => a -> AWS SecurityGroupItemType
+createGroup (names -> n@Names{..}) = findGroup n >>= maybe create return
   where
     create = do
         log "Security Group {} not found, creating..." [groupName]
@@ -75,7 +70,10 @@ updateGroup (names -> n@Names{..}) rules =
         findGroup n >>=
             noteAWS "Unable to find created Security Group {}" [groupName]
 
-    modify grp = do
+updateGroup :: Naming a => a -> [IpPermissionType] -> AWS ()
+updateGroup (names -> n@Names{..}) rules = createGroup n >>= update
+  where
+    update grp = do
         log "Updating Security Group {}..." [groupName]
 
         let gid  = sgitGroupId grp

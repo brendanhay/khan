@@ -55,7 +55,6 @@ sshGroup = (<> "-ssh")
 sshRules :: [IpPermissionType]
 sshRules =
     [ IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]
-    , IpPermissionType TCP 5099 5099 [] [IpRange "0.0.0.0/0"]
     ]
 
 envTag, roleTag, domainTag, nameTag, versionTag :: Text

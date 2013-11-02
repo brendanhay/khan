@@ -2,7 +2,7 @@ SHELL        := /usr/bin/env bash
 NAME         := khan
 VERSION      := 0.1.0
 BUILD_NUMBER ?= 0
-DEPS         := vendor/options vendor/amazonka
+DEPS         := vendor/amazonka
 DEB          := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
 
 all: install build dist
@@ -28,7 +28,6 @@ dist: dist/$(DEB)
 	 --output-dir=dist
 
 add-sources: cabal.sandbox.config
-	cabal sandbox add-source vendor/options
 	cabal sandbox add-source vendor/amazonka
 
 cabal.sandbox.config:

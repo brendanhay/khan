@@ -170,12 +170,11 @@ ansible Ansible{..} = do
 
 playbook :: Ansible -> AWS ()
 playbook a@Ansible{..} = do
-    reg <- show <$> getRegion
+    r <- show <$> getRegion
     ansible $ a
         { aBin  = maybe (Just "ansible-playbook") Just aBin
         , aArgs = aArgs ++
-            [ "--extra-vars"
-            , concat ["khan_region=", r, " khan_env=", Text.unpack aEnv]
+            ["--extra-vars", concat ["khan_region=", r, " khan_env=", Text.unpack aEnv]]
         }
 
 inventory :: Inventory -> AWS ()

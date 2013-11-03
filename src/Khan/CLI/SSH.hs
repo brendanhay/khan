@@ -59,29 +59,28 @@ instance Naming SSH where
 
 commands :: Mod CommandFields Command
 commands = command "ssh" ssh sshParser "Long description."
+  where
+    ssh _ SSH{..} = do
+        dns <- mapMaybe riitDnsName <$> EC2.findInstances []
+            [ Filter ("tag:" <> envTag)  [sEnv]
+            , Filter ("tag:" <> roleTag) [sRole]
+            ]
 
-ssh :: Common -> SSH -> AWS ()
-ssh _ SSH{..} = do
-    dns <- mapMaybe riitDnsName <$> EC2.findInstances []
-        [ Filter ("tag:" <> envTag)  [sEnv]
-        , Filter ("tag:" <> roleTag) [sRole]
-        ]
+        let cs = map (first show) $ zip ([1..] :: [Int]) dns
 
-    let cs = map (first show) $ zip ([1..] :: [Int]) dns
+        mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
 
-    mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
+        unless (null cs) $ do
+            x <- liftIO $ do
+                hSetBuffering stdout NoBuffering
+                putStr "Select the host to connect to: "
+                getLine
 
-    unless (null cs) $ do
-        x <- liftIO $ do
-            hSetBuffering stdout NoBuffering
-            putStr "Select the host to connect to: "
-            getLine
+            addr <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
 
-        addr <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
+            let args = [ "-i" ++ Path.encodeString sKey
+                       , Text.unpack $ Text.concat [sUser, "@", addr]
+                       ] ++ sArgs
 
-        let args = [ "-i" ++ Path.encodeString sKey
-                   , Text.unpack $ Text.concat [sUser, "@", addr]
-                   ] ++ sArgs
-
-        log "ssh {}" [intercalate " " args]
-        liftIO $ Posix.executeFile "ssh" True args Nothing
+            log "ssh {}" [intercalate " " args]
+            liftIO $ Posix.executeFile "ssh" True args Nothing

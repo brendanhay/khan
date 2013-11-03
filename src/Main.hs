@@ -26,6 +26,7 @@ module Main (main) where
 
 import qualified Khan.CLI.Group             as Group
 import qualified Khan.CLI.Profile           as Profile
+import qualified Khan.CLI.SSH               as SSH
 
 import           Control.Error
 import           Control.Monad
@@ -48,6 +49,7 @@ programParser = runA $ proc () -> do
     cmd <- (asA . hsubparser)
          ( Group.commands
         <> Profile.commands
+        <> SSH.commands
          ) -< ()
     opt <- asA commonParser -< ()
     A versionParser >>> A helper -< (opt, cmd)

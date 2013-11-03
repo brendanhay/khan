@@ -14,9 +14,7 @@
 
 module Khan.CLI.Profile (commands) where
 
-import qualified Data.Text                 as Text
-import qualified Filesystem.Path.CurrentOS as Path
-import qualified Khan.AWS.IAM              as IAM
+import qualified Khan.AWS.IAM  as IAM
 import           Khan.Internal
 import           Khan.Prelude
 
@@ -29,10 +27,10 @@ data Role = Role
 
 roleParser :: Parser Role
 roleParser = Role
-    <$> define Text.pack "role" "ROLE" "" "Role of the application"
-    <*> define Text.pack "env" "STR" defaultEnv "Environment of the application."
-    <*> define Path.decodeString "policy" "PATH" "" "Role policy file."
-    <*> define Path.decodeString "trust" "PATH" "" "Trust relationship file."
+    <$> defineText "role" "ROLE" "" "Role of the application"
+    <*> defineText "env" "STR" defaultEnv "Environment of the application."
+    <*> definePath "policy" "PATH" "" "Role policy file."
+    <*> definePath "trust" "PATH" "" "Trust relationship file."
 
 instance Options Role where
     discover r@Role{..} = do

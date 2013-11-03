@@ -20,13 +20,15 @@ module Khan.Internal.Options
     , commonParser
     , initialise
 
-    , mtext
-    , mstr
-
     , define
-    , defineReader
     , defineMany
     , defineSwitch
+
+    , defineText
+    , defineMaybeText
+    , definePath
+    , defineString
+    , defineReader
 
     , group
     , command
@@ -38,15 +40,16 @@ module Khan.Internal.Options
     , module Export
     ) where
 
-import qualified Data.Text              as Text
+import qualified Data.Text                 as Text
+import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Defaults
 import           Khan.Internal.IO
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
-import           Options.Applicative    as Export hiding (command, info)
-import qualified Options.Applicative    as Options
-import qualified Shelly                 as Shell
+import           Options.Applicative       as Export hiding (command, info)
+import qualified Options.Applicative       as Options
+import qualified Shelly                    as Shell
 import           System.Environment
 
 data Command where
@@ -63,10 +66,10 @@ data Common = Common
 commonParser :: Parser Common
 commonParser = Common
     <$> defineSwitch "debug" False "Log debug output."
-    <*> defineReader auto "region" "REGION" NorthCalifornia "Region to operate in."
-    <*> defineReader mtext "iam-profile" "STR" Nothing "IAM profile to use."
-    <*> defineReader str "access-key" "STR" "" "AWS access key."
-    <*> defineReader str "secret-key" "STR" "" "AWS secret key."
+    <*> defineReader "region" "REGION" NorthCalifornia "Region to operate in."
+    <*> defineMaybeText "iam-profile" "STR" Nothing "IAM profile to use."
+    <*> defineString "access-key" "STR" "" "AWS access key."
+    <*> defineString "secret-key" "STR" "" "AWS secret key."
 
 instance Options Common where
     validate Common{..} = do
@@ -98,12 +101,6 @@ initialise o@Common{..}
             | null v    = fromMaybe "" <$> lookupEnv k
             | otherwise = return v
 
-mtext :: (Functor m, Monad m) => String -> m (Maybe Text)
-mtext = fmap (Just . Text.pack) . str
-
-mstr :: (Functor m, Monad m) => String -> m (Maybe String)
-mstr = fmap Just . str
-
 define :: (String -> a)
        -> String
        -> String
@@ -114,14 +111,13 @@ define rdr key typ val desc = nullOption $
     long key <> metavar typ <> eitherReader (Right . rdr) <> value val <> help desc
 
 defineReader :: Read a
-             => (String -> ReadM a)
-             -> String
+             => String
              -> String
              -> a
              -> String
              -> Parser a
-defineReader rdr key typ val desc = option $
-    long key <> metavar typ <> reader rdr <> value val <> help desc
+defineReader key typ val desc = option $
+    long key <> metavar typ <> reader auto <> value val <> help desc
 
 defineMany :: (String -> Either String a)
            -> String
@@ -133,6 +129,18 @@ defineMany rdr key typ desc = many . nullOption $
 
 defineSwitch :: String -> Bool -> String -> Parser Bool
 defineSwitch key val desc = flag val (not val) $ long key <> help desc
+
+defineText :: String -> String -> Text -> String -> Parser Text
+defineText = define Text.pack
+
+defineMaybeText :: String -> String -> Maybe Text -> String -> Parser (Maybe Text)
+defineMaybeText = define (\s -> if null s then Nothing else Just $ Text.pack s)
+
+definePath :: String -> String -> FilePath -> String -> Parser FilePath
+definePath = define Path.decodeString
+
+defineString :: String -> String -> String -> String -> Parser String
+defineString = define id
 
 group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs =

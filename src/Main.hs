@@ -19,24 +19,19 @@ module Main (main) where
 -- import qualified Data.Text           as Text
 -- import qualified Khan.CLI.Ansible    as Ansible
 -- import qualified Khan.CLI.Ephemeral  as Ephemeral
-import qualified Khan.CLI.Group      as Group
 -- import qualified Khan.CLI.Host       as Host
 -- import qualified Khan.CLI.Metadata   as Metadata
 -- import qualified Khan.CLI.Persistent as Persistent
-import qualified Khan.CLI.Profile    as Profile
 -- import qualified Khan.CLI.Routing    as Routing
--- import           Khan.Internal
--- import           Khan.Prelude
+
+import qualified Khan.CLI.Group             as Group
+import qualified Khan.CLI.Profile           as Profile
 
 import           Control.Error
 import           Control.Monad
-import           Control.Monad.IO.Class
 import qualified Data.ByteString.Char8      as BS
-import qualified Data.Text                  as Text
 import           Data.Text.Encoding
 import           Data.Text.Format           (Shown(..))
-import qualified Data.Text.Format           as Text
-import qualified Data.Text.Lazy             as LText
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
@@ -48,16 +43,16 @@ versionParser :: Parser (a -> a)
 versionParser = infoOption "0.0.0"
     (long "version" <> help "Print version information.")
 
-programParser :: Parser (Options, AnyCommand)
+programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
     cmd <- (asA . hsubparser)
          ( Group.commands
         <> Profile.commands
          ) -< ()
-    opt <- asA optionsParser -< ()
+    opt <- asA commonParser -< ()
     A versionParser >>> A helper -< (opt, cmd)
 
-programInfo :: ParserInfo (Options, AnyCommand)
+programInfo :: ParserInfo (Common, Command)
 programInfo = info programParser idm
 
 main :: IO ()
@@ -67,7 +62,7 @@ main = execParser programInfo >>= runScript . fmapLT fmt . run
     fmt ex        = show ex
 
     run (a, Command f x) = do
-        b@Options{..} <- isEC2 >>= regionalise a >>= initialise
+        b@Common{..} <- isEC2 >>= regionalise a >>= initialise
         validate b
         r <- lift . runAWS (creds b) optDebug . within optRegion $ do
             debug "Running in region {}..." [Shown optRegion]
@@ -83,7 +78,7 @@ main = execParser programInfo >>= runScript . fmapLT fmt . run
             tryRead ("Failed to read region from: " ++ az) az
         return $! o { optRegion = reg }
 
-    creds Options{..}
+    creds Common{..}
         | Just r <- optProfile = FromRole $! encodeUtf8 r
         | otherwise = FromKeys (BS.pack optAccess) (BS.pack optSecret)
 

@@ -38,16 +38,15 @@ module Khan.Internal.Options
     , module Export
     ) where
 
-import qualified Data.Text                 as Text
-import qualified Filesystem.Path.CurrentOS as Path
+import qualified Data.Text              as Text
 import           Khan.Internal.Defaults
 import           Khan.Internal.IO
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
-import           Options.Applicative       as Export hiding (command, info)
-import qualified Options.Applicative       as Options
-import qualified Shelly                    as Shell
+import           Options.Applicative    as Export hiding (command, info)
+import qualified Options.Applicative    as Options
+import qualified Shelly                 as Shell
 import           System.Environment
 
 data Command where

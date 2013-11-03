@@ -19,7 +19,6 @@ import qualified Filesystem.Path.CurrentOS as Path
 import qualified Khan.AWS.IAM              as IAM
 import           Khan.Internal
 import           Khan.Prelude
-import           Network.AWS
 
 data Role = Role
     { rRole   :: !Text

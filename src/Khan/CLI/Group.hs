@@ -14,6 +14,7 @@
 
 module Khan.CLI.Group (commands) where
 
+import qualified Data.Text        as Text
 import qualified Khan.AWS.EC2     as EC2
 import           Khan.Internal
 import           Khan.Prelude
@@ -28,8 +29,8 @@ data Group = Group
 
 groupParser :: Parser Group
 groupParser = Group
-    <$> define text "role" "ROLE" "" "Role of the application."
-    <*> define text "env" "STR" defaultEnv "Environment of the application."
+    <$> define Text.pack "role" "ROLE" "" "Role of the application."
+    <*> define Text.pack "env" "STR" defaultEnv "Environment of the application."
     <*> defineMany parseRule "rule" "RULE" "Rules."
 
 instance Options Group where

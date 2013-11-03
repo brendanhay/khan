@@ -1,8 +1,7 @@
-{-# LANGUAGE NoImplicitPrelude   #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.Internal.Options
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -15,199 +14,147 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Options
-    (
-    -- * Default Options
-      textOption
-    , maybeTextOption
-    , textsOption
-    , stringOption
-    , stringsOption
-    , intOption
-    , integerOption
-    , maybeIntegerOption
-    , boolOption
-    , pathOption
-    , maybePathOption
+    ( Command (..)
+    , Common  (..)
 
-    -- * Option Types
-    , optionTypeWord8
-    , optionTypeList
+    , commonParser
+    , initialise
 
-    -- * Custom Options
-    , recordTypeOption
-    , failoverOption
-    , regionOption
-    , routingPolicyOption
-    , instanceTypeOption
-    , formatOption
-    , rulesOption
-    , versionOption
-    , customOption
+    , mtext
+    , mstr
+
+    , define
+    , defineReader
+    , defineMany
+    , defineSwitch
+
+    , group
+    , command
+
+    , check
+    , checkIO
+    , checkPath
+
+    , module Export
     ) where
 
-import           Data.List              (intercalate)
-import qualified Data.Text              as Text
-import           Data.Version
+import qualified Data.Text                 as Text
+import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Defaults
-import           Khan.Internal.Parsing
+import           Khan.Internal.IO
 import           Khan.Internal.Types
 import           Khan.Prelude
-import           Language.Haskell.TH
-import           Network.AWS.EC2
-import           Network.AWS.Route53
-import qualified Options                as Opts
-import           Options.OptionTypes
+import           Network.AWS
+import           Options.Applicative       as Export hiding (command, info)
+import qualified Options.Applicative       as Options
+import qualified Shelly                    as Shell
+import           System.Environment
 
-import Options hiding
-     ( textOption
-     , textsOption
-     , intOption
-     , integerOption
-     , boolOption
-     , stringOption
-     , stringsOption
-     , pathOption
-     )
+data Command where
+    Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
 
-type Opt a = String -> String -> a -> String -> OptionsM ()
+data Common = Common
+    { optDebug   :: !Bool
+    , optRegion  :: !Region
+    , optProfile :: Maybe Text
+    , optAccess  :: !String
+    , optSecret  :: !String
+    } deriving (Show)
 
-textOption :: Opt Text
-textOption name flag def = Opts.textOption name flag def
-    . defaultText (Text.unpack def)
+commonParser :: Parser Common
+commonParser = Common
+    <$> defineSwitch "debug" False "Log debug output."
+    <*> defineReader auto "region" "REGION" NorthCalifornia "Region to operate in."
+    <*> defineReader mtext "iam-profile" "STR" Nothing "IAM profile to use."
+    <*> defineReader str "access-key" "STR" "" "AWS access key."
+    <*> defineReader str "secret-key" "STR" "" "AWS secret key."
 
-maybeTextOption :: Opt Text
-maybeTextOption name flag (Text.unpack -> def) desc =
-    option name $ \o -> o
-        { optionLongFlags   = [flag]
-        , optionDefault     = def
-        , optionType        = optionTypeMaybe optionTypeText
-        , optionDescription = defaultText def desc
-        }
+instance Options Common where
+    validate Common{..} = do
+        check (null optAccess && profile) $ msg "--access-key" accessKey
+        check (null optSecret && profile) $ msg "--secret-key" secretKey
+      where
+        profile = isNothing optProfile
+        msg k e = concat
+            [ k
+            , " must be specified or "
+            , e
+            , " env must be set if --iam-role is not set."
+            ]
 
-textsOption :: Opt [Text]
-textsOption name flag def = Opts.textsOption name flag def
-    . defaultText (Text.unpack $ Text.intercalate ", " def)
+initialise :: (Applicative m, MonadIO m) => Common -> EitherT AWSError m Common
+initialise o@Common{..}
+    | isJust optProfile = right o
+    | validKeys         = right o
+    | otherwise         = lookupKeys
+  where
+    validKeys = (not . null) `all` [optAccess, optSecret]
 
-stringOption :: Opt String
-stringOption name flag def = Opts.stringOption name flag def
-    . defaultText def
+    lookupKeys = fmapLT toError . syncIO $ do
+        acc <- env accessKey optAccess
+        sec <- env secretKey optSecret
+        return $! o { optAccess = acc, optSecret = sec }
+      where
+        env k v
+            | null v    = fromMaybe "" <$> lookupEnv k
+            | otherwise = return v
 
-stringsOption :: Opt [String]
-stringsOption name flag def = Opts.stringsOption name flag def
-    . defaultText (intercalate ", " def)
+mtext :: (Functor m, Monad m) => String -> m (Maybe Text)
+mtext = fmap (Just . Text.pack) . str
 
-intOption :: Opt Int
-intOption name flag def = Opts.intOption name flag def
-    . defaultText (show def)
+mstr :: (Functor m, Monad m) => String -> m (Maybe String)
+mstr = fmap Just . str
 
-integerOption :: Opt Integer
-integerOption name flag def = Opts.integerOption name flag def
-    . defaultText (show def)
+define :: (String -> a)
+       -> String
+       -> String
+       -> a
+       -> String
+       -> Parser a
+define rdr key typ val desc = nullOption $
+    long key <> metavar typ <> eitherReader (Right . rdr) <> value val <> help desc
 
-maybeIntegerOption :: Opt Integer
-maybeIntegerOption name flag (show -> def) desc =
-    option name $ \o -> o
-        { optionLongFlags   = [flag]
-        , optionDefault     = def
-        , optionType        = optionTypeMaybe optionTypeInteger
-        , optionDescription = defaultText def desc
-        }
-
-boolOption :: Opt Bool
-boolOption name flag def = Opts.boolOption name flag def
-    . defaultText (show def)
-
-pathOption :: Opt FilePath
-pathOption name flag def = Opts.pathOption name flag def
-    . defaultText (show def)
-
-maybePathOption :: Opt Text
-maybePathOption name flag (Text.unpack -> def) desc =
-    option name $ \o -> o
-        { optionLongFlags   = [flag]
-        , optionDefault     = def
-        , optionType        = optionTypeMaybe optionTypeFilePath
-        , optionDescription = defaultText def desc
-        }
-
-recordTypeOption :: Opt RecordType
-recordTypeOption = readOption (ConT ''RecordType)
-
-failoverOption :: Opt Failover
-failoverOption = readOption (ConT ''Failover)
-
-regionOption :: Opt Region
-regionOption = readOption (ConT ''Region)
-
-routingPolicyOption :: Opt RoutingPolicy
-routingPolicyOption = readOption (ConT ''RoutingPolicy)
-
-instanceTypeOption :: Opt InstanceType
-instanceTypeOption = readOption (ConT ''InstanceType)
-
-formatOption :: Opt OutputFormat
-formatOption = readOption (ConT ''OutputFormat)
-
-rulesOption :: String -> String -> String -> OptionsM ()
-rulesOption name flag desc =
-    option name $ \o -> o
-        { optionLongFlags   = [flag]
-        , optionDefault     = ""
-        , optionType        = optionTypeList ',' optionTypeRule
-        , optionDescription = desc
-        }
-
-versionOption :: String -> String -> Version -> String -> OptionsM ()
-versionOption name flag def desc =
-    option name $ \o -> o
-        { optionLongFlags   = [flag]
-        , optionDefault     = showVersion def
-        , optionType        = optionTypeVersion
-        , optionDescription = if defaultVersion == def
-                                  then desc
-                                  else defaultText (showVersion def) desc
-        }
-
-customOption :: Show a
-             => String
+defineReader :: Read a
+             => (String -> ReadM a)
+             -> String
              -> String
              -> a
-             -> OptionType a
              -> String
-             -> OptionsM ()
-customOption name flag (show -> def) typ desc =
-    option name $ \o -> o
-        { optionLongFlags   = [flag]
-        , optionDefault     = def
-        , optionType        = typ
-        , optionDescription = defaultText def desc
-        }
+             -> Parser a
+defineReader rdr key typ val desc = option $
+    long key <> metavar typ <> reader rdr <> value val <> help desc
 
---
--- Internal
---
-
-readOption :: (Show a, Read a)
-           => Type
+defineMany :: (String -> Either String a)
            -> String
            -> String
-           -> a
            -> String
-           -> OptionsM ()
-readOption typ name flag def =
-    customOption name flag def (OptionType typ False readEither [| readEither |])
+           -> Parser [a]
+defineMany rdr key typ desc = many . nullOption $
+     long key <> metavar typ <> eitherReader rdr <> help desc
 
-readEither :: Read a => String -> Either String a
-readEither s = note ("Unable to read: " ++ s) $ readMay s
+defineSwitch :: String -> Bool -> String -> Parser Bool
+defineSwitch key val desc = flag val (not val) $ long key <> help desc
 
-defaultText :: String -> String -> String
-defaultText ""  desc = desc
-defaultText def desc = concat [desc, " (default: ", def, ")"]
+group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
+group name desc cs =
+    Options.command name (Options.info (hsubparser cs) (progDesc desc))
 
-optionTypeVersion :: OptionType Version
-optionTypeVersion =
-    OptionType (ConT ''Version) False parseVersionE [| parseVersionE |]
+command :: Options a
+        => String
+        -> (Common -> a -> AWS ())
+        -> Parser a
+        -> String
+        -> Mod CommandFields Command
+command name f p desc =
+    Options.command name (Options.info (Command f <$> p) (progDesc desc))
 
-optionTypeRule :: OptionType IpPermissionType
-optionTypeRule =
-    OptionType (ConT ''IpPermissionType) False parseRule [| parseRule |]
+check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
+check x = when (invalid x) . throwT . Err
+
+checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT AWSError m ()
+checkIO io e = liftIO io >>= (`check` e)
+
+checkPath :: MonadIO m => FilePath -> String -> EitherT AWSError m ()
+checkPath p e = check p msg >> checkIO (not <$> shell (Shell.test_e p)) msg
+  where
+    msg = Text.unpack (Text.concat ["path '", Shell.toTextIgnore p, "'"]) ++ e

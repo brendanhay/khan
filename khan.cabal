@@ -48,14 +48,13 @@ executable khan
       , http-streams
       , io-streams
       , mtl
-      , options
+      , optparse-applicative
       , pipes             >= 4.0
       , prelude-prime
+      , pretty-show
       , random
-      , regex-compat
       , shelly
       , system-filepath
-      , template-haskell
       , text
       , text-format
       , time

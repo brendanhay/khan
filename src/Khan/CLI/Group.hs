@@ -1,8 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TemplateHaskell     #-}
 
 -- Module      : Khan.CLI.Group
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -16,26 +14,25 @@
 
 module Khan.CLI.Group (commands) where
 
-import qualified Khan.AWS.EC2  as EC2
+import qualified Khan.AWS.EC2     as EC2
 import           Khan.Internal
 import           Khan.Prelude
-import           Network.AWS
+import           Network.AWS.EC2
+import           Text.Show.Pretty
 
-defineOptions "Group" $ do
-    textOption "gRole" "role" ""
-        "Role of the application."
+data Group = Group
+    { gRole  :: !Text
+    , gEnv   :: !Text
+    , gRules :: [IpPermissionType]
+    } deriving (Show)
 
-    textOption "gEnv" "env" defaultEnv
-        "Environment of the application."
+groupParser :: Parser Group
+groupParser = Group
+    <$> define text "role" "ROLE" "" "Role of the application."
+    <*> define text "env" "STR" defaultEnv "Environment of the application."
+    <*> defineMany parseRule "rule" "RULE" "Rules."
 
-    rulesOption "gRules" "rules"
-        "IP permission specifications."
-
-deriving instance Show Group
-
-instance Discover Group
-
-instance Validate Group where
+instance Options Group where
     validate Group{..} = do
         check gRole "--role must be specified."
         check gEnv  "--env must be specified."
@@ -43,18 +40,16 @@ instance Validate Group where
 instance Naming Group where
     names Group{..} = unversioned gRole gEnv
 
-commands :: [Command]
-commands =
-    [ command group "group" "Create or update Security Groups."
-        "Comprehensive rule specification, or else!"
-    ]
+commands :: Mod CommandFields Command
+commands = group "group" "Long description."
+     $ command "info"   info   groupParser "Long long long long description."
+    <> command "update" update groupParser "Long long long long description."
+    <> command "delete" delete groupParser "Long long long long description."
+  where
+    info _ g = do
+        mg <- EC2.findGroup g
+        liftIO $ maybe (return ()) (putStrLn . ppShow) mg
 
-group :: Group -> AWS ()
-group g = EC2.updateGroup g (gRules g)
+    update _ g = EC2.updateGroup g $ gRules g
 
--- info :: Group -> AWS ()
--- info g = EC2.findGroup g >>= liftIO . putStrLn . ppShow
-
--- delete :: Group -> AWS ()
--- delete = EC2.deleteGroup
-
+    delete _ = EC2.deleteGroup

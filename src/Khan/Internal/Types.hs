@@ -25,12 +25,11 @@ import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
 import qualified Text.Read                    as Read
 
-class Discover a where
-    discover :: [String] -> a -> AWS a
-    discover _ = return
-
-class Validate a where
+class Options a where
+    discover :: a -> AWS a
     validate :: MonadIO m => a -> EitherT AWSError m ()
+
+    discover = return
     validate = void . return
 
 class Invalid a where

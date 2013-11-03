@@ -46,7 +46,7 @@ createKey (names -> n@Names{..}) =
              liftIO . print . Text.lines $ ckqKeyMaterial k
              Shell.mkdir_p $ Path.parent f
              Shell.writefile f $ ckqKeyMaterial k
-             Shell.run_ "chmod" ["0600", path f]
+             Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
         log "Wrote new Key Pair to {}" [f]
 
 findGroup :: Naming a => a -> AWS (Maybe SecurityGroupItemType)

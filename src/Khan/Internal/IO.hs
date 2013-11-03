@@ -19,7 +19,6 @@ module Khan.Internal.IO
     , shell
 
     -- * Files
-    , path
     , defaultPath
     , keyPath
     , cachePath
@@ -37,8 +36,6 @@ module Khan.Internal.IO
     , (<.>)
     ) where
 
-import qualified Data.Aeson                 as Aeson
-import qualified Data.ByteString.Lazy.Char8 as LBS
 import           Data.String
 import qualified Data.Text                  as Text
 import           Data.Time.Clock.POSIX
@@ -57,9 +54,6 @@ sh = fmapLT show . syncIO . shell
 
 shell :: MonadIO m => Sh a -> m a
 shell = shellyNoDir
-
-path :: FilePath -> Text
-path = toTextIgnore
 
 defaultPath :: (Functor m, MonadIO m) => FilePath -> m FilePath -> m FilePath
 defaultPath p def
@@ -95,7 +89,7 @@ ensurePath parent dir sub = liftIO $ do
 
 expandPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 expandPath f =
-    case "~/" `Text.stripPrefix` path f of
+    case "~/" `Text.stripPrefix` toTextIgnore f of
         Nothing -> return f
         Just x  -> do
             h <- liftIO getHomeDirectory
@@ -106,7 +100,7 @@ writeFile file mode contents = shell $ do
     backup file
     Shell.mkdir_p $ Path.parent file
     Shell.writefile file contents
-    Shell.run_ "chmod" [mode, path file]
+    Shell.run_ "chmod" [mode, toTextIgnore file]
   where
     backup f = Shell.unlessM (Shell.test_e f) $ do
         ts <- liftIO (truncate <$> getPOSIXTime :: IO Integer)

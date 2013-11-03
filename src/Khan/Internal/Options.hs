@@ -21,14 +21,14 @@ module Khan.Internal.Options
     , initialise
 
     , define
-    , defineMany
-    , defineSwitch
+    , manyOptions
+    , switchOption
 
-    , defineText
-    , defineMaybeText
-    , definePath
-    , defineString
-    , defineReader
+    , textOption
+    , maybeTextOption
+    , pathOption
+    , stringOption
+    , readOption
 
     , group
     , command
@@ -65,11 +65,11 @@ data Common = Common
 
 commonParser :: Parser Common
 commonParser = Common
-    <$> defineSwitch "debug" False "Log debug output."
-    <*> defineReader "region" "REGION" NorthCalifornia "Region to operate in."
-    <*> defineMaybeText "iam-profile" "STR" Nothing "IAM profile to use."
-    <*> defineString "access-key" "STR" "" "AWS access key."
-    <*> defineString "secret-key" "STR" "" "AWS secret key."
+    <$> switchOption "debug" False "Log debug output."
+    <*> readOption "region" "REGION" NorthCalifornia "Region to operate in."
+    <*> maybeTextOption "iam-profile" "STR" Nothing "IAM profile to use."
+    <*> stringOption "access-key" "STR" "" "AWS access key."
+    <*> stringOption "secret-key" "STR" "" "AWS secret key."
 
 instance Options Common where
     validate Common{..} = do
@@ -110,37 +110,37 @@ define :: (String -> a)
 define rdr key typ val desc = nullOption $
     long key <> metavar typ <> eitherReader (Right . rdr) <> value val <> help desc
 
-defineReader :: Read a
+readOption :: Read a
              => String
              -> String
              -> a
              -> String
              -> Parser a
-defineReader key typ val desc = option $
+readOption key typ val desc = option $
     long key <> metavar typ <> reader auto <> value val <> help desc
 
-defineMany :: (String -> Either String a)
+manyOptions :: (String -> Either String a)
            -> String
            -> String
            -> String
            -> Parser [a]
-defineMany rdr key typ desc = many . nullOption $
+manyOptions rdr key typ desc = many . nullOption $
      long key <> metavar typ <> eitherReader rdr <> help desc
 
-defineSwitch :: String -> Bool -> String -> Parser Bool
-defineSwitch key val desc = flag val (not val) $ long key <> help desc
+switchOption :: String -> Bool -> String -> Parser Bool
+switchOption key val desc = flag val (not val) $ long key <> help desc
 
-defineText :: String -> String -> Text -> String -> Parser Text
-defineText = define Text.pack
+textOption :: String -> String -> Text -> String -> Parser Text
+textOption = define Text.pack
 
-defineMaybeText :: String -> String -> Maybe Text -> String -> Parser (Maybe Text)
-defineMaybeText = define (\s -> if null s then Nothing else Just $ Text.pack s)
+maybeTextOption :: String -> String -> Maybe Text -> String -> Parser (Maybe Text)
+maybeTextOption = define (\s -> if null s then Nothing else Just $ Text.pack s)
 
-definePath :: String -> String -> FilePath -> String -> Parser FilePath
-definePath = define Path.decodeString
+pathOption :: String -> String -> FilePath -> String -> Parser FilePath
+pathOption = define Path.decodeString
 
-defineString :: String -> String -> String -> String -> Parser String
-defineString = define id
+stringOption :: String -> String -> String -> String -> Parser String
+stringOption = define id
 
 group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs =

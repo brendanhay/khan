@@ -34,10 +34,10 @@ data Role = Role
 
 roleParser :: Parser Role
 roleParser = Role
-    <$> defineText "role" "ROLE" "" "Role of the application"
-    <*> defineText "env" "STR" defaultEnv "Environment of the application."
-    <*> definePath "policy" "PATH" "" "Role policy file."
-    <*> definePath "trust" "PATH" "" "Trust relationship file."
+    <$> textOption "role" "ROLE" "" "Role of the application"
+    <*> textOption "env" "STR" defaultEnv "Environment of the application."
+    <*> pathOption "policy" "PATH" "" "Role policy file."
+    <*> pathOption "trust" "PATH" "" "Trust relationship file."
 
 instance Options Role where
     discover r@Role{..} = do

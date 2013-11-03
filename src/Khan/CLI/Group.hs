@@ -28,9 +28,9 @@ data Group = Group
 
 groupParser :: Parser Group
 groupParser = Group
-    <$> defineText "role" "ROLE" "" "Role of the application."
-    <*> defineText "env" "STR" defaultEnv "Environment of the application."
-    <*> defineMany parseRule "rule" "RULE" "Rules."
+    <$> textOption "role" "ROLE" "" "Role of the application."
+    <*> textOption "env" "STR" defaultEnv "Environment of the application."
+    <*> manyOptions parseRule "rule" "RULE" "Rules."
 
 instance Options Group where
     validate Group{..} = do

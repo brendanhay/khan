@@ -17,7 +17,7 @@
 module Main (main) where
 
 -- import qualified Data.Text           as Text
--- import qualified Khan.CLI.Ansible    as Ansible
+import qualified Khan.CLI.Ansible    as Ansible
 -- import qualified Khan.CLI.Ephemeral  as Ephemeral
 -- import qualified Khan.CLI.Host       as Host
 -- import qualified Khan.CLI.Metadata   as Metadata
@@ -47,7 +47,8 @@ versionParser = infoOption "0.0.0"
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
     cmd <- (asA . hsubparser)
-         ( Group.commands
+         ( Ansible.commands
+        <> Group.commands
         <> Profile.commands
         <> SSH.commands
          ) -< ()

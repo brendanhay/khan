@@ -67,9 +67,9 @@ commonParser :: Parser Common
 commonParser = Common
     <$> switchOption "debug" False "Log debug output."
     <*> readOption "region" "REGION" NorthCalifornia "Region to operate in."
-    <*> maybeTextOption "iam-profile" "STR" Nothing "IAM profile to use."
-    <*> stringOption "access-key" "STR" "" "AWS access key."
-    <*> stringOption "secret-key" "STR" "" "AWS secret key."
+    <*> maybeTextOption "iam-profile" Nothing "IAM profile to use."
+    <*> stringOption "access-key" "" "AWS access key."
+    <*> stringOption "secret-key" "" "AWS secret key."
 
 instance Options Common where
     validate Common{..} = do
@@ -111,11 +111,11 @@ define rdr key typ val desc = nullOption $
     long key <> metavar typ <> eitherReader (Right . rdr) <> value val <> help desc
 
 readOption :: Read a
-             => String
-             -> String
-             -> a
-             -> String
-             -> Parser a
+           => String
+           -> String
+           -> a
+           -> String
+           -> Parser a
 readOption key typ val desc = option $
     long key <> metavar typ <> reader auto <> value val <> help desc
 
@@ -130,17 +130,19 @@ manyOptions rdr key typ desc = many . nullOption $
 switchOption :: String -> Bool -> String -> Parser Bool
 switchOption key val desc = flag val (not val) $ long key <> help desc
 
-textOption :: String -> String -> Text -> String -> Parser Text
-textOption = define Text.pack
+textOption :: String -> Text -> String -> Parser Text
+textOption key = define Text.pack key "STR"
 
-maybeTextOption :: String -> String -> Maybe Text -> String -> Parser (Maybe Text)
-maybeTextOption = define (\s -> if null s then Nothing else Just $ Text.pack s)
+maybeTextOption :: String -> Maybe Text -> String -> Parser (Maybe Text)
+maybeTextOption key = define f key "STR"
+  where
+    f x = if null x then Nothing else Just $ Text.pack x
 
-pathOption :: String -> String -> FilePath -> String -> Parser FilePath
-pathOption = define Path.decodeString
+pathOption :: String -> FilePath -> String -> Parser FilePath
+pathOption key = define Path.decodeString key "PATH"
 
-stringOption :: String -> String -> String -> String -> Parser String
-stringOption = define id
+stringOption :: String -> String -> String -> Parser String
+stringOption key = define id key "STR"
 
 group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs =

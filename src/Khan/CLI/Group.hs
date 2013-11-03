@@ -28,8 +28,8 @@ data Group = Group
 
 groupParser :: Parser Group
 groupParser = Group
-    <$> textOption "role" "ROLE" "" "Role of the application."
-    <*> textOption "env" "STR" defaultEnv "Environment of the application."
+    <$> textOption "role" "" "Role of the application."
+    <*> textOption "env" defaultEnv "Environment of the application."
     <*> manyOptions parseRule "rule" "RULE" "Rules."
 
 instance Options Group where

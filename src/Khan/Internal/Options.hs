@@ -56,11 +56,11 @@ data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
 
 data Common = Common
-    { optDebug   :: !Bool
-    , optRegion  :: !Region
-    , optProfile :: Maybe Text
-    , optAccess  :: !String
-    , optSecret  :: !String
+    { cDebug   :: !Bool
+    , cRegion  :: !Region
+    , cProfile :: Maybe Text
+    , cAccess  :: !String
+    , cSecret  :: !String
     } deriving (Show)
 
 commonParser :: Parser Common
@@ -73,10 +73,10 @@ commonParser = Common
 
 instance Options Common where
     validate Common{..} = do
-        check (null optAccess && profile) $ msg "--access-key" accessKey
-        check (null optSecret && profile) $ msg "--secret-key" secretKey
+        check (null cAccess && profile) $ msg "--access-key" accessKey
+        check (null cSecret && profile) $ msg "--secret-key" secretKey
       where
-        profile = isNothing optProfile
+        profile = isNothing cProfile
         msg k e = concat
             [ k
             , " must be specified or "
@@ -86,16 +86,16 @@ instance Options Common where
 
 initialise :: (Applicative m, MonadIO m) => Common -> EitherT AWSError m Common
 initialise o@Common{..}
-    | isJust optProfile = right o
+    | isJust cProfile = right o
     | validKeys         = right o
     | otherwise         = lookupKeys
   where
-    validKeys = (not . null) `all` [optAccess, optSecret]
+    validKeys = (not . null) `all` [cAccess, cSecret]
 
     lookupKeys = fmapLT toError . syncIO $ do
-        acc <- env accessKey optAccess
-        sec <- env secretKey optSecret
-        return $! o { optAccess = acc, optSecret = sec }
+        acc <- env accessKey cAccess
+        sec <- env secretKey cSecret
+        return $! o { cAccess = acc, cSecret = sec }
       where
         env k v
             | null v    = fromMaybe "" <$> lookupEnv k
@@ -120,12 +120,12 @@ readOption key typ val desc = option $
     long key <> metavar typ <> reader auto <> value val <> help desc
 
 manyOptions :: (String -> Either String a)
-           -> String
-           -> String
-           -> String
-           -> Parser [a]
+            -> String
+            -> String
+            -> String
+            -> Parser [a]
 manyOptions rdr key typ desc = many . nullOption $
-     long key <> metavar typ <> eitherReader rdr <> help desc
+    long key <> metavar typ <> eitherReader rdr <> help desc
 
 switchOption :: String -> Bool -> String -> Parser Bool
 switchOption key val desc = flag val (not val) $ long key <> help desc

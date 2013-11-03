@@ -16,13 +16,11 @@
 
 module Main (main) where
 
--- import qualified Data.Text           as Text
 import qualified Khan.CLI.Ansible    as Ansible
 -- import qualified Khan.CLI.Ephemeral  as Ephemeral
 -- import qualified Khan.CLI.Host       as Host
--- import qualified Khan.CLI.Metadata   as Metadata
 -- import qualified Khan.CLI.Persistent as Persistent
--- import qualified Khan.CLI.Routing    as Routing
+import qualified Khan.CLI.Routing    as Routing
 
 import qualified Khan.CLI.Group             as Group
 import qualified Khan.CLI.Profile           as Profile
@@ -47,7 +45,8 @@ versionParser = infoOption "0.0.0"
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
     cmd <- (asA . hsubparser)
-         ( Ansible.commands
+         ( Routing.commands
+        <> Ansible.commands
         <> Group.commands
         <> Profile.commands
         <> SSH.commands
@@ -67,8 +66,8 @@ main = execParser programInfo >>= runScript . fmapLT fmt . run
     run (a, Command f x) = do
         b@Common{..} <- isEC2 >>= regionalise a >>= initialise
         validate b
-        r <- lift . runAWS (creds b) optDebug . within optRegion $ do
-            debug "Running in region {}..." [Shown optRegion]
+        r <- lift . runAWS (creds b) cDebug . within cRegion $ do
+            debug "Running in region {}..." [Shown cRegion]
             y <- discover x
             liftEitherT $ validate y
             f b y
@@ -79,35 +78,8 @@ main = execParser programInfo >>= runScript . fmapLT fmt . run
         az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
         reg <- fmapLT Err $
             tryRead ("Failed to read region from: " ++ az) az
-        return $! o { optRegion = reg }
+        return $! o { cRegion = reg }
 
     creds Common{..}
-        | Just r <- optProfile = FromRole $! encodeUtf8 r
-        | otherwise = FromKeys (BS.pack optAccess) (BS.pack optSecret)
-
--- data Group = Group
---     { gName :: String
---     } deriving (Show)
-
--- instance CLI Group where
---     discover = return
---     validate = void . return
-
--- groupParser :: Parser Group
--- groupParser = Group <$> option
---      ( long "project"
---     <> metavar "PROJECT"
---     <> value ""
---     <> help "Filter by project"
---      )
-
--- -- mStr :: String -> Either ParseError (Maybe String)
--- -- mStr = fmap Just . str
-
--- -- groupInfo :: Parser Command
--- groupInfo = Command f <$> hsubparser (command "info" (info groupParser (progDesc "blah")))
---   where
---     f opts grp = print opts >> print grp
-
--- nested :: Parser Command
--- nested = groupInfo
+        | Just r <- cProfile = FromRole $! encodeUtf8 r
+        | otherwise = FromKeys (BS.pack cAccess) (BS.pack cSecret)

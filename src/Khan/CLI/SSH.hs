@@ -41,7 +41,7 @@ sshParser = SSH
     <*> defineText "env"  "STR" defaultEnv "Environment of the application."
     <*> defineText "user" "STR" "ubuntu" "SSH User."
     <*> definePath "key" "PATH" "" "SSH Key."
-    <*> arguments Just (metavar "ARG" <> help "sdasad")
+    <*> arguments Just (metavar "-- ARGS .." <> help "Pass through arugments to ssh.")
 
 instance Options SSH where
     discover s@SSH{..} = do

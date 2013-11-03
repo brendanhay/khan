@@ -46,6 +46,7 @@ executable khan
       , directory
       , errors
       , http-streams
+      , http-types
       , io-streams
       , mtl
       , optparse-applicative

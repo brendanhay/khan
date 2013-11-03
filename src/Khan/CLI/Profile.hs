@@ -14,9 +14,16 @@
 
 module Khan.CLI.Profile (commands) where
 
-import qualified Khan.AWS.IAM  as IAM
+import           Data.Aeson
+import qualified Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
+import qualified Khan.AWS.IAM               as IAM
 import           Khan.Internal
 import           Khan.Prelude
+import           Network.AWS.IAM            hiding (Role)
+import           Network.HTTP.Types         (urlDecode)
 
 data Role = Role
     { rRole   :: !Text
@@ -40,7 +47,7 @@ instance Options Role where
         return $! r { rPolicy = p, rTrust  = t }
 
     validate Role{..} = do
-        check rRole "--name must be specified."
+        check rRole "--role must be specified."
         check rEnv  "--env must be specified."
         checkPath rPolicy " specified by --policy must exist."
         checkPath rTrust  " specified by --trust must exist."
@@ -50,6 +57,28 @@ instance Naming Role where
 
 commands :: Mod CommandFields Command
 commands = group "profile" "Long description."
-     $ command "profile" update roleParser "Create or update IAM profiles."
+     $ command "info"   info   roleParser "Create or update IAM profiles."
+    <> command "update" update roleParser "Create or update IAM profiles."
+
+info :: Common -> Role -> AWS ()
+info _ r = do
+    p <- IAM.findRole r
+    log_ . Text.unlines $
+        [ "Arn                  = " <> rArn p
+        , "RoleId               = " <> rRoleId p
+        , "RoleName             = " <> rRoleName p
+        , "CreateDate           = " <> Text.pack (show $ rCreateDate p)
+        , "Path                 = " <> rPath p
+        , "AssumePolicyDocument = " <> (Text.decodeUtf8
+            . LBS.toStrict
+            . maybe "" (Aeson.encodePretty)
+            . join
+            . fmap policy
+            $ rAssumeRolePolicyDocument p)
+        ]
   where
-    update _ r = IAM.updateRole r (rPolicy r) (rTrust r)
+    policy :: Text -> Maybe Object
+    policy = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
+
+update :: Common -> Role -> AWS ()
+update _ r = IAM.updateRole r (rPolicy r) (rTrust r)

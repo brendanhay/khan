@@ -1,25 +1,111 @@
 # Khan
 
-> Khan is still under heavy development and is not yet recommended for public consumption.
-
-
 ## Table of Contents
 
-* [What is Khan?](#what-is-khan)
+* [Terminology and Concepts](#terminology-and-concepts)
 * [Contribute](#contribute)
 * [Licence](#licence)
 
 
-## What is Khan?
+## Terminology and Concepts
 
-Khan is an infrastructure management and provisioning tool.
+An overview of the key terms here in an attempt to provide a somewhat comprehensive
+introduction, with AWS nomenclature mapped directly to usage where possible to avoid
+any confusion.
 
-It takes ideas from Netflix's [Asgard](https://github.com/Netflix/asgard)
-and my own experiences developing and managing applications using more traditional tools such
-as Chef, Puppet, and Ansible on Amazon Web Services (AWS).
+### Immutability
 
-The key tenants behind Khan's approach to management and deployment of cloud applications
-are convention-over-configuration, immutablity, and simplicity.
+The key tenant behind Khan's approach to infrastructure provisioning is immutability,
+with opinion a close second.
+
+Khan provides a workflow centered around immutable build artifacts (in the form of AMIs)
+which are continuously deployed into `[1..n]` segregated environments.
+
+These versioned artifacts are then launched into an environment which dicates what
+traffic and other service instances are visible.
+
+be promoted and retired, ensuring that
+entire (or subsets thereof) environments are consistent and reproducible.
+
+
+### Persistent vs Ephemeral
+
+Terminology and workflow is described to outline a layer of separation between the
+stateful and stateless infrastructure services.
+
+<p align="center">
+  <img src="http://brendanhay.github.io/khan/img/immutability.png" alt="immutability">
+</p>
+
+The lower persistent half of the diagram is comprised of services that don't (easily or sanely)
+fit with a continuous deployment paradigm due to requirements such as exclusive durable storage,
+or sensitive orchestration scenarios over which fine grained control is required.
+
+This style of service has good pre-existing tooling for both Orchestration and
+Configuration Management - we attempt to leverage these to avoid reinventing the
+wheel where possible.
+
+#### Persistent
+
+Traditional services and applications that are problematic to shoehorn into a
+continuously deployed container workflow.
+
+These services require thoughtful (read: manual) coordination and are not part
+of an Auto Scaling Group.
+
+Examples:
+
+* Jenkins Master
+* MySQL/PostgreSQL Master
+* Nagios
+
+> Diagram
+
+#### Ephemeral
+
+In order to support wide distribution, availability, and redundancy
+Khan utilises Auto Scaling Groups and a service discovery mechanisim to route
+traffic to the desiginated set of service instances.
+
+> The design constraints for these services are provided [here](#constraints).
+
+Examples:
+
+* Web Applications
+* Backend Services
+* Jenkins Slaves
+
+> Diagram
+
+### Environments
+
+
+### Versioning
+
+
+### Service Discovery
+
+
+### Key Pair
+
+Khan creates and saves private key information locally (under `~/.khan` by default) and
+uses these keys to launch and connect to persistent and ephemeral instances.
+
+Read the [AWS documentation](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html)
+for more information.
+
+### Role
+
+### Group
+
+###
+
+
+### Application
+
+### Instance
+
+### Host
 
 
 ## Contribute

@@ -112,8 +112,8 @@ initialise o@Common{..}
             | otherwise = return v
 
 group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
-group name desc cs =
-    Options.command name (Options.info (hsubparser cs) (progDesc desc))
+group name desc cs = Options.command name $
+    Options.info (hsubparser cs) (progDesc desc <> fullDesc)
 
 command :: Options a
         => String
@@ -122,7 +122,7 @@ command :: Options a
         -> String
         -> Mod CommandFields Command
 command name f p desc = Options.command name $
-    Options.info (Command f <$> p) (progDesc desc)
+    Options.info (Command f <$> p) (progDesc desc <> fullDesc)
 
 readOption :: Read a
            => String
@@ -150,7 +150,10 @@ stringOption key m desc = strOption $ mconcat
     , m
     ]
 
-integerOption :: String -> Mod OptionFields Integer -> String -> Parser Integer
+integerOption :: String
+              -> Mod OptionFields Integer
+              -> String
+              -> Parser Integer
 integerOption key = readOption key "INT"
 
 customOption :: String
@@ -169,13 +172,17 @@ argsOption :: (String -> Maybe a)
 argsOption rdr m desc = many . argument rdr $
     metavar "-- ARGS .." <> help desc <> m
 
-roleOption, envOption :: Parser Text
-roleOption = textOption "role" mempty "Role of the application."
-envOption  = textOption "env" (value defaultEnv) "Environment of the application."
+roleOption :: Parser Text
+roleOption = textOption "role" (short 'r') "Role of the application."
+
+envOption :: Parser Text
+envOption = textOption "env" (value defaultEnv <> short 'e')
+    "Environment of the application."
 
 versionOption :: Parser Version
-versionOption = customOption "version" "MAJ.MIN.PATCH+BUILD" eitherVersion mempty
-    "Version of the application."
+versionOption =
+    customOption "version" "MAJ.MIN.PATCH+BUILD" eitherVersion (short 'v')
+        "Version of the application."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

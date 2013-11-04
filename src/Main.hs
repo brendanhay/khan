@@ -40,7 +40,7 @@ import           Options.Applicative.Arrows
 
 versionParser :: Parser (a -> a)
 versionParser = infoOption "0.0.0"
-    (long "version" <> help "Print version information.")
+    (short 'V' <> help "Print version information.")
 
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do

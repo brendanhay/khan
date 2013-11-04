@@ -130,7 +130,7 @@ ansible cmn Ansible{..} = do
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    log "ansible {}" [intercalate " " args]
+    log "{} {}" [bin, intercalate " " args]
     liftIO $ Posix.executeFile bin True args Nothing
   where
     args = aArgs ++ foldr' add []
@@ -163,7 +163,9 @@ playbook cmn a@Ansible{..} = do
     ansible cmn $ a
         { aBin  = maybe (Just "ansible-playbook") Just aBin
         , aArgs = aArgs ++
-            ["--extra-vars", concat ["khan_region=", r, " khan_env=", Text.unpack aEnv]]
+            [ "--extra-vars"
+            , concat ["khan_region=", r, " khan_env=", Text.unpack aEnv]
+            ]
         }
 
 inventory :: Common -> Inventory -> AWS ()

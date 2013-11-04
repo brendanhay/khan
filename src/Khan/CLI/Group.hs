@@ -30,7 +30,7 @@ groupParser :: Parser Group
 groupParser = Group
     <$> roleOption
     <*> envOption
-    <*> many (customOption "rule" "RULE" parseRule mempty
+    <*> many (customOption "rule" "RULE" parseRule (short 'r')
         "Rule description.")
 
 instance Options Group where

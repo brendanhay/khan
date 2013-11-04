@@ -38,13 +38,8 @@ import           Network.AWS.EC2.Metadata
 import           Options.Applicative
 import           Options.Applicative.Arrows
 
-versionParser :: Parser (a -> a)
-versionParser = infoOption "0.0.0"
-    (short 'V' <> help "Print version information.")
-
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
-    opt <- asA commonParser -< ()
     cmd <- (asA . hsubparser)
          ( Routing.commands
         <> Ansible.commands
@@ -56,7 +51,8 @@ programParser = runA $ proc () -> do
         <> Persistent.commands
         <> Ephemeral.commands
          ) -< ()
-    A versionParser >>> A helper -< (opt, cmd)
+    opt <- asA commonParser -< ()
+    A helper -< (opt, cmd)
 
 programInfo :: ParserInfo (Common, Command)
 programInfo = info programParser idm

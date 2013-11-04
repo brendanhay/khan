@@ -183,7 +183,7 @@ argsOption :: (String -> Maybe a)
            -> String
            -> Parser [a]
 argsOption rdr m desc = many . argument rdr $
-    metavar "-- ARGS .." <> help desc <> m
+    metavar "ARGS .." <> help desc <> m
 
 roleOption :: Parser Text
 roleOption = textOption 'r' "role" mempty

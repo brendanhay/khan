@@ -57,8 +57,8 @@ parseSafeVersion = do
     p  <- decimal
     return $! Version [ma, mi, p] []
 
-parseVersionE :: String -> Either String Version
-parseVersionE s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
+eitherVersion :: String -> Either String Version
+eitherVersion s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
     . listToMaybe
     . reverse
     . ReadP.readP_to_S parseVersion
@@ -81,10 +81,10 @@ showRules = Text.intercalate ", " . map rule . toList
             <|> headMay (map irCidrIp $ toList iptIpRanges)
 
 parseRule :: String -> Either String IpPermissionType
-parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0")
-    . parseOnly parser
-    . Text.pack
+parseRule = msg . parseOnly parser . Text.pack
   where
+    msg = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0")
+
     parser = do
         p <- protocol
         f <- decimal <* char ':'

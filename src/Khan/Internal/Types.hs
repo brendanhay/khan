@@ -19,18 +19,18 @@ import           Data.List                    ((\\))
 import qualified Data.Text                    as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path
+import           Khan.Internal.Defaults
 import           Khan.Prelude
 import           Network.AWS.EC2
 import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
 import qualified Text.Read                    as Read
 
-class Discover a where
-    discover :: [String] -> a -> AWS a
-    discover _ = return
-
-class Validate a where
+class Options a where
+    discover :: Bool -> a -> AWS a
     validate :: MonadIO m => a -> EitherT AWSError m ()
+
+    discover = const return
     validate = void . return
 
 class Invalid a where
@@ -54,6 +54,9 @@ instance Invalid a => Invalid [a] where
 
 instance Invalid Char where
     invalid _ = False
+
+instance Invalid Version where
+    invalid = (== defaultVersion)
 
 instance Invalid FilePath where
     invalid f

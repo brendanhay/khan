@@ -21,7 +21,6 @@ import           Data.Aeson
 import qualified Data.Text           as Text
 import           Data.Text.Buildable
 import qualified Data.Text.Lazy      as LText
-import           Khan.Internal.AWS
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           Shelly

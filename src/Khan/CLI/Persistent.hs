@@ -1,9 +1,7 @@
-{-# LANGUAGE NoImplicitPrelude   #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.CLI.Persistent
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -24,42 +22,39 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
 
-defineOptions "Launch" $ do
-    textOption "lRole" "role" ""
-        "Instance's role. (required)"
+data Launch = Launch
+    { lRole      :: !Text
+    , lEnv       :: !Text
+    , lDomain    :: !Text
+    , lImage     :: Maybe Text
+    , lMin       :: !Integer
+    , lMax       :: !Integer
+    , lGroups    :: [Text]
+    , lType      :: !InstanceType
+    , lOptimised :: !Bool
+    , lZones     :: !String
+    }
 
-    textOption "lDomain" "domain" ""
-        "Instance's DNS domain. (required)"
-
-    textOption "lEnv" "env" defaultEnv
-        "Instance's environment."
-
-    maybeTextOption "lImage" "image" ""
-        "Id of the image/ami. (discovered)"
-
-    integerOption "lMin" "min" 1
+launchParser :: Parser Launch
+launchParser = Launch
+    <$> roleOption
+    <*> envOption
+    <*> textOption "domain" mempty
+        "Instance's DNS domain."
+    <*> optional (textOption "image" (value "")
+        "Id of the image/ami.")
+    <*> integerOption "min" (value 1)
         "Minimum number of instances to launch."
-
-    integerOption "lMax" "max" 1
+    <*> integerOption "max" (value 1)
         "Maximum number of instances to launch."
-
-    textsOption "lGroups" "groups" []
-        "Security groups. (discovered)"
-
-    instanceTypeOption "lType" "type" M1_Small
+    <*> many (textOption "group" mempty
+        "Security groups. (discovered)")
+    <*> readOption "type" "TYPE" (value M1_Small)
         "Instance's type."
-
-    boolOption "lOptimised" "optimised" False
+    <*> switchOption "optimised" False
         "EBS optimisation."
-
-    stringOption "lZones" "zones" "abc"
+    <*> stringOption "zones" (value "abc")
          "Availability zones suffixes to provision into (psuedo-random)."
-
-    textOption "lUser" "user" "ubuntu"
-        "SSH user."
-
-    intOption "lTimeout" "timeout" 60
-        "SSH timeout."
 
     -- Block Device Mappings
     -- Monitoring
@@ -68,15 +63,12 @@ defineOptions "Launch" $ do
     -- Client Token
     -- Network Interfaces
 
-deriving instance Show Launch
-
-instance Discover Launch where
+instance Options Launch where
     discover _ l@Launch{..} = do
         zs <- EC2.defaultZoneSuffixes lZones
         debug "Using Availability Zones '{}'" [zs]
         return $! l { lZones = zs }
 
-instance Validate Launch where
     validate Launch{..} = do
         check lRole   "--role must be specified."
         check lEnv    "--env must be specified."
@@ -91,29 +83,29 @@ instance Validate Launch where
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
 
-defineOptions "Host" $ do
-    textOption "hRole" "role" ""
-        "Instance's role."
+data Host = Host
+    { hRole  :: !Text
+    , hEnv   :: !Text
+    , hHosts :: [Text]
+    , hKey   :: !FilePath
+    }
 
-    textOption "hEnv" "env" defaultEnv
-        "Instance's environment."
-
-    textsOption "hHosts" "hosts" []
-        "Hosts to run on."
-
-    pathOption "hKey" "key" ""
+hostParser :: Parser Host
+hostParser = Host
+    <$> roleOption
+    <*> envOption
+    <*> many (textOption "hosts" mempty
+        "Hosts to run on.")
+    <*> pathOption "key" (value "")
         "Private key to use."
 
-deriving instance Show Host
-
-instance Discover Host where
+instance Options Host where
     discover _ h@Host{..}
         | not $ invalid hKey = return h
         | otherwise = do
             f <- keyPath $ names h
             return $! h { hKey = f }
 
-instance Validate Host where
     validate Host{..} = do
         if invalid hHosts
             then check hRole "--role must be specified." >>
@@ -124,16 +116,15 @@ instance Validate Host where
 instance Naming Host where
     names Host{..} = unversioned hRole hEnv
 
-commands :: [Command]
-commands =
-    [ command launch "launch" "Launch 1..n instances."
-        "Some text about launching."
-    , command terminate "terminate" "Terminate a single instance."
-        "Some text about terminating."
-    ]
+commands :: Mod CommandFields Command
+commands = group "persistent" "Persistent shit."
+     $ command "launch" launch launchParser
+        "Launch 1..n instances."
+    <> command "terminate" terminate hostParser
+        "Terminate a single instance."
 
-launch :: Launch -> AWS ()
-launch l@Launch{..} = do
+launch :: Common -> Launch -> AWS ()
+launch Common{..} l@Launch{..} = do
     a <- async . EC2.findImage . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
     i <- async $ IAM.findRole l
@@ -152,8 +143,7 @@ launch l@Launch{..} = do
     wait_ g <* log "Found Role Group {}" [groupName]
 
     az  <- shuffle lZones
-    reg <- getRegion
-    ms1 <- EC2.runInstances l ami lType (AZ reg az) lMin lMax lOptimised
+    ms1 <- EC2.runInstances l ami lType (AZ cRegion az) lMin lMax lOptimised
 
     let ids = map riitInstanceId ms1
 
@@ -162,5 +152,5 @@ launch l@Launch{..} = do
   where
     Names{..} = names l
 
-terminate :: Host -> AWS ()
-terminate Host{..} = return ()
+terminate :: Common -> Host -> AWS ()
+terminate _ _ = return ()

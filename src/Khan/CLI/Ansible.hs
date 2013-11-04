@@ -1,10 +1,8 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NoImplicitPrelude          #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE NoImplicitPrelude  #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- Module      : Khan.CLI.Ansible
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -39,100 +37,91 @@ import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
 
-inventoryPath :: FilePath -> Text -> AWS FilePath
-inventoryPath f env = do
-    r <- Text.pack . show <$> getRegion
-    defaultPath f
-        . cachePath
-        . Path.fromText
-        $ Text.concat [r, "_", env]
+data Ansible = Ansible
+    { aEnv    :: !Text
+    , aBin    :: Maybe Text
+    , aKey    :: !FilePath
+    , aRetain :: !Int
+    , aCache  :: !FilePath
+    , aForce  :: !Bool
+    , aArgs   :: [String]
+    }
 
-defineOptions "Ansible" $ do
-    maybeTextOption "aBin" "bin" ""
-        "Ansible binary name to exec."
-
-    textOption "aEnv" "env" defaultEnv
-        "Environment."
-
-    pathOption "aKey" "key" ""
+ansibleParser :: Parser Ansible
+ansibleParser = Ansible
+    <$> envOption
+    <*> optional (textOption "bin" mempty
+        "Ansible binary name to exec.")
+    <*> pathOption "key" (value "")
         "Path to the private key to use."
-
-    intOption "aRetain" "retention" defaultCache
+    <*> readOption "retention" "SECONDS" (value defaultCache)
         "Number of seconds to cache inventory results for."
-
-    pathOption "aCache" "cache" ""
+    <*> pathOption "cache" (value "")
         "Path to the inventory file cache."
-
-    boolOption "aForce" "force" False
+    <*> switchOption "force" False
         "Force update of any previously cached results."
+    <*> argsOption str mempty
+        "Pass through arugments to ansible."
 
-    stringsOption "aArgs" "pass-through" []
-        "Pass through arguments to ansible by specifying: -- [options]"
-
-deriving instance Show Ansible
-
-instance Discover Ansible where
-    discover args a@Ansible{..} = do
+instance Options Ansible where
+    discover _ a@Ansible{..} = do
         f <- if invalid aKey then keyPath $ names a else return aKey
         c <- inventoryPath aCache aEnv
-        return $! a { aKey = f, aCache = c, aArgs = aArgs ++ args }
+        return $! a { aKey = f, aCache = c }
 
-instance Validate Ansible where
     validate Ansible{..} = do
         check aBin     "--bin must be specified."
         check aEnv     "--env must be specified."
         check aRetain  "--retention must be greater than 0."
         checkPath aKey " specified by --key must exist."
-
         check aArgs "Pass ansible options through using the -- delimiter.\n\
                     \Usage: khan ansible [KHAN OPTIONS] -- [ANSIBLE OPTIONS]."
 
 instance Naming Ansible where
     names Ansible{..} = unversioned "base" aEnv
 
-defineOptions "Inventory" $ do
-    textOption "iEnv" "env" defaultEnv
-        "Environment."
+data Inventory = Inventory
+    { iEnv    :: !Text
+    , iCache  :: !FilePath
+    , iSilent :: !Bool
+    , iList   :: !Bool
+    , iHost   :: Maybe Text
+    }
 
-    boolOption "iList" "list" True
-        "List."
-
-    maybeTextOption "iHost" "host" ""
-        "Host."
-
-    pathOption "iCache" "cache" ""
+inventoryParser :: Parser Inventory
+inventoryParser = Inventory
+    <$> envOption
+    <*> pathOption "cache" (value "")
         "Path to the output inventory file cache."
-
-    boolOption "iSilent" "silent" False
+    <*> switchOption "silent" False
         "Don't output inventory results to stdout."
+    <*> switchOption "list" True
+        "List."
+    <*> optional (textOption "host" mempty
+        "Host.")
 
-deriving instance Show Inventory
-
-instance Discover Inventory where
+instance Options Inventory where
     discover _ i@Inventory{..} = do
         c <- inventoryPath iCache iEnv
         return $! i { iCache = c }
-      where
 
-instance Validate Inventory where
     validate Inventory{..} =
         check iEnv "--env must be specified."
 
-commands :: [Command]
+commands :: Mod CommandFields Command
 commands =
-    [ command ansible "ansible" "Ansible."
-        "Stuff."
-    , command playbook "playbook" "Ansible Playbook."
-        "Stuff."
-    , command inventory "inventory" "Output ansible compatible inventory."
-        "Stuff."
-    ]
+       command "ansible" ansible ansibleParser
+       "Ansible."
+    <> command "playbook" playbook ansibleParser
+       "Ansible Playbook."
+    <> command "inventory" inventory inventoryParser
+       "Output ansible compatible inventory."
 
-ansible :: Ansible -> AWS ()
-ansible Ansible{..} = do
+ansible :: Common -> Ansible -> AWS ()
+ansible cmn Ansible{..} = do
     whenM ((|| aForce) <$> exceeds) $ do
         log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]
-        inventory $ Inventory aEnv True Nothing aCache True
+        inventory cmn $ Inventory aEnv aCache True True Nothing
 
     debug "Writing inventory script to {}" [script]
     liftIO . LText.writeFile script $
@@ -168,17 +157,17 @@ ansible Ansible{..} = do
     script = Path.encodeString $ aCache <.> "sh"
     inv    = Path.encodeString aCache
 
-playbook :: Ansible -> AWS ()
-playbook a@Ansible{..} = do
+playbook :: Common -> Ansible -> AWS ()
+playbook cmn a@Ansible{..} = do
     r <- show <$> getRegion
-    ansible $ a
+    ansible cmn $ a
         { aBin  = maybe (Just "ansible-playbook") Just aBin
         , aArgs = aArgs ++
             ["--extra-vars", concat ["khan_region=", r, " khan_env=", Text.unpack aEnv]]
         }
 
-inventory :: Inventory -> AWS ()
-inventory Inventory{..} = do
+inventory :: Common -> Inventory -> AWS ()
+inventory _ Inventory{..} = do
     j <- Aeson.encodePretty . JS <$> maybe list (const $ return Map.empty) iHost
 
     debug "Writing inventory to {}" [iCache]
@@ -260,3 +249,11 @@ instance ToJSON (Format Host) where
                , ("khan_app",     pack appName)
                , ("khan_version", toJSON versionName)
                ]
+
+inventoryPath :: FilePath -> Text -> AWS FilePath
+inventoryPath f env = do
+    r <- Text.pack . show <$> getRegion
+    defaultPath f
+        . cachePath
+        . Path.fromText
+        $ Text.concat [r, "_", env]

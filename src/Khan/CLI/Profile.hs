@@ -1,9 +1,6 @@
-{-# LANGUAGE NoImplicitPrelude   #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.CLI.Profile
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -17,37 +14,40 @@
 
 module Khan.CLI.Profile (commands) where
 
-import qualified Khan.AWS.IAM  as IAM
+import           Data.Aeson
+import qualified Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
+import qualified Khan.AWS.IAM               as IAM
 import           Khan.Internal
 import           Khan.Prelude
-import           Network.AWS
+import           Network.AWS.IAM            hiding (Role)
+import           Network.HTTP.Types         (urlDecode)
 
-defineOptions "Role" $ do
-    textOption "rRole" "role" ""
-        "Role of the application."
+data Role = Role
+    { rRole   :: !Text
+    , rEnv    :: !Text
+    , rPolicy :: !FilePath
+    , rTrust  :: !FilePath
+    } deriving (Show)
 
-    textOption "rEnv" "env" defaultEnv
-        "Environment of the application."
+roleParser :: Parser Role
+roleParser = Role
+    <$> roleOption
+    <*> envOption
+    <*> pathOption "policy" (value "") "Role policy file."
+    <*> pathOption "trust" (value "") "Trust relationship file."
 
-    pathOption "rPolicy" "policy" ""
-        "Role policy file."
-
-    pathOption "rTrust" "trust" ""
-        "Trust relationship file."
-
-deriving instance Show Role
-
-instance Discover Role where
+instance Options Role where
     discover _ r@Role{..} = do
         (p, t) <- (,)
             <$> defaultPath rPolicy (configPath "policy.json")
             <*> defaultPath rTrust  (configPath "trust.json")
         return $! r { rPolicy = p, rTrust  = t }
-      where
 
-instance Validate Role where
     validate Role{..} = do
-        check rRole "--name must be specified."
+        check rRole "--role must be specified."
         check rEnv  "--env must be specified."
         checkPath rPolicy " specified by --policy must exist."
         checkPath rTrust  " specified by --trust must exist."
@@ -55,11 +55,32 @@ instance Validate Role where
 instance Naming Role where
     names Role{..} = unversioned rRole rEnv
 
-commands :: [Command]
-commands =
-    [ command profile "profile" "Create or update IAM profiles."
-        "Stuff."
-    ]
+commands :: Mod CommandFields Command
+commands = group "profile" "Long description."
+     $ command "info" info roleParser
+        "Create or update IAM profiles."
+    <> command "update" update roleParser
+        "Create or update IAM profiles."
 
-profile :: Role -> AWS ()
-profile r = IAM.updateRole r (rPolicy r) (rTrust r)
+info :: Common -> Role -> AWS ()
+info _ r = do
+    p <- IAM.findRole r
+    log_ . Text.unlines $
+        [ "Arn                  = " <> rArn p
+        , "RoleId               = " <> rRoleId p
+        , "RoleName             = " <> rRoleName p
+        , "CreateDate           = " <> Text.pack (show $ rCreateDate p)
+        , "Path                 = " <> rPath p
+        , "AssumePolicyDocument = " <> (Text.decodeUtf8
+            . LBS.toStrict
+            . maybe "" (Aeson.encodePretty)
+            . join
+            . fmap policy
+            $ rAssumeRolePolicyDocument p)
+        ]
+  where
+    policy :: Text -> Maybe Object
+    policy = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
+
+update :: Common -> Role -> AWS ()
+update _ r = IAM.updateRole r (rPolicy r) (rTrust r)

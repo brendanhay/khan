@@ -1,8 +1,6 @@
-{-# LANGUAGE NoImplicitPrelude   #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.CLI.Routing
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -27,28 +25,29 @@ import           Network.AWS
 import           Network.AWS.EC2            hiding (ec2)
 import           Network.AWS.EC2.Metadata
 
-defineOptions "Routes" $ do
-    textOption "rDomain" "domain" ""
-        "DNS domain restriction. (required)"
+data Routes = Routes
+    { rEnv    :: !Text
+    , rDomain :: !Text
+    , rRoles  :: [Text]
+    , rZones  :: !String
+    , rFmt    :: OutputFormat
+    }
 
-    textOption "rEnv" "env" defaultEnv
-        "Environment to describe."
-
-    textsOption "rRoles" "roles" []
-        "Roles to restrict to. (default: all)"
-
-    stringOption "rZones" "zones" ""
-         "Availability zones suffixes restriction. (discovered)"
-
-    formatOption "rFmt" "format" JSON
+routesParser :: Parser Routes
+routesParser = Routes
+    <$> envOption
+    <*> textOption "domain" (value "")
+        "DNS domain restriction."
+    <*> many (textOption "role" mempty
+        "Role to restrict to.")
+    <*> stringOption "zones" (value "")
+        "Availability zones suffixes restriction."
+    <*> readOption "format" "FORMAT" (value JSON)
         "Output format, supports json or haproxy."
 
-deriving instance Show Routes
-
-instance Discover Routes where
-    discover _ r@Routes{..} = do
-        ec2 <- isEC2
-        zs  <- EC2.defaultZoneSuffixes rZones
+instance Options Routes where
+    discover ec2 r@Routes{..} = do
+        zs <- EC2.defaultZoneSuffixes rZones
         log "Using Availability Zones '{}'" [zs]
         if not ec2
             then return $! r { rZones = zs }
@@ -57,29 +56,25 @@ instance Discover Routes where
                 Tags{..} <- findRequiredTags iid
                 return $! r { rDomain = tagDomain, rEnv = tagEnv, rZones = zs }
 
-instance Validate Routes where
     validate Routes{..} = do
         check rEnv    "--env must be specified."
         check rDomain "--domain must be specified."
         check (Within rZones "abcde") "--zones must be within [a-e]."
 
-commands :: [Command]
-commands =
-    [ command routes "routes" "Describe an environment's routing table."
-        "Some help text"
-    ]
-
-routes :: Routes -> AWS ()
-routes Routes{..} = do
-    log "Describing environment {}" [rEnv]
-    reg <- getRegion
-    is  <- EC2.findInstances [] (filters reg)
-    mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty . EC2.Instance) is
+commands :: Mod CommandFields Command
+commands = command "routes" routes routesParser
+    "Describe an environment's routing table."
   where
-    filters reg =
-        [ Filter "availability-zone" $ map (Text.pack . show . AZ reg) rZones
-        , Filter ("tag:" <> envTag)    [rEnv]
-        , Filter ("tag:" <> domainTag) [rDomain]
-        ] ++ if null rRoles
-                 then []
-                 else [Filter ("tag:" <> roleTag) rRoles]
+    routes Common{..} Routes{..} = do
+        log "Describing environment {}" [rEnv]
+        is <- EC2.findInstances [] fs
+        mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty . EC2.Instance) is
+      where
+        zone = Text.pack . show . AZ cRegion
+
+        fs = [ Filter "availability-zone" $ map zone rZones
+             , Filter ("tag:" <> envTag)    [rEnv]
+             , Filter ("tag:" <> domainTag) [rDomain]
+             ] ++ if null rRoles
+                      then []
+                      else [Filter ("tag:" <> roleTag) rRoles]

@@ -1,6 +1,5 @@
 SHELL := /usr/bin/env bash
 FLAGS := -j --disable-documentation --disable-library-coverage
-DEPS  := vendor/options
 BIN   := dist/build/khan/khan
 
 .PHONY: test lint doc
@@ -13,7 +12,7 @@ build:
 strip: build
 	strip -o dist/khan $(BIN) && upx dist/khan
 
-install: $(DEPS) cabal.sandbox.config add-sources
+install: cabal.sandbox.config add-sources
 	cabal install $(FLAGS)
 
 clean:
@@ -30,11 +29,7 @@ doc:
 	cabal haddock
 
 add-sources: cabal.sandbox.config
-	cabal sandbox add-source vendor/options
 	cabal sandbox add-source ../aws-haskell
 
 cabal.sandbox.config:
 	cabal sandbox init
-
-vendor/%:
-	git clone git@github.com:brendanhay/$*.git $@

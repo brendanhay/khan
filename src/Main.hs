@@ -1,9 +1,8 @@
-{-# LANGUAGE NoImplicitPrelude  #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell    #-}
-{-# LANGUAGE ViewPatterns       #-}
+{-# LANGUAGE Arrows            #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Main
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -17,51 +16,75 @@
 
 module Main (main) where
 
-import qualified Data.Text           as Text
-import qualified Khan.CLI.Ansible    as Ansible
-import qualified Khan.CLI.Ephemeral  as Ephemeral
-import qualified Khan.CLI.Group      as Group
-import qualified Khan.CLI.Host       as Host
-import qualified Khan.CLI.Metadata   as Metadata
-import qualified Khan.CLI.Persistent as Persistent
-import qualified Khan.CLI.Profile    as Profile
-import qualified Khan.CLI.Routing    as Routing
+import qualified Khan.CLI.Ansible           as Ansible
+import qualified Khan.CLI.DNS               as DNS
+import qualified Khan.CLI.Ephemeral         as Ephemeral
+import qualified Khan.CLI.Group             as Group
+import qualified Khan.CLI.Host              as Host
+import qualified Khan.CLI.Persistent        as Persistent
+import qualified Khan.CLI.Profile           as Profile
+import qualified Khan.CLI.Routing           as Routing
+import qualified Khan.CLI.SSH               as SSH
+
+import           Control.Error
+import           Control.Monad
+import qualified Data.ByteString.Char8      as BS
+import           Data.Text.Encoding
+import           Data.Text.Format           (Shown(..))
 import           Khan.Internal
 import           Khan.Prelude
-import           Options             (subcommandInfo)
-import           Options.Types
+import           Network.AWS
+import           Network.AWS.EC2.Metadata
+import           Options.Applicative
+import           Options.Applicative.Arrows
 
-defineOptions "Complete" $ do
-    maybeTextOption "iCmd" "command" ""
-        "Command."
+versionParser :: Parser (a -> a)
+versionParser = infoOption "0.0.0"
+    (long "version" <> help "Print version information.")
 
-deriving instance Show Complete
+programParser :: Parser (Common, Command)
+programParser = runA $ proc () -> do
+    opt <- asA commonParser -< ()
+    cmd <- (asA . hsubparser)
+         ( Routing.commands
+        <> Ansible.commands
+        <> SSH.commands
+        <> Group.commands
+        <> Profile.commands
+        <> DNS.commands
+        <> Host.commands
+        <> Persistent.commands
+        <> Ephemeral.commands
+         ) -< ()
+    A versionParser >>> A helper -< (opt, cmd)
 
-instance Discover Complete
-instance Validate Complete
-
-complete :: Command
-complete = command f "complete" "Bash command completion metadata." "Stuff."
-  where
-    f Complete{..} = case iCmd of
-        Nothing -> mapM_ (liftIO . putStrLn . cmdName) commands
-        Just c  -> do
-            let subs  = map (subcommandInfo . cmdSub) commands
-                cmd   = fromMaybe [] $ Text.unpack c `lookup` subs
-                flags = concatMap (map ("--" ++) . optionInfoLongFlags) cmd
-            mapM_ (liftIO . putStrLn) flags
-
-commands :: [Command]
-commands = concat
-    [ Ephemeral.commands
-    , Persistent.commands
-    , Metadata.commands
-    , Host.commands
-    , Routing.commands
-    , Profile.commands
-    , Ansible.commands
-    , Group.commands
-    ]
+programInfo :: ParserInfo (Common, Command)
+programInfo = info programParser idm
 
 main :: IO ()
-main = runProgram $ complete : commands
+main = execParser programInfo >>= runScript . fmapLT fmt . run
+  where
+    fmt (Err msg) = msg
+    fmt ex        = show ex
+
+    run (a, Command f x) = do
+        b@Common{..} <- isEC2 >>= regionalise a >>= initialise
+        validate b
+        r <- lift . runAWS (creds b) cDebug . within cRegion $ do
+            debug "Running in region {}..." [Shown cRegion]
+            p <- isEC2
+            y <- discover p x
+            liftEitherT $ validate y
+            f b y
+        hoistEither r
+
+    regionalise o False = return o
+    regionalise o True  = do
+        az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
+        reg <- fmapLT Err $
+            tryRead ("Failed to read region from: " ++ az) az
+        return $! o { cRegion = reg }
+
+    creds Common{..}
+        | Just r <- cProfile = FromRole $! encodeUtf8 r
+        | otherwise = FromKeys (BS.pack cAccess) (BS.pack cSecret)

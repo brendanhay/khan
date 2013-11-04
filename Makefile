@@ -1,6 +1,7 @@
 SHELL := /usr/bin/env bash
 FLAGS := -j --disable-documentation --disable-library-coverage
 BIN   := dist/build/khan/khan
+AMZ   := ../amazonka
 
 .PHONY: test lint doc
 
@@ -28,8 +29,11 @@ lint:
 doc:
 	cabal haddock
 
-add-sources: cabal.sandbox.config
-	cabal sandbox add-source ../aws-haskell
+add-sources: cabal.sandbox.config $(AMZ)
+	cabal sandbox add-source $(AMZ)
 
 cabal.sandbox.config:
 	cabal sandbox init
+
+$(AMZ):
+	$(error Path '$@' doesn't exist - try Makefile.jenkins instead.)

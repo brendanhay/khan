@@ -20,18 +20,16 @@ module Khan.Internal.Options
     , commonParser
     , initialise
 
-    , define
-    , manyOptions
-    , switchOption
-
-    , textOption
-    , maybeTextOption
-    , pathOption
-    , stringOption
-    , readOption
-
     , group
     , command
+
+    , readOption
+    , switchOption
+    , textOption
+    , pathOption
+    , stringOption
+    , customOption
+    , argsOption
 
     , check
     , checkIO
@@ -65,11 +63,11 @@ data Common = Common
 
 commonParser :: Parser Common
 commonParser = Common
-    <$> switchOption "debug" False "Log debug output."
-    <*> readOption "region" "REGION" NorthCalifornia "Region to operate in."
-    <*> maybeTextOption "iam-profile" Nothing "IAM profile to use."
-    <*> stringOption "access-key" "" "AWS access key."
-    <*> stringOption "secret-key" "" "AWS secret key."
+    <$> switchOption "debug" "Log debug output." False
+    <*> readOption "region" "REGION" "Region to operate in." (value NorthCalifornia)
+    <*> optional (textOption "iam-profile" "IAM profile to use." mempty)
+    <*> stringOption "access-key" "AWS access key." (value "")
+    <*> stringOption "secret-key" "AWS secret key." (value "")
 
 instance Options Common where
     validate Common{..} = do
@@ -101,49 +99,6 @@ initialise o@Common{..}
             | null v    = fromMaybe "" <$> lookupEnv k
             | otherwise = return v
 
-define :: (String -> a)
-       -> String
-       -> String
-       -> a
-       -> String
-       -> Parser a
-define rdr key typ val desc = nullOption $
-    long key <> metavar typ <> eitherReader (Right . rdr) <> value val <> help desc
-
-readOption :: Read a
-           => String
-           -> String
-           -> a
-           -> String
-           -> Parser a
-readOption key typ val desc = option $
-    long key <> metavar typ <> reader auto <> value val <> help desc
-
-manyOptions :: (String -> Either String a)
-            -> String
-            -> String
-            -> String
-            -> Parser [a]
-manyOptions rdr key typ desc = many . nullOption $
-    long key <> metavar typ <> eitherReader rdr <> help desc
-
-switchOption :: String -> Bool -> String -> Parser Bool
-switchOption key val desc = flag val (not val) $ long key <> help desc
-
-textOption :: String -> Text -> String -> Parser Text
-textOption key = define Text.pack key "STR"
-
-maybeTextOption :: String -> Maybe Text -> String -> Parser (Maybe Text)
-maybeTextOption key = define f key "STR"
-  where
-    f x = if null x then Nothing else Just $ Text.pack x
-
-pathOption :: String -> FilePath -> String -> Parser FilePath
-pathOption key = define Path.decodeString key "PATH"
-
-stringOption :: String -> String -> String -> Parser String
-stringOption key = define id key "STR"
-
 group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs =
     Options.command name (Options.info (hsubparser cs) (progDesc desc))
@@ -154,8 +109,62 @@ command :: Options a
         -> Parser a
         -> String
         -> Mod CommandFields Command
-command name f p desc =
-    Options.command name (Options.info (Command f <$> p) (progDesc desc))
+command name f p desc = Options.command name $
+    Options.info (Command f <$> p) (progDesc desc)
+
+readOption :: Read a
+           => String
+           -> String
+           -> String
+           -> Mod OptionFields a
+           -> Parser a
+readOption key typ desc m = option $ mconcat
+    [long key, metavar typ, reader auto, help desc, m]
+
+switchOption :: String -> String -> Bool -> Parser Bool
+switchOption key desc p = flag p (not p) $ long key <> help desc
+
+textOption :: String -> String -> Mod OptionFields Text -> Parser Text
+textOption key desc m = nullOption $ mconcat
+    [ long key
+    , metavar "STR"
+    , eitherReader (Right . Text.pack)
+    , help desc
+    , m
+    ]
+
+pathOption :: String -> String -> Mod OptionFields FilePath -> Parser FilePath
+pathOption key desc m = nullOption $ mconcat
+    [ long key
+    , metavar "PATH"
+    , eitherReader (Right . Path.decodeString)
+    , help desc
+    , m
+    ]
+
+stringOption :: String -> String -> Mod OptionFields String -> Parser String
+stringOption key desc m = strOption $ mconcat
+    [ long key
+    , metavar "STR"
+    , help desc
+    , m
+    ]
+
+customOption :: String
+             -> String
+             -> String
+             -> (String -> Either String a)
+             -> Mod OptionFields a
+             -> Parser a
+customOption key typ desc rdr m = nullOption $ mconcat
+    [long key, metavar typ, eitherReader rdr, help desc, m]
+
+argsOption :: (String -> Maybe a)
+           -> String
+           -> Mod ArgumentFields a
+           -> Parser [a]
+argsOption rdr desc m = many . argument rdr $
+    metavar "-- ARGS .." <> help desc <> m
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

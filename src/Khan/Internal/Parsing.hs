@@ -80,11 +80,11 @@ showRules = Text.intercalate ", " . map rule . toList
         groupOrRange = headMay (mapMaybe uigGroupName $ toList iptGroups)
             <|> headMay (map irCidrIp $ toList iptIpRanges)
 
-parseRule :: String -> Either String IpPermissionType
-parseRule = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0")
-    . parseOnly parser
-    . Text.pack
+parseRules :: String -> Either String IpPermissionType
+parseRules = msg . parseOnly parser . Text.pack
   where
+    msg = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0")
+
     parser = do
         p <- protocol
         f <- decimal <* char ':'

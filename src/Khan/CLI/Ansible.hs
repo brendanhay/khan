@@ -49,13 +49,13 @@ data Ansible = Ansible
 
 ansibleParser :: Parser Ansible
 ansibleParser = Ansible
-    <$> maybeTextOption "bin" Nothing "Ansible binary name to exec."
-    <*> textOption "env" defaultEnv "Environment."
-    <*> pathOption "key" "" "Path to the private key to use."
-    <*> readOption "retention" "SECONDS" defaultCache "Number of seconds to cache inventory results for."
-    <*> pathOption "cache" "" "Path to the inventory file cache."
-    <*> switchOption "force" False "Force update of any previously cached results."
-    <*> arguments Just (metavar "-- ARGS .." <> help "Pass through arugments to ssh.")
+    <$> optional (textOption "bin" "Ansible binary name to exec." mempty)
+    <*> textOption "env" "Environment." (value defaultEnv)
+    <*> pathOption "key" "Path to the private key to use." (value "")
+    <*> readOption "retention" "SECONDS" "Number of seconds to cache inventory results for." (value defaultCache)
+    <*> pathOption "cache" "Path to the inventory file cache." (value "")
+    <*> switchOption "force" "Force update of any previously cached results." False
+    <*> argsOption str "Pass through arugments to ssh." mempty
 
 instance Options Ansible where
     discover a@Ansible{..} = do
@@ -84,11 +84,11 @@ data Inventory = Inventory
 
 inventoryParser :: Parser Inventory
 inventoryParser = Inventory
-    <$> textOption "env" defaultEnv "Environment."
-    <*> pathOption "cache" "" "Path to the output inventory file cache."
-    <*> switchOption "silent" False "Don't output inventory results to stdout."
-    <*> switchOption "list" True "List."
-    <*> maybeTextOption "host" Nothing "Host."
+    <$> textOption "env" "Environment." (value defaultEnv)
+    <*> pathOption "cache" "Path to the output inventory file cache." (value "")
+    <*> switchOption "silent" "Don't output inventory results to stdout." False
+    <*> switchOption "list" "List." True
+    <*> optional (textOption "host" "Host." mempty)
 
 instance Options Inventory where
     discover i@Inventory{..} = do

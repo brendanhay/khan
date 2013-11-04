@@ -28,9 +28,9 @@ data Group = Group
 
 groupParser :: Parser Group
 groupParser = Group
-    <$> textOption "role" "" "Role of the application."
-    <*> textOption "env" defaultEnv "Environment of the application."
-    <*> manyOptions parseRule "rule" "RULE" "Rules."
+    <$> textOption "role" "Role of the application." mempty
+    <*> textOption "env" "Environment of the application." (value defaultEnv)
+    <*> many (customOption "rule" "RULE" "Rule description." parseRules mempty)
 
 instance Options Group where
     validate Group{..} = do
@@ -50,6 +50,6 @@ commands = group "group" "Long description."
         mg <- EC2.findGroup g
         liftIO $ maybe (return ()) (putStrLn . ppShow) mg
 
-    update _ g = EC2.updateGroup g $ gRules g
+    update _ g = EC2.updateGroup g [] -- $ gRules g
 
     delete _ = EC2.deleteGroup

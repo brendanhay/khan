@@ -16,14 +16,15 @@
 
 module Main (main) where
 
-import qualified Khan.CLI.Ansible    as Ansible
 -- import qualified Khan.CLI.Ephemeral  as Ephemeral
 -- import qualified Khan.CLI.Host       as Host
 -- import qualified Khan.CLI.Persistent as Persistent
-import qualified Khan.CLI.Routing    as Routing
+--import qualified Khan.CLI.DNS             as DNS
 
+import qualified Khan.CLI.Ansible           as Ansible
 import qualified Khan.CLI.Group             as Group
 import qualified Khan.CLI.Profile           as Profile
+import qualified Khan.CLI.Routing           as Routing
 import qualified Khan.CLI.SSH               as SSH
 
 import           Control.Error
@@ -44,6 +45,7 @@ versionParser = infoOption "0.0.0"
 
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
+    opt <- asA commonParser -< ()
     cmd <- (asA . hsubparser)
          ( Routing.commands
         <> Ansible.commands
@@ -51,7 +53,6 @@ programParser = runA $ proc () -> do
         <> Profile.commands
         <> SSH.commands
          ) -< ()
-    opt <- asA commonParser -< ()
     A versionParser >>> A helper -< (opt, cmd)
 
 programInfo :: ParserInfo (Common, Command)

@@ -26,8 +26,8 @@ import           Network.AWS.EC2            hiding (ec2)
 import           Network.AWS.EC2.Metadata
 
 data Routes = Routes
-    { rDomain :: !Text
-    , rEnv    :: !Text
+    { rEnv    :: !Text
+    , rDomain :: !Text
     , rRoles  :: [Text]
     , rZones  :: !String
     , rFmt    :: OutputFormat
@@ -35,11 +35,11 @@ data Routes = Routes
 
 routesParser :: Parser Routes
 routesParser = Routes
-    <$> textOption "domain" "" "DNS domain restriction."
-    <*> textOption "env" defaultEnv "Environment to describe."
-    <*> many (textOption "role" "" "Role to restrict to.")
-    <*> stringOption "zones" "" "Availability zones suffixes restriction."
-    <*> readOption "format" "FORMAT" JSON "Output format, supports json or haproxy."
+    <$> textOption "env" "Environment to describe." (value defaultEnv)
+    <*> textOption "domain" "DNS domain restriction." (value "")
+    <*> many (textOption "role" "Role to restrict to." mempty)
+    <*> stringOption "zones" "Availability zones suffixes restriction." (value "")
+    <*> readOption "format" "FORMAT" "Output format, supports json or haproxy." (value JSON)
 
 instance Options Routes where
     discover r@Routes{..} = do

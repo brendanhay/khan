@@ -37,11 +37,11 @@ data SSH = SSH
 
 sshParser :: Parser SSH
 sshParser = SSH
-    <$> textOption "role" "" "Role of the application."
-    <*> textOption "env" defaultEnv "Environment of the application."
-    <*> textOption "user" "ubuntu" "SSH User."
-    <*> pathOption "key" "" "SSH Key."
-    <*> arguments Just (metavar "-- ARGS .." <> help "Pass through arugments to ssh.")
+    <$> textOption "role" "Role of the application." mempty
+    <*> textOption "env" "Environment of the application." (value defaultEnv)
+    <*> textOption "user" "SSH User." (value "ubuntu")
+    <*> pathOption "key" "SSH Key." (value "")
+    <*> argsOption str "Pass through arugments to ssh." mempty
 
 instance Options SSH where
     discover s@SSH{..} = do

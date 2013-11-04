@@ -46,9 +46,8 @@ routesParser = Routes
         "Output format, supports json or haproxy."
 
 instance Options Routes where
-    discover r@Routes{..} = do
-        ec2 <- isEC2
-        zs  <- EC2.defaultZoneSuffixes rZones
+    discover ec2 r@Routes{..} = do
+        zs <- EC2.defaultZoneSuffixes rZones
         log "Using Availability Zones '{}'" [zs]
         if not ec2
             then return $! r { rZones = zs }

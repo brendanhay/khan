@@ -64,7 +64,7 @@ ansibleParser = Ansible
         "Pass through arugments to ansible."
 
 instance Options Ansible where
-    discover a@Ansible{..} = do
+    discover _ a@Ansible{..} = do
         f <- if invalid aKey then keyPath $ names a else return aKey
         c <- inventoryPath aCache aEnv
         return $! a { aKey = f, aCache = c }
@@ -101,7 +101,7 @@ inventoryParser = Inventory
         "Host.")
 
 instance Options Inventory where
-    discover i@Inventory{..} = do
+    discover _ i@Inventory{..} = do
         c <- inventoryPath iCache iEnv
         return $! i { iCache = c }
 

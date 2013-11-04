@@ -17,12 +17,12 @@
 module Main (main) where
 
 -- import qualified Khan.CLI.Ephemeral  as Ephemeral
--- import qualified Khan.CLI.Host       as Host
--- import qualified Khan.CLI.Persistent as Persistent
 
 import qualified Khan.CLI.Ansible           as Ansible
 import qualified Khan.CLI.DNS               as DNS
 import qualified Khan.CLI.Group             as Group
+import qualified Khan.CLI.Host              as Host
+import qualified Khan.CLI.Persistent        as Persistent
 import qualified Khan.CLI.Profile           as Profile
 import qualified Khan.CLI.Routing           as Routing
 import qualified Khan.CLI.SSH               as SSH
@@ -53,6 +53,8 @@ programParser = runA $ proc () -> do
         <> Group.commands
         <> Profile.commands
         <> DNS.commands
+        <> Host.commands
+        <> Persistent.commands
          ) -< ()
     A versionParser >>> A helper -< (opt, cmd)
 
@@ -70,7 +72,8 @@ main = execParser programInfo >>= runScript . fmapLT fmt . run
         validate b
         r <- lift . runAWS (creds b) cDebug . within cRegion $ do
             debug "Running in region {}..." [Shown cRegion]
-            y <- discover x
+            p <- isEC2
+            y <- discover p x
             liftEitherT $ validate y
             f b y
         hoistEither r

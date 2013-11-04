@@ -26,10 +26,10 @@ import           Text.Read
 import qualified Text.Read                    as Read
 
 class Options a where
-    discover :: a -> AWS a
+    discover :: Bool -> a -> AWS a
     validate :: MonadIO m => a -> EitherT AWSError m ()
 
-    discover = return
+    discover = const return
     validate = void . return
 
 class Invalid a where

@@ -44,7 +44,7 @@ sshParser = SSH
     <*> argsOption str mempty "Pass through arugments to ssh."
 
 instance Options SSH where
-    discover s@SSH{..} = do
+    discover _ s@SSH{..} = do
         f <- if invalid sKey then keyPath $ names s else return sKey
         return $! s { sKey = f }
 

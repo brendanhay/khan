@@ -31,6 +31,9 @@ module Khan.Internal.Options
     , customOption
     , argsOption
 
+    , roleOption
+    , envOption
+
     , check
     , checkIO
     , checkPath
@@ -63,11 +66,16 @@ data Common = Common
 
 commonParser :: Parser Common
 commonParser = Common
-    <$> switchOption "debug" "Log debug output." False
-    <*> readOption "region" "REGION" "Region to operate in." (value NorthCalifornia)
-    <*> optional (textOption "iam-profile" "IAM profile to use." mempty)
-    <*> stringOption "access-key" "AWS access key." (value "")
-    <*> stringOption "secret-key" "AWS secret key." (value "")
+    <$> switchOption "debug" False
+        "Log debug output."
+    <*> readOption "region" "REGION" (value NorthCalifornia)
+        "Region to operate in."
+    <*> optional (textOption "iam-profile" mempty
+        "IAM profile to use.")
+    <*> stringOption "access-key" (value "")
+        "AWS access key."
+    <*> stringOption "secret-key" (value "")
+        "AWS secret key."
 
 instance Options Common where
     validate Common{..} = do
@@ -115,35 +123,23 @@ command name f p desc = Options.command name $
 readOption :: Read a
            => String
            -> String
-           -> String
            -> Mod OptionFields a
+           -> String
            -> Parser a
-readOption key typ desc m = option $ mconcat
+readOption key typ m desc = option $ mconcat
     [long key, metavar typ, reader auto, help desc, m]
 
-switchOption :: String -> String -> Bool -> Parser Bool
-switchOption key desc p = flag p (not p) $ long key <> help desc
+switchOption :: String -> Bool -> String -> Parser Bool
+switchOption key p desc = flag p (not p) $ long key <> help desc
 
-textOption :: String -> String -> Mod OptionFields Text -> Parser Text
-textOption key desc m = nullOption $ mconcat
-    [ long key
-    , metavar "STR"
-    , eitherReader (Right . Text.pack)
-    , help desc
-    , m
-    ]
+textOption :: String -> Mod OptionFields Text -> String -> Parser Text
+textOption key = customOption key "STR" (Right . Text.pack)
 
-pathOption :: String -> String -> Mod OptionFields FilePath -> Parser FilePath
-pathOption key desc m = nullOption $ mconcat
-    [ long key
-    , metavar "PATH"
-    , eitherReader (Right . Path.decodeString)
-    , help desc
-    , m
-    ]
+pathOption :: String -> Mod OptionFields FilePath -> String -> Parser FilePath
+pathOption key = customOption key "PATH" (Right . Path.decodeString)
 
-stringOption :: String -> String -> Mod OptionFields String -> Parser String
-stringOption key desc m = strOption $ mconcat
+stringOption :: String -> Mod OptionFields String -> String -> Parser String
+stringOption key m desc = strOption $ mconcat
     [ long key
     , metavar "STR"
     , help desc
@@ -152,19 +148,23 @@ stringOption key desc m = strOption $ mconcat
 
 customOption :: String
              -> String
-             -> String
              -> (String -> Either String a)
              -> Mod OptionFields a
+             -> String
              -> Parser a
-customOption key typ desc rdr m = nullOption $ mconcat
+customOption key typ rdr m desc = nullOption $ mconcat
     [long key, metavar typ, eitherReader rdr, help desc, m]
 
 argsOption :: (String -> Maybe a)
-           -> String
            -> Mod ArgumentFields a
+           -> String
            -> Parser [a]
-argsOption rdr desc m = many . argument rdr $
+argsOption rdr m desc = many . argument rdr $
     metavar "-- ARGS .." <> help desc <> m
+
+roleOption, envOption :: Parser Text
+roleOption = textOption "role" mempty "Role of the application."
+envOption  = textOption "env" (value defaultEnv) "Environment of the application."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

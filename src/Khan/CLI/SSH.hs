@@ -37,11 +37,11 @@ data SSH = SSH
 
 sshParser :: Parser SSH
 sshParser = SSH
-    <$> textOption "role" "Role of the application." mempty
-    <*> textOption "env" "Environment of the application." (value defaultEnv)
-    <*> textOption "user" "SSH User." (value "ubuntu")
-    <*> pathOption "key" "SSH Key." (value "")
-    <*> argsOption str "Pass through arugments to ssh." mempty
+    <$> roleOption
+    <*> envOption
+    <*> textOption "user" (value "ubuntu") "SSH User."
+    <*> pathOption "key" (value "") "SSH Key."
+    <*> argsOption str mempty "Pass through arugments to ssh."
 
 instance Options SSH where
     discover s@SSH{..} = do
@@ -58,7 +58,8 @@ instance Naming SSH where
     names SSH{..} = unversioned sRole sEnv
 
 commands :: Mod CommandFields Command
-commands = command "ssh" ssh sshParser "Long description."
+commands = command "ssh" ssh sshParser
+    "Long description."
   where
     ssh _ SSH{..} = do
         dns <- mapMaybe riitDnsName <$> EC2.findInstances []

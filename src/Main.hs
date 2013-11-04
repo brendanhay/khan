@@ -19,9 +19,9 @@ module Main (main) where
 -- import qualified Khan.CLI.Ephemeral  as Ephemeral
 -- import qualified Khan.CLI.Host       as Host
 -- import qualified Khan.CLI.Persistent as Persistent
---import qualified Khan.CLI.DNS             as DNS
 
 import qualified Khan.CLI.Ansible           as Ansible
+import qualified Khan.CLI.DNS               as DNS
 import qualified Khan.CLI.Group             as Group
 import qualified Khan.CLI.Profile           as Profile
 import qualified Khan.CLI.Routing           as Routing
@@ -49,9 +49,10 @@ programParser = runA $ proc () -> do
     cmd <- (asA . hsubparser)
          ( Routing.commands
         <> Ansible.commands
+        <> SSH.commands
         <> Group.commands
         <> Profile.commands
-        <> SSH.commands
+        <> DNS.commands
          ) -< ()
     A versionParser >>> A helper -< (opt, cmd)
 

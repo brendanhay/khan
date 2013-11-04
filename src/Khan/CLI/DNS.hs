@@ -15,9 +15,10 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.DNS (cli) where
+module Khan.CLI.DNS (commands) where
 
 import qualified Data.Text           as Text
+import           GHC.Word
 import           Khan.AWS.Route53    as R53
 import           Khan.Internal
 import           Khan.Prelude        hiding (for)
@@ -26,92 +27,93 @@ import           Network.AWS.Route53
 import           Pipes
 import           Text.Show.Pretty
 
-defineOptions "Record" $ do
-    textOption "rZone" "zone" ""
+data Record = Record
+    { rZone     :: !Text
+    , rType     :: !RecordType
+    , rValues   :: [Text]
+    , rTTL      :: !Integer
+    , rAlias    :: !Bool
+    , rPolicy   :: !RoutingPolicy
+    , rSetId    :: !Text
+    , rWeight   :: !Word8
+    , rFailover :: !Failover
+    , rCheck    :: Maybe Text
+    }
+
+recordParser :: Parser Record
+recordParser = Record
+    <$> textOption "zone" mempty
         "Name of the hosted zone to modify."
-
-    recordTypeOption "rRecordType" "type" CNAME
+    <*> readOption "type" "TYPE" (value CNAME)
         "Record set type."
-
-    textsOption "rValues" "value" []
-        "A value to add."
-
-    integerOption "rTTL" "ttl" 90
+    <*> many (textOption "value" mempty
+        "A value to add.")
+    <*> readOption "ttl" "SECONDS" (value 90)
         "Record resource cache time to live in seconds."
-
-    boolOption "rAlias" "alias" False
+    <*> switchOption "alias" False
         "Whether this record should be an alias for an AWS resource."
-
-    routingPolicyOption "rPolicy" "policy" Basic
+    <*> readOption "policy" "POLICY" (value Basic)
         "Routing policy type."
-
-    textOption "rSetId" "set-id" ""
+    <*> textOption "set-id" (value "")
         "Differentiate and group record sets with identical policy types."
-
-    regionOption "rRegion" "region" Ireland
-        "Region to use for regionalised routing records."
-
-    customOption "rWeight" "weight" 100 optionTypeWord8
+    <*> readOption "weight" "WORD8" (value 100)
         "Routing weight for the weighted policy type."
-
-    failoverOption "rFailover" "failover" PRIMARY
+    <*> readOption "failover" "FAILOVER" (value PRIMARY)
         "Specify if this is the primary or secondary set."
+    <*> optional (textOption "check" (value "")
+        "Existing health check to assign.")
 
-    maybeTextOption "rHealthCheck" "check" ""
-        "Existing health check to assign."
-
-deriving instance Show Record
-
-instance Discover Record
---    discover = return
         -- get zone from tag
         -- get policy from tag
         -- get set-id from tag
         -- get region from metadata
         -- get values from metadata
 
-instance Validate Record where
+instance Options Record where
     validate Record{..} = do
         check rZone   "--zone must be specified."
         check rValues "At least one --value must be specified."
         check (rPolicy /= Basic && Text.null rSetId)
             "--set-id must be specified for all non-basic routing policies."
 
-defineOptions "Search" $ do
-    textOption "sZone" "zone" ""
+data Search = Search
+    { sZone   :: !Text
+    , sMax    :: !Integer
+    , sNames  :: [Text]
+    , sValues :: [Text]
+    }
+
+searchParser :: Parser Search
+searchParser = Search
+    <$> textOption "zone" mempty
         "Name of the hosted zone to inspect."
-
-    integerOption "sMax" "max" 4
+    <*> readOption "max" "INT" (value 4)
         "Pagination window size."
+    <*> many (textOption "name" mempty
+        "A name to filter by.")
+    <*> many (textOption "value" mempty
+        "A value to filter by.")
 
-    textsOption "sNames" "name" []
-        "A name to filter by."
-
-    textsOption "sValues" "value" []
-        "A value to filter by."
-
-deriving instance Show Search
-
-instance Discover Search
-
-instance Validate Search where
+instance Options Search where
     validate Search{..} =
         check sZone "--zone must be specified."
 
-cli :: Command
-cli = Command "dns" "Manage DNS Records."
-    [ subCommand "create" $ modify CreateAction
-    , subCommand "delete" $ modify DeleteAction
-    , subCommand "search" search
-    ]
+commands :: Mod CommandFields Command
+commands = group "dns" "Manage DNS Records."
+     $ command "create" (modify CreateAction) recordParser
+        "long long long description."
+    <> command "delete" (modify DeleteAction) recordParser
+        "long long long description."
+    <> command "search" search searchParser
+        "long long long description."
 
-modify :: ChangeAction -> Record -> AWS ()
-modify act r@Record{..} = do
+modify :: ChangeAction -> Common -> Record -> AWS ()
+modify act Common{..} r@Record{..} = do
     zid <- R53.findZoneId rZone
-    updateRecordSet zid [Change act $ recordSet zid r]
+    updateRecordSet zid [Change act $ recordSet cRegion zid r]
 
-search :: Search -> AWS ()
-search Search{..} = do
+search :: Common -> Search -> AWS ()
+search _ Search{..} = do
     zid <- findZoneId sZone
     runEffect $ for (paginate $ start zid) (liftIO . display)
   where
@@ -130,24 +132,24 @@ search Search{..} = do
 
     match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
 
-recordSet :: HostedZoneId -> Record -> ResourceRecordSet
-recordSet zid Record{..} = mk rPolicy rAlias
+recordSet :: Region -> HostedZoneId -> Record -> ResourceRecordSet
+recordSet reg zid Record{..} = mk rPolicy rAlias
   where
     mk Failover True  = aset FailoverAliasRecordSet rFailover
-    mk Latency  True  = aset LatencyAliasRecordSet  rRegion
+    mk Latency  True  = aset LatencyAliasRecordSet  reg
     mk Weighted True  = aset WeightedAliasRecordSet weight
-    mk Basic    True  = AliasRecordSet rZone rRecordType tgt health
+    mk Basic    True  = AliasRecordSet rZone rType tgt health
 
     mk Failover False = rset FailoverRecordSet rFailover
-    mk Latency  False = rset LatencyRecordSet  rRegion
+    mk Latency  False = rset LatencyRecordSet  reg
     mk Weighted False = rset WeightedRecordSet weight
-    mk Basic    False = BasicRecordSet rZone rRecordType rTTL rrs health
+    mk Basic    False = BasicRecordSet rZone rType rTTL rrs health
 
-    aset x y = x rZone rRecordType rSetId y tgt health
-    rset x y = x rZone rRecordType rSetId y rTTL rrs health
+    aset x y = x rZone rType rSetId y tgt health
+    rset x y = x rZone rType rSetId y rTTL rrs health
 
     tgt = AliasTarget zid (head rValues) False
     rrs = ResourceRecords rValues
 
     weight = fromIntegral rWeight
-    health = HealthCheckId <$> rHealthCheck
+    health = HealthCheckId <$> rCheck

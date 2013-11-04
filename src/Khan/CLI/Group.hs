@@ -28,9 +28,10 @@ data Group = Group
 
 groupParser :: Parser Group
 groupParser = Group
-    <$> textOption "role" "Role of the application." mempty
-    <*> textOption "env" "Environment of the application." (value defaultEnv)
-    <*> many (customOption "rule" "RULE" "Rule description." parseRules mempty)
+    <$> roleOption
+    <*> envOption
+    <*> many (customOption "rule" "RULE" parseRules mempty
+        "Rule description.")
 
 instance Options Group where
     validate Group{..} = do
@@ -42,9 +43,12 @@ instance Naming Group where
 
 commands :: Mod CommandFields Command
 commands = group "group" "Long description."
-     $ command "info"   info   groupParser "Long long long long description."
-    <> command "update" update groupParser "Long long long long description."
-    <> command "delete" delete groupParser "Long long long long description."
+     $ command "info" info groupParser
+        "Long long long long description."
+    <> command "update" update groupParser
+        "Long long long long description."
+    <> command "delete" delete groupParser
+        "Long long long long description."
   where
     info _ g = do
         mg <- EC2.findGroup g

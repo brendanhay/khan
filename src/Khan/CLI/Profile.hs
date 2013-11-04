@@ -34,10 +34,10 @@ data Role = Role
 
 roleParser :: Parser Role
 roleParser = Role
-    <$> textOption "role" "Role of the application" mempty
-    <*> textOption "env" "Environment of the application." (value defaultEnv)
-    <*> pathOption "policy" "Role policy file." (value "")
-    <*> pathOption "trust" "Trust relationship file." (value "")
+    <$> roleOption
+    <*> envOption
+    <*> pathOption "policy" (value "") "Role policy file."
+    <*> pathOption "trust" (value "") "Trust relationship file."
 
 instance Options Role where
     discover r@Role{..} = do
@@ -57,8 +57,10 @@ instance Naming Role where
 
 commands :: Mod CommandFields Command
 commands = group "profile" "Long description."
-     $ command "info"   info   roleParser "Create or update IAM profiles."
-    <> command "update" update roleParser "Create or update IAM profiles."
+     $ command "info" info roleParser
+        "Create or update IAM profiles."
+    <> command "update" update roleParser
+        "Create or update IAM profiles."
 
 info :: Common -> Role -> AWS ()
 info _ r = do

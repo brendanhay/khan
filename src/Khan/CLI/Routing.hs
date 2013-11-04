@@ -35,11 +35,15 @@ data Routes = Routes
 
 routesParser :: Parser Routes
 routesParser = Routes
-    <$> textOption "env" "Environment to describe." (value defaultEnv)
-    <*> textOption "domain" "DNS domain restriction." (value "")
-    <*> many (textOption "role" "Role to restrict to." mempty)
-    <*> stringOption "zones" "Availability zones suffixes restriction." (value "")
-    <*> readOption "format" "FORMAT" "Output format, supports json or haproxy." (value JSON)
+    <$> envOption
+    <*> textOption "domain" (value "")
+        "DNS domain restriction."
+    <*> many (textOption "role" mempty
+        "Role to restrict to.")
+    <*> stringOption "zones" (value "")
+        "Availability zones suffixes restriction."
+    <*> readOption "format" "FORMAT" (value JSON)
+        "Output format, supports json or haproxy."
 
 instance Options Routes where
     discover r@Routes{..} = do

@@ -38,8 +38,8 @@ import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
 
 data Ansible = Ansible
-    { aBin    :: Maybe Text
-    , aEnv    :: !Text
+    { aEnv    :: !Text
+    , aBin    :: Maybe Text
     , aKey    :: !FilePath
     , aRetain :: !Int
     , aCache  :: !FilePath
@@ -49,13 +49,19 @@ data Ansible = Ansible
 
 ansibleParser :: Parser Ansible
 ansibleParser = Ansible
-    <$> optional (textOption "bin" "Ansible binary name to exec." mempty)
-    <*> textOption "env" "Environment." (value defaultEnv)
-    <*> pathOption "key" "Path to the private key to use." (value "")
-    <*> readOption "retention" "SECONDS" "Number of seconds to cache inventory results for." (value defaultCache)
-    <*> pathOption "cache" "Path to the inventory file cache." (value "")
-    <*> switchOption "force" "Force update of any previously cached results." False
-    <*> argsOption str "Pass through arugments to ssh." mempty
+    <$> envOption
+    <*> optional (textOption "bin" mempty
+        "Ansible binary name to exec.")
+    <*> pathOption "key" (value "")
+        "Path to the private key to use."
+    <*> readOption "retention" "SECONDS" (value defaultCache)
+        "Number of seconds to cache inventory results for."
+    <*> pathOption "cache" (value "")
+        "Path to the inventory file cache."
+    <*> switchOption "force" False
+        "Force update of any previously cached results."
+    <*> argsOption str mempty
+        "Pass through arugments to ansible."
 
 instance Options Ansible where
     discover a@Ansible{..} = do
@@ -84,11 +90,15 @@ data Inventory = Inventory
 
 inventoryParser :: Parser Inventory
 inventoryParser = Inventory
-    <$> textOption "env" "Environment." (value defaultEnv)
-    <*> pathOption "cache" "Path to the output inventory file cache." (value "")
-    <*> switchOption "silent" "Don't output inventory results to stdout." False
-    <*> switchOption "list" "List." True
-    <*> optional (textOption "host" "Host." mempty)
+    <$> envOption
+    <*> pathOption "cache" (value "")
+        "Path to the output inventory file cache."
+    <*> switchOption "silent" False
+        "Don't output inventory results to stdout."
+    <*> switchOption "list" True
+        "List."
+    <*> optional (textOption "host" mempty
+        "Host.")
 
 instance Options Inventory where
     discover i@Inventory{..} = do
@@ -100,9 +110,12 @@ instance Options Inventory where
 
 commands :: Mod CommandFields Command
 commands =
-       command "ansible" ansible ansibleParser "Ansible."
-    <> command "playbook" playbook ansibleParser "Ansible Playbook."
-    <> command "inventory" inventory inventoryParser "Output ansible compatible inventory."
+       command "ansible" ansible ansibleParser
+       "Ansible."
+    <> command "playbook" playbook ansibleParser
+       "Ansible Playbook."
+    <> command "inventory" inventory inventoryParser
+       "Output ansible compatible inventory."
 
 ansible :: Common -> Ansible -> AWS ()
 ansible cmn Ansible{..} = do

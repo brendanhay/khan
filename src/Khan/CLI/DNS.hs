@@ -85,7 +85,7 @@ searchParser :: Parser Search
 searchParser = Search
     <$> textOption "zone" mempty
         "Name of the hosted zone to inspect."
-    <*> readOption "max" "INT" (value 4)
+    <*> integerOption "max" (value 4)
         "Pagination window size."
     <*> many (textOption "name" mempty
         "A name to filter by.")

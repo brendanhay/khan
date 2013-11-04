@@ -16,10 +16,9 @@
 
 module Main (main) where
 
--- import qualified Khan.CLI.Ephemeral  as Ephemeral
-
 import qualified Khan.CLI.Ansible           as Ansible
 import qualified Khan.CLI.DNS               as DNS
+import qualified Khan.CLI.Ephemeral         as Ephemeral
 import qualified Khan.CLI.Group             as Group
 import qualified Khan.CLI.Host              as Host
 import qualified Khan.CLI.Persistent        as Persistent
@@ -55,6 +54,7 @@ programParser = runA $ proc () -> do
         <> DNS.commands
         <> Host.commands
         <> Persistent.commands
+        <> Ephemeral.commands
          ) -< ()
     A versionParser >>> A helper -< (opt, cmd)
 

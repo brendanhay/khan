@@ -19,6 +19,7 @@ import           Data.List                    ((\\))
 import qualified Data.Text                    as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path
+import           Khan.Internal.Defaults
 import           Khan.Prelude
 import           Network.AWS.EC2
 import qualified Text.ParserCombinators.ReadP as ReadP
@@ -53,6 +54,9 @@ instance Invalid a => Invalid [a] where
 
 instance Invalid Char where
     invalid _ = False
+
+instance Invalid Version where
+    invalid = (== defaultVersion)
 
 instance Invalid FilePath where
     invalid f

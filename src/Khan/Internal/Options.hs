@@ -28,11 +28,13 @@ module Khan.Internal.Options
     , textOption
     , pathOption
     , stringOption
+    , integerOption
     , customOption
     , argsOption
 
     , roleOption
     , envOption
+    , versionOption
 
     , check
     , checkIO
@@ -42,9 +44,11 @@ module Khan.Internal.Options
     ) where
 
 import qualified Data.Text                 as Text
+import           Data.Version
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Defaults
 import           Khan.Internal.IO
+import           Khan.Internal.Parsing
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
@@ -146,6 +150,9 @@ stringOption key m desc = strOption $ mconcat
     , m
     ]
 
+integerOption :: String -> Mod OptionFields Integer -> String -> Parser Integer
+integerOption key = readOption key "INT"
+
 customOption :: String
              -> String
              -> (String -> Either String a)
@@ -165,6 +172,10 @@ argsOption rdr m desc = many . argument rdr $
 roleOption, envOption :: Parser Text
 roleOption = textOption "role" mempty "Role of the application."
 envOption  = textOption "env" (value defaultEnv) "Environment of the application."
+
+versionOption :: Parser Version
+versionOption = customOption "version" "MAJ.MIN.PATCH+BUILD" eitherVersion mempty
+    "Version of the application."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

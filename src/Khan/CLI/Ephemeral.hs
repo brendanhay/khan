@@ -1,9 +1,6 @@
-{-# LANGUAGE NoImplicitPrelude   #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE StandaloneDeriving  #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.CLI.Ephemeral
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -18,6 +15,7 @@
 module Khan.CLI.Ephemeral (commands) where
 
 import           Control.Concurrent      (threadDelay)
+import           Data.Version
 import qualified Khan.AWS.AutoScaling    as ASG
 import qualified Khan.AWS.EC2            as EC2
 import qualified Khan.AWS.IAM            as IAM
@@ -27,55 +25,54 @@ import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
 import           Network.AWS.EC2
 
-defineOptions "Deploy" $ do
-    textOption "dRole" "role" ""
-        "Role of the application. (required)"
-
-    textOption "dDomain" "domain" ""
-        "Instance's DNS domain. (required)"
+data Deploy = Deploy
+    { dRole     :: !Text
+    , dEnv      :: !Text
+    , dDomain   :: !Text
+    , dVersion  :: !Version
+    , dZones    :: !String
+    , dGrace    :: !Integer
+    , dMin      :: !Integer
+    , dMax      :: !Integer
+    , dDesired  :: !Integer
+    , dCooldown :: !Integer
+    , dType     :: !InstanceType
+    }
 
 -- FIXME: Add port(s) option, and apply to tags
-
-    versionOption "dVersion" "version" defaultVersion
-        "Version of the application. (required)"
-
-    textOption "dEnv" "env" defaultEnv
-        "Environment to deploy the application into."
-
-    stringOption "dZones" "zones" ""
-         "Availability zones suffixes to provision into. (discovered)"
-
-    integerOption "dGrace" "grace" 20
+deployParser :: Parser Deploy
+deployParser = Deploy
+    <$> roleOption
+    <*> envOption
+    <*> textOption "domain" mempty
+        "Instance's DNS domain."
+    <*> versionOption
+    <*> stringOption "zones" (value "")
+         "Availability zones suffixes to provision into."
+    <*> integerOption "grace" (value 20)
         "Seconds until healthchecks are activated."
-
-    integerOption "dMin" "min" 1
+    <*> integerOption "min" (value 1)
         "Minimum number of instances."
-
-    integerOption "dMax" "max" 1
+    <*> integerOption "max" (value 1)
         "Maximum number of instances."
-
-    integerOption "dDesired" "desired" 1
+    <*> integerOption "desired" (value 1)
         "Desired number of instances."
-
-    integerOption "dCooldown" "cooldown" 60
+    <*> integerOption "cooldown" (value 60)
         "Seconds between scaling activities."
-
-    instanceTypeOption "dType" "instance" M1_Medium
+    <*> readOption "instance" "TYPE" (value M1_Medium)
         "Type of instance to provision."
 
-deriving instance Show Deploy
-
-instance Discover Deploy where
+instance Options Deploy where
     discover _ d@Deploy{..} = do
         zs <- EC2.defaultZoneSuffixes dZones
         debug "Using Availability Zones '{}'" [zs]
         return $! d { dZones = zs }
 
-instance Validate Deploy where
     validate Deploy{..} = do
         check dRole     "--role must be specified."
         check dEnv      "--env must be specified."
         check dDomain   "--domain must be specified."
+        check dVersion  "--version must be specified."
         check dGrace    "--grace must be greater than 0."
         check dMin      "--min must be greater than 0."
         check dMax      "--max must be greater than 0."
@@ -88,44 +85,42 @@ instance Validate Deploy where
         check (not $ dDesired <= dMax) "--desired must be less than or equal to --max."
 
         check (Within dZones "abcde")      "--zones must be within [a-e]."
-        check (defaultVersion == dVersion) "--version must be specified."
 
 instance Naming Deploy where
     names Deploy{..} = versioned dRole dEnv dVersion
 
-defineOptions "Scale" $ do
-    textOption "sRole" "role" ""
-        "Name of the application."
+data Scale = Scale
+    { sRole     :: !Text
+    , sEnv      :: !Text
+    , sVersion  :: !Version
+    , sGrace    :: Maybe Integer
+    , sMin      :: Maybe Integer
+    , sMax      :: Maybe Integer
+    , sDesired  :: Maybe Integer
+    , sCooldown :: Maybe Integer
+    }
 
-    textOption "sEnv" "env" defaultEnv
-        "Environment to deploy the application into."
+scaleParser :: Parser Scale
+scaleParser = Scale
+    <$> roleOption
+    <*> envOption
+    <*> versionOption
+    <*> optional (integerOption "grace" mempty
+        "Seconds until healthchecks are activated.")
+    <*> optional (integerOption "min" mempty
+        "Minimum number of instances.")
+    <*> optional (integerOption "max" mempty
+        "Maximum number of instances.")
+    <*> optional (integerOption "desired" mempty
+        "Desired number of instances.")
+    <*> optional (integerOption "cooldown" mempty
+        "Seconds between scaling activities.")
 
-    versionOption "sVersion" "version" defaultVersion
-        "Version of the application."
-
-    maybeIntegerOption "sGrace" "grace" 20
-        "Seconds until healthchecks are activated."
-
-    maybeIntegerOption "sMin" "min" 1
-        "Minimum number of instances."
-
-    maybeIntegerOption "sMax" "max" 20
-        "Maximum number of instances."
-
-    maybeIntegerOption "sDesired" "desired" 2
-        "Desired number of instances."
-
-    maybeIntegerOption "sCooldown" "cooldown" 60
-        "Seconds between scaling activities."
-
-deriving instance Show Scale
-
-instance Discover Scale
-
-instance Validate Scale where
+instance Options Scale where
     validate Scale{..} = do
         check sRole     "--role must be specified."
         check sEnv      "--env must be specified."
+        check sVersion  "--version must be specified."
         check sGrace    "--grace must be greater than 0."
         check sMin      "--min must be greater than 0."
         check sMax      "--max must be greater than 0."
@@ -136,54 +131,49 @@ instance Validate Scale where
         check (not $ sDesired >= sMin) "--desired must be greater than or equal to --min."
         check (not $ sDesired <= sMax) "--desired must be less than or equal to --max."
 
-        check (defaultVersion == sVersion) "--version must be specified."
-
 instance Naming Scale where
     names Scale{..} = versioned sRole sEnv sVersion
 
-defineOptions "Cluster" $ do
-    textOption "cRole" "role" ""
-        "Name of the application."
+data Cluster = Cluster
+    { cRole    :: !Text
+    , cEnv     :: !Text
+    , cVersion :: !Version
+    }
 
-    textOption "cEnv" "env" defaultEnv
-        "Environment to deploy the application into."
+clusterParser :: Parser Cluster
+clusterParser = Cluster
+    <$> roleOption
+    <*> envOption
+    <*> versionOption
 
-    versionOption "cVersion" "version" defaultVersion
-        "Version of the application."
-
-deriving instance Show Cluster
-
-instance Discover Cluster
-
-instance Validate Cluster where
+instance Options Cluster where
     validate Cluster{..} = do
-        check cRole "--role must be specified."
-        check cEnv  "--env must be specified."
-        check (defaultVersion == cVersion) "--version must be specified."
+        check cRole    "--role must be specified."
+        check cEnv     "--env must be specified."
+        check cVersion "--version must be specified."
 
 instance Naming Cluster where
     names Cluster{..} = versioned cRole cEnv cVersion
 
-commands :: [Command]
-commands =
-    [ command deploy "deploy" "Deploy a versioned cluster."
-        "Yo, longth text!"
-    , command scale "scale" "Update the scaling information for a cluster."
-        "Yo, longth text!"
-    , command promote "promote" "Promote a deployed cluster to serve traffic within the environment."
-        "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?"
-    , command retire "retire" "Retire a specific cluster version."
-        "Retire"
-    ]
+commands :: Mod CommandFields Command
+commands = group "ephemeral" "Ephemeral shit."
+     $ command "deploy" deploy deployParser
+        "Deploy a versioned cluster."
+    <> command "scale" scale scaleParser
+        "Update the scaling information for a cluster."
+    <> command "promote" promote clusterParser
+        "Promote a deployed cluster to serve traffic within the environment."
+    <> command "retire" retire clusterParser
+        "Retire a specific cluster version."
 
-deploy :: Deploy -> AWS ()
-deploy d@Deploy{..} = do
+deploy :: Common -> Deploy -> AWS ()
+deploy c@Common{..} d@Deploy{..} = do
     j <- ASG.findGroup d
 
     when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
         log "Waiting for previous deletion of Auto Scaling Group {}" [appName]
         liftIO . threadDelay $ 10 * 1000000
-        deploy d
+        deploy c d
 
     when (isJust j) $
         throwAWS "Auto Scaling Group {} already exists." [appName]
@@ -202,20 +192,18 @@ deploy d@Deploy{..} = do
     ami <- wait a
     log "Found AMI {} named {}" [ami, imageName]
 
-    reg <- getRegion
-
-    let zones = map (AZ reg) dZones
+    let zones = map (AZ cRegion) dZones
 
     ASG.createConfig d ami dType
     ASG.createGroup d dDomain zones dCooldown dDesired dGrace dMin dMax
   where
     Names{..} = names d
 
-scale :: Scale -> AWS ()
-scale s@Scale{..} = ASG.updateGroup s sCooldown sDesired sGrace sMin sMax
+scale :: Common -> Scale -> AWS ()
+scale _ s@Scale{..} = ASG.updateGroup s sCooldown sDesired sGrace sMin sMax
 
-promote :: Cluster -> AWS ()
-promote Cluster{..} = return ()
+promote :: Common -> Cluster -> AWS ()
+promote _ _ = return ()
 
-retire :: Cluster -> AWS ()
-retire c@Cluster{..} = ASG.deleteGroup c >> ASG.deleteConfig c
+retire :: Common -> Cluster -> AWS ()
+retire _ c = ASG.deleteGroup c >> ASG.deleteConfig c

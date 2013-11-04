@@ -62,7 +62,8 @@ programInfo :: ParserInfo (Common, Command)
 programInfo = info programParser idm
 
 main :: IO ()
-main = execParser programInfo >>= runScript . fmapLT fmt . run
+main = customExecParser (prefs showHelpOnError) programInfo >>=
+    runScript . fmapLT fmt . run
   where
     fmt (Err msg) = msg
     fmt ex        = show ex

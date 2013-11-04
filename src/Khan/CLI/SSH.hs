@@ -30,8 +30,8 @@ import qualified System.Posix.Process      as Posix
 data SSH = SSH
     { sRole :: !Text
     , sEnv  :: !Text
-    , sUser :: !Text
     , sKey  :: !FilePath
+    , sUser :: !Text
     , sArgs :: [String]
     } deriving (Show)
 
@@ -39,8 +39,8 @@ sshParser :: Parser SSH
 sshParser = SSH
     <$> roleOption
     <*> envOption
-    <*> textOption "user" (value "ubuntu") "SSH User."
-    <*> pathOption "key" (value "") "SSH Key."
+    <*> keyOption
+    <*> textOption 'u' "user" (value "ubuntu") "SSH User."
     <*> argsOption str mempty "Pass through arugments to ssh."
 
 instance Options SSH where

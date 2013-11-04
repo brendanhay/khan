@@ -39,8 +39,8 @@ import qualified System.Posix.Process       as Posix
 
 data Ansible = Ansible
     { aEnv    :: !Text
-    , aBin    :: Maybe Text
     , aKey    :: !FilePath
+    , aBin    :: Maybe Text
     , aRetain :: !Int
     , aCache  :: !FilePath
     , aForce  :: !Bool
@@ -50,15 +50,14 @@ data Ansible = Ansible
 ansibleParser :: Parser Ansible
 ansibleParser = Ansible
     <$> envOption
-    <*> optional (textOption "bin" mempty
+    <*> keyOption
+    <*> optional (textOption 'b' "bin" mempty
         "Ansible binary name to exec.")
-    <*> pathOption "key" (value "")
-        "Path to the private key to use."
-    <*> readOption "retention" "SECONDS" (value defaultCache)
+    <*> readOption 'r' "retention" "SECONDS" (value defaultCache)
         "Number of seconds to cache inventory results for."
-    <*> pathOption "cache" (value "")
+    <*> pathOption 'c' "cache" (value "")
         "Path to the inventory file cache."
-    <*> switchOption "force" False
+    <*> switchOption 'f' "force" False
         "Force update of any previously cached results."
     <*> argsOption str mempty
         "Pass through arugments to ansible."
@@ -91,13 +90,13 @@ data Inventory = Inventory
 inventoryParser :: Parser Inventory
 inventoryParser = Inventory
     <$> envOption
-    <*> pathOption "cache" (value "")
+    <*> pathOption 'c' "cache" (value "")
         "Path to the output inventory file cache."
-    <*> switchOption "silent" False
+    <*> switchOption 's' "silent" False
         "Don't output inventory results to stdout."
-    <*> switchOption "list" True
+    <*> switchOption 'l' "list" True
         "List."
-    <*> optional (textOption "host" mempty
+    <*> optional (textOption 'h' "host" mempty
         "Host.")
 
 instance Options Inventory where

@@ -44,22 +44,22 @@ deployParser :: Parser Deploy
 deployParser = Deploy
     <$> roleOption
     <*> envOption
-    <*> textOption "domain" mempty
+    <*> textOption 'd' "domain" mempty
         "Instance's DNS domain."
     <*> versionOption
-    <*> stringOption "zones" (value "")
+    <*> stringOption 'z' "zones" (value "")
          "Availability zones suffixes to provision into."
-    <*> integerOption "grace" (value 20)
+    <*> integerOption 'g' "grace" (value 20)
         "Seconds until healthchecks are activated."
-    <*> integerOption "min" (value 1)
+    <*> integerOption 'l' "min" (value 1)
         "Minimum number of instances."
-    <*> integerOption "max" (value 1)
+    <*> integerOption 'u' "max" (value 1)
         "Maximum number of instances."
-    <*> integerOption "desired" (value 1)
+    <*> integerOption 'n' "desired" (value 1)
         "Desired number of instances."
-    <*> integerOption "cooldown" (value 60)
+    <*> integerOption 'c' "cooldown" (value 60)
         "Seconds between scaling activities."
-    <*> readOption "instance" "TYPE" (value M1_Medium)
+    <*> readOption 'i' "instance" "TYPE" (value M1_Medium)
         "Type of instance to provision."
 
 instance Options Deploy where
@@ -105,15 +105,15 @@ scaleParser = Scale
     <$> roleOption
     <*> envOption
     <*> versionOption
-    <*> optional (integerOption "grace" mempty
+    <*> optional (integerOption 'g' "grace" mempty
         "Seconds until healthchecks are activated.")
-    <*> optional (integerOption "min" mempty
+    <*> optional (integerOption 'l' "min" mempty
         "Minimum number of instances.")
-    <*> optional (integerOption "max" mempty
+    <*> optional (integerOption 'u' "max" mempty
         "Maximum number of instances.")
-    <*> optional (integerOption "desired" mempty
+    <*> optional (integerOption 'n' "desired" mempty
         "Desired number of instances.")
-    <*> optional (integerOption "cooldown" mempty
+    <*> optional (integerOption 'c' "cooldown" mempty
         "Seconds between scaling activities.")
 
 instance Options Scale where

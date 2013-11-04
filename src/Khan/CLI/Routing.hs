@@ -36,13 +36,13 @@ data Routes = Routes
 routesParser :: Parser Routes
 routesParser = Routes
     <$> envOption
-    <*> textOption "domain" (value "" <> short 'd')
+    <*> textOption 'd' "domain" (value "")
         "DNS domain restriction."
-    <*> many (textOption "role" (short 'r')
+    <*> many (textOption 'r' "role" mempty
         "Role to restrict to.")
-    <*> stringOption "zones" (value "" <> short 'z')
+    <*> stringOption 'z' "zones" (value "")
         "Availability zones suffixes restriction."
-    <*> readOption "format" "FORMAT" (value JSON <> short 'f')
+    <*> readOption 'f' "format" "FORMAT" (value JSON)
         "Output format, supports json or haproxy."
 
 instance Options Routes where
@@ -78,3 +78,4 @@ commands = command "routes" routes routesParser
              ] ++ if null rRoles
                       then []
                       else [Filter ("tag:" <> roleTag) rRoles]
+ 

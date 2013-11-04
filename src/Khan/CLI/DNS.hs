@@ -40,25 +40,25 @@ data Record = Record
 
 recordParser :: Parser Record
 recordParser = Record
-    <$> textOption "zone" mempty
+    <$> textOption 'z' "zone" mempty
         "Name of the hosted zone to modify."
-    <*> readOption "type" "TYPE" (value CNAME)
+    <*> readOption 't' "type" "TYPE" (value CNAME)
         "Record set type."
-    <*> many (textOption "value" mempty
+    <*> many (textOption 'x' "value" mempty
         "A value to add.")
-    <*> readOption "ttl" "SECONDS" (value 90)
+    <*> readOption 't' "ttl" "SECONDS" (value 90)
         "Record resource cache time to live in seconds."
-    <*> switchOption "alias" False
+    <*> switchOption 'a' "alias" False
         "Whether this record should be an alias for an AWS resource."
-    <*> readOption "policy" "POLICY" (value Basic)
+    <*> readOption 'p' "policy" "POLICY" (value Basic)
         "Routing policy type."
-    <*> textOption "set-id" (value "")
+    <*> textOption 's' "set-id" (value "")
         "Differentiate and group record sets with identical policy types."
-    <*> readOption "weight" "WORD8" (value 100)
+    <*> readOption 'w' "weight" "WORD8" (value 100)
         "Routing weight for the weighted policy type."
-    <*> readOption "failover" "FAILOVER" (value PRIMARY)
+    <*> readOption 'f' "failover" "FAILOVER" (value PRIMARY)
         "Specify if this is the primary or secondary set."
-    <*> optional (textOption "check" (value "")
+    <*> optional (textOption 'c' "check" (value "")
         "Existing health check to assign.")
 
         -- get zone from tag
@@ -83,13 +83,13 @@ data Search = Search
 
 searchParser :: Parser Search
 searchParser = Search
-    <$> textOption "zone" mempty
+    <$> textOption 'z' "zone" mempty
         "Name of the hosted zone to inspect."
-    <*> integerOption "max" (value 4)
+    <*> integerOption 'n' "max" (value 4)
         "Pagination window size."
-    <*> many (textOption "name" mempty
+    <*> many (textOption 'n' "name" mempty
         "A name to filter by.")
-    <*> many (textOption "value" mempty
+    <*> many (textOption 'x' "value" mempty
         "A value to filter by.")
 
 instance Options Search where

@@ -39,21 +39,21 @@ launchParser :: Parser Launch
 launchParser = Launch
     <$> roleOption
     <*> envOption
-    <*> textOption "domain" mempty
+    <*> textOption 'd' "domain" mempty
         "Instance's DNS domain."
-    <*> optional (textOption "image" (value "")
+    <*> optional (textOption 'i' "image" (value "")
         "Id of the image/ami.")
-    <*> integerOption "min" (value 1)
+    <*> integerOption 'l' "min" (value 1)
         "Minimum number of instances to launch."
-    <*> integerOption "max" (value 1)
+    <*> integerOption 'u' "max" (value 1)
         "Maximum number of instances to launch."
-    <*> many (textOption "group" mempty
+    <*> many (textOption 'g' "group" mempty
         "Security groups. (discovered)")
-    <*> readOption "type" "TYPE" (value M1_Small)
+    <*> readOption 't' "type" "TYPE" (value M1_Small)
         "Instance's type."
-    <*> switchOption "optimised" False
+    <*> switchOption 'o' "optimised" False
         "EBS optimisation."
-    <*> stringOption "zones" (value "abc")
+    <*> stringOption 'z' "zones" (value "abc")
          "Availability zones suffixes to provision into (psuedo-random)."
 
     -- Block Device Mappings
@@ -86,18 +86,17 @@ instance Naming Launch where
 data Host = Host
     { hRole  :: !Text
     , hEnv   :: !Text
-    , hHosts :: [Text]
     , hKey   :: !FilePath
+    , hHosts :: [Text]
     }
 
 hostParser :: Parser Host
 hostParser = Host
     <$> roleOption
     <*> envOption
-    <*> many (textOption "hosts" mempty
+    <*> keyOption
+    <*> many (textOption 'h' "hosts" mempty
         "Hosts to run on.")
-    <*> pathOption "key" (value "")
-        "Private key to use."
 
 instance Options Host where
     discover _ h@Host{..}

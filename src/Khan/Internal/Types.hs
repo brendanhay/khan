@@ -17,7 +17,6 @@ module Khan.Internal.Types where
 import qualified Data.Text                    as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path
-import           Khan.Internal.Defaults
 import           Khan.Prelude
 import           Network.AWS.EC2
 import qualified Text.ParserCombinators.ReadP as ReadP
@@ -40,21 +39,12 @@ instance Invalid Bool where
 instance Invalid Text where
     invalid = Text.null
 
-instance Invalid Int where
-    invalid = (< 1)
-
-instance Invalid Integer where
-    invalid = (< 1)
-
 instance Invalid a => Invalid [a] where
     invalid [] = True
     invalid xs = invalid `any` xs
 
 instance Invalid Char where
     invalid _ = False
-
-instance Invalid Version where
-    invalid = (== defaultVersion)
 
 instance Invalid FilePath where
     invalid f

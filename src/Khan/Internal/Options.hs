@@ -48,7 +48,6 @@ module Khan.Internal.Options
 import qualified Data.Text                 as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS as Path
-import           Khan.Internal.Defaults
 import           Khan.Internal.IO
 import           Khan.Internal.Parsing
 import           Khan.Internal.Types

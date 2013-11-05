@@ -82,14 +82,19 @@ commands = command "routes" routes routesParser
   where
     routes Common{..} Routes{..} = do
         log "Describing environment {}" [rEnv]
-        is <- EC2.findInstances [] fs
+        is <- EC2.findInstances [] $ catMaybes
+            [ Just . Filter "availability-zone" $ map (zone cRegion) rZones
+            , role rRoles
+            , env rEnv
+            , domain rDomain
+            ]
         mapM_ (liftIO . LBS.putStrLn . Aeson.encodePretty . EC2.Instance) is
-      where
-        zone = Text.pack . show . AZ cRegion
 
-        fs = [ Filter "availability-zone" $ map zone rZones
-             , Filter ("tag:" <> envTag)    [rEnv]
---             , Filter ("tag:" <> domainTag) [rDomain]
-             ] ++ if null rRoles
-                      then []
-                      else [Filter ("tag:" <> roleTag) rRoles]
+    zone r = Text.pack . show . AZ r
+
+    role [] = Nothing
+    role xs = Just $ Filter ("tag:" <> roleTag) xs
+
+    env = Just . Filter ("tag:" <> envTag) . (:[])
+
+    domain = fmap (Filter ("tag:" <> domainTag) . (:[]))

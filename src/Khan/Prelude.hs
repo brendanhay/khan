@@ -33,6 +33,15 @@ module Khan.Prelude
     , sync
     , throwError
 
+    -- * Environment
+    , accessKey
+    , secretKey
+
+    -- * Defaults
+    , defaultEnv
+    , defaultUser
+    , defaultCache
+
     -- * Logging
     , enableLogging
     , log
@@ -70,6 +79,19 @@ import           Shelly                     (whenM, unlessM)
 import qualified System.IO                  as IO
 import           System.Log.Handler.Simple
 import           System.Log.Logger
+
+accessKey, secretKey :: String
+accessKey = "ACCESS_KEY_ID"
+secretKey = "SECRET_ACCESS_KEY"
+
+defaultEnv :: Text
+defaultEnv = "dev"
+
+defaultUser :: Text
+defaultUser = "ubuntu"
+
+defaultCache :: Int
+defaultCache = 360
 
 sync :: MonadIO m => IO a -> EitherT String m a
 sync = fmapLT show . syncIO

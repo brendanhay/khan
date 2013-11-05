@@ -69,7 +69,7 @@ instance Options Launch where
         return $! l { lZones = zs }
 
     validate Launch{..} = do
-        check rZones "--zones must be specified."
+        check lZones "--zones must be specified."
         check (lMin > lMax) "--min must be less than or equal to --max."
 
 instance Naming Launch where

@@ -13,7 +13,6 @@ module Khan.Internal
     ) where
 
 import Khan.Internal.AWS      as Internal
-import Khan.Internal.Defaults as Internal
 import Khan.Internal.IO       as Internal
 import Khan.Internal.Options  as Internal
 import Khan.Internal.Orphans  ()

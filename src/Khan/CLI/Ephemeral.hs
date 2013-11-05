@@ -80,9 +80,9 @@ instance Options Deploy where
         check dCooldown "--cooldown must be greater than 0."
         check dZones    "--zones must be specified."
 
-        check (not $ dMax >= dMin)     "--max must be greater than or equal to --max."
-        check (not $ dDesired >= dMin) "--desired must be greater than or equal to --min."
-        check (not $ dDesired <= dMax) "--desired must be less than or equal to --max."
+        check (dMax < dMin)     "--max must be greater than or equal to --max."
+        check (dDesired < dMin) "--desired must be greater than or equal to --min."
+        check (dDesired > dMax) "--desired must be less than or equal to --max."
 
         check (Within dZones "abcde")      "--zones must be within [a-e]."
 
@@ -127,9 +127,9 @@ instance Options Scale where
         check sDesired  "--desired must be greater than 0."
         check sCooldown "--cooldown must be greater than 0"
 
-        check (not $ sMin < sMax)      "--min must be less than --max."
-        check (not $ sDesired >= sMin) "--desired must be greater than or equal to --min."
-        check (not $ sDesired <= sMax) "--desired must be less than or equal to --max."
+        check (sMin >= sMax)      "--min must be less than --max."
+        check (sDesired < sMin) "--desired must be greater than or equal to --min."
+        check (sDesired > sMax) "--desired must be less than or equal to --max."
 
 instance Naming Scale where
     names Scale{..} = versioned sRole sEnv sVersion
@@ -156,15 +156,16 @@ instance Naming Cluster where
     names Cluster{..} = versioned cRole cEnv cVersion
 
 commands :: Mod CommandFields Command
-commands = group "ephemeral" "Ephemeral shit."
-     $ command "deploy" deploy deployParser
+commands = group "ephemeral" "Ephemeral shit." $ mconcat
+    [ command "deploy" deploy deployParser
         "Deploy a versioned cluster."
-    <> command "scale" scale scaleParser
+    , command "scale" scale scaleParser
         "Update the scaling information for a cluster."
-    <> command "promote" promote clusterParser
+    , command "promote" promote clusterParser
         "Promote a deployed cluster to serve traffic within the environment."
-    <> command "retire" retire clusterParser
+    , command "retire" retire clusterParser
         "Retire a specific cluster version."
+    ]
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do

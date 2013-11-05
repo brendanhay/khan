@@ -69,7 +69,6 @@ recordParser = Record
 
 instance Options Record where
     validate Record{..} = do
-        check rZone   "--zone must be specified."
         check rValues "At least one --value must be specified."
         check (rPolicy /= Basic && Text.null rSetId)
             "--set-id must be specified for all non-basic routing policies."
@@ -92,18 +91,17 @@ searchParser = Search
     <*> many (textOption "value" mempty
         "A value to filter by.")
 
-instance Options Search where
-    validate Search{..} =
-        check sZone "--zone must be specified."
+instance Options Search
 
 commands :: Mod CommandFields Command
-commands = group "dns" "Manage DNS Records."
-     $ command "create" (modify CreateAction) recordParser
+commands = group "dns" "Manage DNS Records." $ mconcat
+    [ command "create" (modify CreateAction) recordParser
         "long long long description."
-    <> command "delete" (modify DeleteAction) recordParser
+    , command "delete" (modify DeleteAction) recordParser
         "long long long description."
-    <> command "search" search searchParser
+    , command "search" search searchParser
         "long long long description."
+    ]
 
 modify :: ChangeAction -> Common -> Record -> AWS ()
 modify act Common{..} r@Record{..} = do

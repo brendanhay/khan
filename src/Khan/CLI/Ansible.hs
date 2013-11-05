@@ -15,10 +15,10 @@
 
 module Khan.CLI.Ansible (commands) where
 
+import           Control.Monad              (mplus)
 import qualified Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.HashMap.Strict        as Map
-import           Data.List                  (intercalate)
 import           Data.Maybe
 import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
@@ -67,9 +67,6 @@ instance Options Ansible where
         return $! a { aKey = f, aCache = c }
 
     validate Ansible{..} = do
-        check aBin     "--bin must be specified."
-        check aEnv     "--env must be specified."
-        check aRetain  "--retention must be greater than 0."
         checkPath aKey " specified by --key must exist."
         check aArgs "Pass ansible options through using the -- delimiter.\n\
                     \Usage: khan ansible [KHAN OPTIONS] -- [ANSIBLE OPTIONS]."
@@ -102,9 +99,6 @@ instance Options Inventory where
         c <- inventoryPath iCache iEnv
         return $! i { iCache = c }
 
-    validate Inventory{..} =
-        check iEnv "--env must be specified."
-
 data Module = Module
     { mName :: !Text
     , mPath :: !FilePath
@@ -118,21 +112,22 @@ moduleParser = Module
 instance Options Module
 
 commands :: Mod CommandFields Command
-commands =
-       command "ansible" ansible ansibleParser
-       "Ansible."
-    <> command "playbook" playbook ansibleParser
-       "Ansible Playbook."
-    <> command "inventory" inventory inventoryParser
-       "Output ansible compatible inventory."
-    <> command "module" module' moduleParser
-       "Run a khan action using ansibles module interface."
+commands = mconcat
+    [ command "ansible" ansible ansibleParser
+        "Ansible."
+    , command "playbook" playbook ansibleParser
+        "Ansible Playbook."
+    , command "inventory" inventory inventoryParser
+        "Output ansible compatible inventory."
+    , command "module" module' moduleParser
+        "Run a khan action using ansibles module interface."
+    ]
 
 ansible :: Common -> Ansible -> AWS ()
-ansible cmn Ansible{..} = do
+ansible c Ansible{..} = do
     whenM ((|| aForce) <$> exceeds) $ do
         log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]
-        inventory cmn $ Inventory aEnv aCache True True Nothing
+        inventory c $ Inventory aEnv aCache True True Nothing
 
     debug "Writing inventory script to {}" [script]
     liftIO . LText.writeFile script $
@@ -141,7 +136,7 @@ ansible cmn Ansible{..} = do
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    log "{} {}" [bin, intercalate " " args]
+    log "{} {}" [bin, unwords args]
     liftIO $ Posix.executeFile bin True args Nothing
   where
     args = aArgs ++ foldr' add []
@@ -169,10 +164,10 @@ ansible cmn Ansible{..} = do
     inv    = Path.encodeString aCache
 
 playbook :: Common -> Ansible -> AWS ()
-playbook cmn a@Ansible{..} = do
+playbook c a@Ansible{..} = do
     r <- show <$> getRegion
-    ansible cmn $ a
-        { aBin  = maybe (Just "ansible-playbook") Just aBin
+    ansible c $ a
+        { aBin  = mplus aBin (Just "ansible-playbook")
         , aArgs = aArgs ++
             [ "--extra-vars"
             , concat ["khan_region=", r, " khan_env=", Text.unpack aEnv]
@@ -208,7 +203,7 @@ inventory _ Inventory{..} = do
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
 module' :: Common -> Module -> AWS ()
-module' cmn Module{..} = capture cmn $ do
+module' c Module{..} = capture c $ do
     m   <- noteAWS "unsupported module: {}" [mName] $
         find (mName ==) ["group", "record", "profile"]
     kvs <- parseArgsFile mPath
@@ -217,11 +212,19 @@ module' cmn Module{..} = capture cmn $ do
     exec xs = liftIO $ Posix.executeFile "khan" True xs Nothing
 
     args m kvs = map Text.unpack $
-        "--silent" : m : cmd kvs : "--ansible" : concatMap val kvs
+        [ "--silent"
+        , "--region"
+        , reg kvs
+        , m
+        , cmd kvs
+        , "--ansible"
+        ] ++ concatMap val kvs
 
-    val ("state", _) = []
-    val (k, v)       = ["--" <> k, v]
+    val ("state",  _) = []
+    val ("region", _) = []
+    val (k, v)        = ["--" <> k, v]
 
+    reg = fromMaybe (Text.pack . show $ cRegion c) . lookup "region"
     cmd = fromMaybe "update" . listToMaybe . mapMaybe name
 
     name ("state", v)

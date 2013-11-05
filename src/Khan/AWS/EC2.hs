@@ -16,7 +16,7 @@
 
 module Khan.AWS.EC2 where
 
-import           Control.Arrow             ((***))
+import           Control.Arrow             ((***), (&&&))
 import           Control.Concurrent        (threadDelay)
 import           Data.Aeson
 import           Data.List                 ((\\), partition)
@@ -183,7 +183,7 @@ findCurrentZones = do
             , Filter "state" ["available"]
             ]
 
-defaultZoneSuffixes :: [Char] -> AWS [Char]
+defaultZoneSuffixes :: String -> AWS String
 defaultZoneSuffixes sufs
     | invalid sufs = map (azSuffix . azitZoneName) <$> findCurrentZones
     | otherwise    = return sufs
@@ -209,4 +209,4 @@ instance ToJSON Instance where
         , "version"          .= lookup versionTag tags
         ]
       where
-        tags = map (\i -> (rtsitKey i, rtsitValue i)) riitTagSet
+        tags = map (rtsitKey &&& rtsitValue) riitTagSet

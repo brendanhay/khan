@@ -20,20 +20,20 @@
 module Khan.Internal.Ansible where
 
 import           Control.Monad.Error
-import           Data.Aeson
-import           Data.Aeson                       as Aeson
-import qualified Data.Aeson.Encode.Pretty         as Aeson
-import qualified Data.Attoparsec.Text             as T
-import qualified Data.ByteString.Lazy.Char8       as LBS
-import           Data.HashMap.Strict              (HashMap)
-import qualified Data.HashMap.Strict              as Map
-import           Data.Set                         (Set)
-import qualified Data.Set                         as Set
-import qualified Data.Text                        as Text
+import           Data.Aeson                 as Aeson
+import qualified Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.Attoparsec.Text       as T
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import           Data.HashMap.Strict        (HashMap)
+import qualified Data.HashMap.Strict        as Map
+import           Data.Set                   (Set)
+import qualified Data.Set                   as Set
+import qualified Data.Text                  as Text
 import           Data.Text.Format
 import           Data.Text.Format.Params
-import qualified Data.Text.IO                     as Text
-import qualified Filesystem.Path.CurrentOS        as Path
+import qualified Data.Text.IO               as Text
+import qualified Data.Text.Lazy             as LText
+import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal.AWS
 import           Khan.Internal.IO
 import           Khan.Internal.Options
@@ -41,7 +41,6 @@ import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
 import           System.Exit
-import qualified Data.Text.Lazy as LText
 
 data Output
     = Changed !LText.Text
@@ -62,7 +61,7 @@ failed :: (Monad m, Params ps) => Format -> ps -> m Output
 failed f = return . Failed . format f
 
 capture :: Common -> AWS Output -> AWS ()
-capture cmn aws = context cmn aws >>= exit . either failure id
+capture c aws = context c aws >>= exit . either failure id
   where
     failure (Err s) = Failed . format "{}" $ Only s
     failure (Ex ex) = failure . toError $ show ex

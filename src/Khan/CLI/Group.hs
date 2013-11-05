@@ -36,36 +36,34 @@ groupParser = Group
         "Rule description.")
     <*> ansibleOption
 
-instance Options Group where
-    validate Group{..} = do
-        check gRole "--role must be specified."
-        check gEnv  "--env must be specified."
+instance Options Group
 
 instance Naming Group where
     names Group{..} = unversioned gRole gEnv
 
 commands :: Mod CommandFields Command
-commands = group "group" "Long description."
-     $ command "info" info groupParser
+commands = group "group" "Long description." $ mconcat
+    [ command "info" info groupParser
         "Long long long long description."
-    <> command "update" update groupParser
+    , command "update" update groupParser
         "Long long long long description."
-    <> command "delete" delete groupParser
+    , command "delete" delete groupParser
         "Long long long long description."
+    ]
   where
     info _ g =
         EC2.findGroup g >>= liftIO . maybe (return ()) (putStrLn . ppShow)
 
-    update cmn g@Group{..}
+    update c g@Group{..}
         | not gAnsible = void $ EC2.updateGroup g gRules
-        | otherwise    = capture cmn $ do
+        | otherwise    = capture c $ do
             p <- EC2.updateGroup g gRules
             if p
                 then changed "security group {} was updated." [gRole]
                 else unchanged "security group {} unchanged." [gRole]
 
-    delete cmn g@Group{..}
+    delete c g@Group{..}
         | not gAnsible = EC2.deleteGroup g
-        | otherwise    = capture cmn $ do
+        | otherwise    = capture c $ do
             EC2.deleteGroup g
             changed "security group {} deleted." [gRole]

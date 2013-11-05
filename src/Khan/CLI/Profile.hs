@@ -47,8 +47,6 @@ instance Options Role where
         return $! r { rPolicy = p, rTrust  = t }
 
     validate Role{..} = do
-        check rRole "--role must be specified."
-        check rEnv  "--env must be specified."
         checkPath rPolicy " specified by --policy must exist."
         checkPath rTrust  " specified by --trust must exist."
 
@@ -56,11 +54,12 @@ instance Naming Role where
     names Role{..} = unversioned rRole rEnv
 
 commands :: Mod CommandFields Command
-commands = group "profile" "Long description."
-     $ command "info" info roleParser
+commands = group "profile" "Long description." $ mconcat
+    [ command "info" info roleParser
         "Create or update IAM profiles."
-    <> command "update" update roleParser
+    , command "update" update roleParser
         "Create or update IAM profiles."
+    ]
 
 info :: Common -> Role -> AWS ()
 info _ r = do
@@ -73,7 +72,7 @@ info _ r = do
         , "Path                 = " <> rPath p
         , "AssumePolicyDocument = " <> (Text.decodeUtf8
             . LBS.toStrict
-            . maybe "" (Aeson.encodePretty)
+            . maybe "" Aeson.encodePretty
             . join
             . fmap policy
             $ rAssumeRolePolicyDocument p)

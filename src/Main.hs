@@ -39,7 +39,6 @@ import           Options.Applicative.Arrows
 
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
-    opt <- asA commonParser -< ()
     cmd <- (asA . hsubparser)
          ( Routing.commands
         <> Ansible.commands
@@ -51,6 +50,7 @@ programParser = runA $ proc () -> do
         <> Persistent.commands
         <> Ephemeral.commands
          ) -< ()
+    opt <- asA commonParser -< ()
     A helper -< (opt, cmd)
 
 programInfo :: ParserInfo (Common, Command)
@@ -64,7 +64,7 @@ main = customExecParser (prefs showHelpOnError) programInfo >>=
     fmt ex        = show ex
 
     run (a, Command f x) = do
-        unless (cSilent a) $ enableLogging
+        unless (cSilent a) enableLogging
         b@Common{..} <- isEC2 >>= regionalise a >>= initialise
         validate b
         r <- context b $ do

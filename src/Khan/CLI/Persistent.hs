@@ -1,7 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.CLI.Persistent
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -70,15 +69,9 @@ instance Options Launch where
         return $! l { lZones = zs }
 
     validate Launch{..} = do
-        check lRole   "--role must be specified."
-        check lEnv    "--env must be specified."
-        check lDomain "--domain must be specified."
-        check lMin    "--min must be greater than 0."
-        check lMax    "--max must be greater than 0."
-        check lZones  "--zones must be specified."
-
-        check (not $ lMin <= lMax)    "--min must be less than or equal to --max."
-        check (Within lZones "abcde") "--zones must be within [a-e]."
+        check lMin "--min must be greater than 0."
+        check lMax "--max must be greater than 0."
+        check (lMin > lMax) "--min must be less than or equal to --max."
 
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
@@ -109,18 +102,19 @@ instance Options Host where
         if invalid hHosts
             then check hRole "--role must be specified." >>
                  check hEnv  "--env must be specified."
-            else check hHosts "--host must be specified."
+            else check hHosts "--host must be specified at least once."
         checkPath hKey " specified by --key must exist."
 
 instance Naming Host where
     names Host{..} = unversioned hRole hEnv
 
 commands :: Mod CommandFields Command
-commands = group "persistent" "Persistent shit."
-     $ command "launch" launch launchParser
+commands = group "persistent" "Persistent shit." $ mconcat
+    [ command "launch" launch launchParser
         "Launch 1..n instances."
-    <> command "terminate" terminate hostParser
+    , command "terminate" terminate hostParser
         "Terminate a single instance."
+    ]
 
 launch :: Common -> Launch -> AWS ()
 launch Common{..} l@Launch{..} = do

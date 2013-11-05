@@ -55,17 +55,16 @@ instance Options Host where
                 join $ riitDnsName <$> listToMaybe is
             return $! h { hFQDN = dns }
 
-    validate Host{..} = do
-        check hId   "--id must be specified."
-        check hFQDN "--fqdn must be specified."
-        check (not $ hTTL >= 30) "--ttl must be greater than or equal to 30."
+    validate Host{..} =
+        check (hTTL < 30) "--ttl must be greater than or equal to 30."
 
 commands :: Mod CommandFields Command
-commands = group "host" "Long long long description."
-     $ command "register" register hostParser
+commands = group "host" "Long long long description." $ mconcat
+    [ command "register" register hostParser
         "Register an instance with DNS."
-    <> command "deregister" deregister hostParser
+    , command "deregister" deregister hostParser
         "Deregister an instance from DNS."
+    ]
 
 -- FIXME: Handle errors retries gracefully
 register :: Common -> Host -> AWS ()

@@ -1,6 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 
 -- Module      : Khan.Internal.Types
@@ -66,11 +65,6 @@ instance Invalid FilePath where
 instance Invalid a => Invalid (Maybe a) where
     invalid (Just x) = invalid x
     invalid Nothing  = False
-
-data Within a = Within [a] [a]
-
-instance Eq a => Invalid (Within a) where
-    invalid (Within xs ys) = not . null $ xs \\ ys
 
 data Tags = Tags
     { tagRole    :: !Text

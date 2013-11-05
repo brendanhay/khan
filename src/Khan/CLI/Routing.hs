@@ -69,11 +69,6 @@ instance Options Routes where
                 Tags{..} <- findRequiredTags iid
                 return $! r { rDomain = tagDomain, rEnv = tagEnv, rZones = zs }
 
-    validate Routes{..} = do
-        check rEnv    "--env must be specified."
-        check rDomain "--domain must be specified."
-        check (Within rZones "abcde") "--zones must be within [a-e]."
-
 commands :: Mod CommandFields Command
 commands = command "routes" routes routesParser
     "Describe an environment's routing table."

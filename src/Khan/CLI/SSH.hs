@@ -1,8 +1,6 @@
-{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.CLI.Group
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -17,7 +15,6 @@
 module Khan.CLI.SSH (commands) where
 
 import           Control.Arrow
-import           Data.List                 (intercalate)
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import qualified Khan.AWS.EC2              as EC2
@@ -48,10 +45,7 @@ instance Options SSH where
         f <- if invalid sKey then keyPath $ names s else return sKey
         return $! s { sKey = f }
 
-    validate SSH{..} = do
-        check sRole "--role must be specified."
-        check sEnv  "--env must be specified."
-        check sUser "--user must be specified."
+    validate SSH{..} =
         checkPath sKey " specified by --key must exist."
 
 instance Naming SSH where
@@ -71,17 +65,20 @@ commands = command "ssh" ssh sshParser
 
         mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
 
-        unless (null cs) $ do
-            x <- liftIO $ do
-                hSetBuffering stdout NoBuffering
-                putStr "Select the host to connect to: "
-                getLine
-
+        unless (null dns) $ do
+            x    <- choose
             addr <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
 
             let args = [ "-i" ++ Path.encodeString sKey
                        , Text.unpack $ Text.concat [sUser, "@", addr]
                        ] ++ sArgs
 
-            log "ssh {}" [intercalate " " args]
-            liftIO $ Posix.executeFile "ssh" True args Nothing
+            log "ssh {}" [unwords args]
+            exec args
+
+    exec xs = liftIO $ Posix.executeFile "ssh" True xs Nothing
+
+    choose = liftIO $ do
+        hSetBuffering stdout NoBuffering
+        putStr "Select the host to connect to: "
+        getLine

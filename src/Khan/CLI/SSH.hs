@@ -40,7 +40,7 @@ sshParser = SSH
     <$> roleOption
     <*> envOption
     <*> keyOption
-    <*> textOption 'u' "user" (value "ubuntu") "SSH User."
+    <*> textOption "user" (value "ubuntu" <> short 'u') "SSH User."
     <*> argsOption str mempty "Pass through arugments to ssh."
 
 instance Options SSH where

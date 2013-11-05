@@ -33,14 +33,11 @@ module Khan.Prelude
     , sync
     , throwError
 
-    -- * Variadic Loggers
+    -- * Logging
+    , enableLogging
     , log
-    , error
-    , debug
-
-    -- * Non-variadic Loggers
     , log_
-    , error_
+    , debug
     , debug_
 
     -- * Re-exported Modules
@@ -52,39 +49,50 @@ module Khan.Prelude
     , module Prime
     ) where
 
-import           Control.Applicative       as Applicative
-import           Control.Error             as Error
-import           Control.Monad             (forever, join, when, unless, void)
-import           Control.Monad.Error       (MonadError, throwError)
-import           Control.Monad.IO.Class    as MonadIO
-import           Control.Monad.Trans.Class (lift)
-import           Data.ByteString           (ByteString)
-import           Data.Maybe                as Maybe
-import           Data.Monoid               as Monoid
+import           Control.Applicative        as Applicative
+import           Control.Error              as Error
+import           Control.Monad              (forever, join, when, unless, void)
+import           Control.Monad.Error        (MonadError, throwError)
+import           Control.Monad.IO.Class     as MonadIO
+import           Control.Monad.Trans.Class  (lift)
+import           Data.ByteString            (ByteString)
+import           Data.Maybe                 as Maybe
+import           Data.Monoid                as Monoid
 import           Data.String
-import           Data.Text                 (Text)
+import           Data.Text                  (Text)
 import           Data.Text.Format
 import           Data.Text.Format.Params
-import qualified Data.Text.IO              as Text
-import           Filesystem.Path.CurrentOS (FilePath)
+import qualified Data.Text.Lazy             as LText
+import           Filesystem.Path.CurrentOS  (FilePath)
 import           Network.AWS
-import           Prelude.Prime             as Prime hiding (FilePath, error, log, writeFile)
-import           Shelly                    (whenM, unlessM)
-import qualified System.IO                 as IO
+import           Prelude.Prime              as Prime hiding (FilePath, error, log, writeFile)
+import           Shelly                     (whenM, unlessM)
+import qualified System.IO                  as IO
+import           System.Log.Handler.Simple
+import           System.Log.Logger
 
 sync :: MonadIO m => IO a -> EitherT String m a
 sync = fmapLT show . syncIO
 
-log, error :: (MonadIO m, Params ps) => Format -> ps -> m ()
-log f   = hprint IO.stdout (f <> "\n")
-error f = hprint IO.stderr (f <> "\n")
+enableLogging :: MonadIO m => m ()
+enableLogging = liftIO $ do
+    IO.hSetBuffering IO.stdout IO.LineBuffering
+    IO.hSetBuffering IO.stderr IO.LineBuffering
+    removeAllHandlers
+    hd <- streamHandler IO.stdout INFO
+    updateGlobalLogger logName (setLevel INFO . setHandlers [hd])
 
-log_, error_ :: MonadIO m => Text -> m ()
-log_   = liftIO . Text.putStrLn
-error_ = liftIO . Text.hPutStrLn IO.stderr
+log :: (MonadIO m, Params ps) => Format -> ps -> m ()
+log f = liftIO . infoM logName . LText.unpack . format f
+
+log_ :: MonadIO m => Text -> m ()
+log_ = log "{}" . Only
 
 debug :: Params ps => Format -> ps -> AWS ()
-debug fmt = whenDebug . log fmt
+debug f = whenDebug . log f
 
 debug_ :: Text -> AWS ()
 debug_ = whenDebug . log_
+
+logName :: String
+logName = "log"

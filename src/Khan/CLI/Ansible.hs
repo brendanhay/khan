@@ -1,8 +1,7 @@
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE NoImplicitPrelude  #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 
 -- Module      : Khan.CLI.Ansible
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -16,13 +15,11 @@
 
 module Khan.CLI.Ansible (commands) where
 
-import           Data.Aeson                 as Aeson
-import           Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as Map
 import           Data.List                  (intercalate)
-import           Data.Set                   (Set)
+import           Data.Maybe
 import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
 import qualified Data.Text.Format           as Format
@@ -31,8 +28,9 @@ import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import qualified Khan.AWS.EC2               as EC2
 import           Khan.Internal
+import           Khan.Internal.Ansible
 import           Khan.Prelude
-import           Network.AWS.EC2
+import           Network.AWS.EC2            hiding (Failed)
 import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
@@ -51,13 +49,13 @@ ansibleParser :: Parser Ansible
 ansibleParser = Ansible
     <$> envOption
     <*> keyOption
-    <*> optional (textOption 'b' "bin" mempty
+    <*> optional (textOption "bin" (short 'b')
         "Ansible binary name to exec.")
-    <*> readOption 'r' "retention" "SECONDS" (value defaultCache)
+    <*> readOption "retention" "SECONDS" (value defaultCache)
         "Number of seconds to cache inventory results for."
-    <*> pathOption 'c' "cache" (value "")
+    <*> pathOption "cache" (value "" <> short 'c')
         "Path to the inventory file cache."
-    <*> switchOption 'f' "force" False
+    <*> switchOption "force" False
         "Force update of any previously cached results."
     <*> argsOption str mempty
         "Pass through arugments to ansible."
@@ -90,13 +88,13 @@ data Inventory = Inventory
 inventoryParser :: Parser Inventory
 inventoryParser = Inventory
     <$> envOption
-    <*> pathOption 'c' "cache" (value "")
+    <*> pathOption "cache" (value "" <> short 'c')
         "Path to the output inventory file cache."
-    <*> switchOption 's' "silent" False
+    <*> switchOption "silent" False
         "Don't output inventory results to stdout."
-    <*> switchOption 'l' "list" True
+    <*> switchOption "list" True
         "List."
-    <*> optional (textOption 'h' "host" mempty
+    <*> optional (textOption "host" mempty
         "Host.")
 
 instance Options Inventory where
@@ -107,6 +105,18 @@ instance Options Inventory where
     validate Inventory{..} =
         check iEnv "--env must be specified."
 
+data Module = Module
+    { mName :: !Text
+    , mPath :: !FilePath
+    }
+
+moduleParser :: Parser Module
+moduleParser = Module
+    <$> argument (return . Text.pack) (metavar "MODULE" <> value "")
+    <*> argument (return . Path.decodeString) (metavar "ARGS_FILE" <> value "")
+
+instance Options Module
+
 commands :: Mod CommandFields Command
 commands =
        command "ansible" ansible ansibleParser
@@ -115,6 +125,8 @@ commands =
        "Ansible Playbook."
     <> command "inventory" inventory inventoryParser
        "Output ansible compatible inventory."
+    <> command "module" module' moduleParser
+       "Run a khan action using ansibles module interface."
 
 ansible :: Common -> Ansible -> AWS ()
 ansible cmn Ansible{..} = do
@@ -195,66 +207,24 @@ inventory _ Inventory{..} = do
 
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
-data Format a
-    = Meta { unwrap :: a }
-    | JS   { unwrap :: a }
+module' :: Common -> Module -> AWS ()
+module' cmn Module{..} = capture cmn $ do
+    m   <- noteAWS "unsupported module: {}" [mName] $
+        find (mName ==) ["group", "record", "profile"]
+    kvs <- parseArgsFile mPath
+    exec $ args m kvs
+  where
+    exec xs = liftIO $ Posix.executeFile "khan" True xs Nothing
 
-deriving instance Eq  a => Eq (Format a)
-deriving instance Ord a => Ord (Format a)
+    args m kvs = map Text.unpack $
+        "--silent" : m : cmd kvs : "--ansible" : concatMap val kvs
 
-data Host = Host
-    { hvFQDN   :: !Text
-    , hvDomain :: !Text
-    , hvNames  :: !Names
-    , hvRegion :: !Text
-    } deriving (Eq, Ord)
+    val ("state", _) = []
+    val (k, v)       = ["--" <> k, v]
 
-instance ToJSON (Format (HashMap Text (Set Host))) where
-    toJSON (Meta m) = object ["_meta" .= object ["hostvars" .= vars]]
-      where
-        vars = foldl' (flip f) Map.empty . Set.unions $ Map.elems m
-        f h  = Map.insert (hvFQDN h) (Meta h)
+    cmd = fromMaybe "update" . listToMaybe . mapMaybe name
 
-    toJSON (JS m) = toJSON (Map.map JS m) `f` toJSON (Meta m) `f` local
-      where
-        local = object ["localhost" .= ["localhost" :: Text]]
-
-        f (Object x) (Object y) = Object $ x <> y
-        f _          x          = x
-
-instance ToJSON (Format (Set Host)) where
-    toJSON x = case x of
-        (Meta _) -> f Meta
-        (JS   _) -> f JS
-      where
-        f c = toJSON . map c . Set.toList $ unwrap x
-
-instance ToJSON (Format Host) where
-    toJSON x = case x of
-        (Meta _) -> object vars
-        (JS   _) -> pack hvFQDN
-      where
-        Host{..}  = unwrap x
-        Names{..} = hvNames
-
-        pack = Aeson.String
-
-        vars = [ ("khan_region",  pack hvRegion)
-               , ("khan_domain",  pack hvDomain)
-               , ("khan_env",     pack envName)
-               , ("khan_key",     pack keyName)
-               , ("khan_role",    pack roleName)
-               , ("khan_profile", pack profileName)
-               , ("khan_group",   pack groupName)
-               , ("khan_image",   pack imageName)
-               , ("khan_app",     pack appName)
-               , ("khan_version", toJSON versionName)
-               ]
-
-inventoryPath :: FilePath -> Text -> AWS FilePath
-inventoryPath f env = do
-    r <- Text.pack . show <$> getRegion
-    defaultPath f
-        . cachePath
-        . Path.fromText
-        $ Text.concat [r, "_", env]
+    name ("state", v)
+        | "present" `Text.isInfixOf` v = Just "update"
+        | "absent"  `Text.isInfixOf` v = Just "delete"
+    name _ = Nothing

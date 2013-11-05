@@ -155,18 +155,6 @@ instance Show RoutingPolicy where
     show Weighted = "weighted"
     show Basic    = "basic"
 
-data OutputFormat = JSON | HAProxy
-
-instance Show OutputFormat where
-    show JSON    = "json"
-    show HAProxy = "haproxy"
-
-instance Read OutputFormat where
-    readPrec = readAssocList
-      [ ("json",    JSON)
-      , ("haproxy", HAProxy)
-      ]
-
 readAssocList :: [(String, a)] -> Read.ReadPrec a
 readAssocList xs = Read.choice $
     map (\(x, y) -> Read.lift $ ReadP.string x >> return y) xs

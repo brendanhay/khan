@@ -40,17 +40,18 @@ executable khan
       , amazonka
       , async
       , attoparsec
-      , base              >= 4.6 && < 5
+      , base                 >= 4.6 && < 5
       , bytestring
       , containers
       , directory
       , errors
+      , hslogger
       , http-streams
       , http-types
       , io-streams
       , mtl
       , optparse-applicative
-      , pipes             >= 4.0
+      , pipes                >= 4.0
       , prelude-prime
       , pretty-show
       , random

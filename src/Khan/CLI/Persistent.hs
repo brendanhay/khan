@@ -39,21 +39,21 @@ launchParser :: Parser Launch
 launchParser = Launch
     <$> roleOption
     <*> envOption
-    <*> textOption 'd' "domain" mempty
+    <*> textOption "domain" (short 'd')
         "Instance's DNS domain."
-    <*> optional (textOption 'i' "image" (value "")
+    <*> optional (textOption "image" (value "")
         "Id of the image/ami.")
-    <*> integerOption 'l' "min" (value 1)
+    <*> integerOption "min" (value 1)
         "Minimum number of instances to launch."
-    <*> integerOption 'u' "max" (value 1)
+    <*> integerOption "max" (value 1)
         "Maximum number of instances to launch."
-    <*> many (textOption 'g' "group" mempty
+    <*> many (textOption "group" mempty
         "Security groups. (discovered)")
-    <*> readOption 't' "type" "TYPE" (value M1_Small)
+    <*> readOption "type" "TYPE" (value M1_Small)
         "Instance's type."
-    <*> switchOption 'o' "optimised" False
+    <*> switchOption "optimised" False
         "EBS optimisation."
-    <*> stringOption 'z' "zones" (value "abc")
+    <*> stringOption "zones" (value "abc")
          "Availability zones suffixes to provision into (psuedo-random)."
 
     -- Block Device Mappings
@@ -95,7 +95,7 @@ hostParser = Host
     <$> roleOption
     <*> envOption
     <*> keyOption
-    <*> many (textOption 'h' "hosts" mempty
+    <*> many (textOption "host" mempty
         "Hosts to run on.")
 
 instance Options Host where
@@ -109,7 +109,7 @@ instance Options Host where
         if invalid hHosts
             then check hRole "--role must be specified." >>
                  check hEnv  "--env must be specified."
-            else check hHosts "--hosts must be specified."
+            else check hHosts "--host must be specified."
         checkPath hKey " specified by --key must exist."
 
 instance Naming Host where

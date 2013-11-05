@@ -24,6 +24,19 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (ec2)
 import           Network.AWS.EC2.Metadata
+import           Text.Read
+
+data OutputFormat = JSON | HAProxy
+
+instance Show OutputFormat where
+    show JSON    = "json"
+    show HAProxy = "haproxy"
+
+instance Read OutputFormat where
+    readPrec = readAssocList
+      [ ("json",    JSON)
+      , ("haproxy", HAProxy)
+      ]
 
 data Routes = Routes
     { rEnv    :: !Text
@@ -36,13 +49,13 @@ data Routes = Routes
 routesParser :: Parser Routes
 routesParser = Routes
     <$> envOption
-    <*> textOption 'd' "domain" (value "")
+    <*> textOption "domain" (value "" <> short 'd')
         "DNS domain restriction."
-    <*> many (textOption 'r' "role" mempty
+    <*> many (textOption "role" (short 'r')
         "Role to restrict to.")
-    <*> stringOption 'z' "zones" (value "")
+    <*> stringOption "zones" (value "")
         "Availability zones suffixes restriction."
-    <*> readOption 'f' "format" "FORMAT" (value JSON)
+    <*> readOption "format" "FORMAT" (value JSON <> short 'f')
         "Output format, supports json or haproxy."
 
 instance Options Routes where
@@ -78,4 +91,3 @@ commands = command "routes" routes routesParser
              ] ++ if null rRoles
                       then []
                       else [Filter ("tag:" <> roleTag) rRoles]
- 

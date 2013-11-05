@@ -36,6 +36,7 @@ module Khan.Internal.Options
     , envOption
     , versionOption
     , keyOption
+    , ansibleOption
 
     , check
     , checkIO
@@ -63,6 +64,7 @@ data Command where
 
 data Common = Common
     { cDebug   :: !Bool
+    , cSilent  :: !Bool
     , cRegion  :: !Region
     , cProfile :: Maybe Text
     , cAccess  :: !String
@@ -71,15 +73,17 @@ data Common = Common
 
 commonParser :: Parser Common
 commonParser = Common
-    <$> switchOption 'D' "debug" False
+    <$> switchOption "debug" False
         "Log debug output."
-    <*> readOption 'R' "region" "REGION" (value NorthCalifornia)
+    <*> switchOption "silent" False
+        "Suppress standard log output."
+    <*> readOption "region" "REGION" (value NorthCalifornia <> short 'R')
         "Region to operate in."
-    <*> optional (textOption 'P' "iam-profile" mempty
+    <*> optional (textOption "iam-profile" (short 'P')
         "IAM profile to use.")
-    <*> stringOption 'A' "access-key" (value "")
+    <*> stringOption "access-key" (value "")
         "AWS access key."
-    <*> stringOption 'S' "secret-key" (value "")
+    <*> stringOption "secret-key" (value "")
         "AWS secret key."
 
 instance Options Common where
@@ -98,8 +102,8 @@ instance Options Common where
 initialise :: (Applicative m, MonadIO m) => Common -> EitherT AWSError m Common
 initialise o@Common{..}
     | isJust cProfile = right o
-    | validKeys         = right o
-    | otherwise         = lookupKeys
+    | validKeys       = right o
+    | otherwise       = lookupKeys
   where
     validKeys = (not . null) `all` [cAccess, cSecret]
 
@@ -126,57 +130,51 @@ command name f p desc = Options.command name $
     Options.info (Command f <$> p) (progDesc desc <> fullDesc)
 
 readOption :: Read a
-           => Char
-           -> String
+           => String
            -> String
            -> Mod OptionFields a
            -> String
            -> Parser a
-readOption s l typ m desc = option $ mconcat
-    [short s, long l, metavar typ, reader auto, help desc, m]
+readOption key typ m desc = option $ mconcat
+    [long key, metavar typ, reader auto, help desc, m]
 
-switchOption :: Char -> String -> Bool -> String -> Parser Bool
-switchOption s l p desc = flag p (not p) $ short s <> long l <> help desc
+switchOption :: String -> Bool -> String -> Parser Bool
+switchOption key p desc = flag p (not p) $ long key <> help desc
 
-textOption :: Char -> String -> Mod OptionFields Text -> String -> Parser Text
-textOption s l = customOption s l "STR" (Right . Text.pack)
+textOption :: String -> Mod OptionFields Text -> String -> Parser Text
+textOption key = customOption key "STR" (Right . Text.pack)
 
-pathOption :: Char
-           -> String
+pathOption :: String
            -> Mod OptionFields FilePath
            -> String
            -> Parser FilePath
-pathOption s l = customOption s l "PATH" (Right . Path.decodeString)
+pathOption key = customOption key "PATH" (Right . Path.decodeString)
 
-stringOption :: Char
-             -> String
+stringOption :: String
              -> Mod OptionFields String
              -> String
              -> Parser String
-stringOption s l m desc = strOption $ mconcat
-    [ short s
-    , long l
+stringOption key m desc = strOption $ mconcat
+    [ long key
     , metavar "STR"
     , help desc
     , m
     ]
 
-integerOption :: Char
-              -> String
+integerOption :: String
               -> Mod OptionFields Integer
               -> String
               -> Parser Integer
-integerOption s l = readOption s l "INT"
+integerOption key = readOption key "INT"
 
-customOption :: Char
-             -> String
+customOption :: String
              -> String
              -> (String -> Either String a)
              -> Mod OptionFields a
              -> String
              -> Parser a
-customOption s l typ rdr m desc = nullOption $ mconcat
-    [short s, long l, metavar typ, eitherReader rdr, help desc, m]
+customOption key typ rdr m desc = nullOption $ mconcat
+    [long key, metavar typ, eitherReader rdr, help desc, m]
 
 argsOption :: (String -> Maybe a)
            -> Mod ArgumentFields a
@@ -186,21 +184,23 @@ argsOption rdr m desc = many . argument rdr $
     metavar "ARGS .." <> help desc <> m
 
 roleOption :: Parser Text
-roleOption = textOption 'r' "role" mempty
+roleOption = textOption "role" (short 'r')
     "Role of the application."
 
 envOption :: Parser Text
-envOption = textOption 'e' "env" (value defaultEnv)
+envOption = textOption "env" (value defaultEnv <> short 'e')
     "Environment of the application."
 
 versionOption :: Parser Version
-versionOption =
-    customOption 'v' "version" "MAJ.MIN.PATCH+BUILD" eitherVersion mempty
-        "Version of the application."
+versionOption = customOption "version" "MAJ.MIN.PATCH+BUILD" eitherVersion mempty
+    "Version of the application."
 
 keyOption :: Parser FilePath
-keyOption = pathOption 'i' "key" (value "")
+keyOption = pathOption "key" (value "" <> short 'i')
     "Path to the private key to use."
+
+ansibleOption :: Parser Bool
+ansibleOption = switchOption "ansible" False "Ansible module compatible output."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

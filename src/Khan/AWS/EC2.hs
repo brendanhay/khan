@@ -70,7 +70,7 @@ createGroup (names -> n@Names{..}) = findGroup n >>= maybe create return
         findGroup n >>=
             noteAWS "Unable to find created Security Group {}" [groupName]
 
-updateGroup :: Naming a => a -> [IpPermissionType] -> AWS ()
+updateGroup :: Naming a => a -> [IpPermissionType] -> AWS Bool
 updateGroup (names -> n@Names{..}) rules = createGroup n >>= update
   where
     update grp = do
@@ -93,6 +93,7 @@ updateGroup (names -> n@Names{..}) rules = createGroup n >>= update
             send_ $ RevokeSecurityGroupIngress (Just gid) Nothing rev
 
         log "Security Group {} updated." [groupName]
+        return . not $ null auth && null rev
 
 deleteGroup :: Naming a => a -> AWS ()
 deleteGroup (names -> Names{..}) = do

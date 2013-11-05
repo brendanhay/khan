@@ -18,11 +18,14 @@ module Khan.Internal.AWS where
 
 import           Control.Exception
 import           Control.Monad.Error
+import qualified Data.ByteString.Char8   as BS
 import qualified Data.HashMap.Strict     as Map
 import qualified Data.Text               as Text
+import           Data.Text.Encoding
 import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy          as LText
+import           Khan.Internal.Options
 import           Khan.Internal.Parsing
 import           Khan.Internal.Types
 import           Khan.Prelude            hiding (min, max)
@@ -31,6 +34,12 @@ import           Network.AWS.AutoScaling hiding (DescribeTags)
 import           Network.AWS.EC2         as EC2
 import           Network.AWS.IAM
 import           Network.Http.Client     hiding (get)
+
+context :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
+context Common{..} = liftIO . runAWS creds cDebug . within cRegion
+  where
+    creds | Just r <- cProfile = FromRole $! encodeUtf8 r
+          | otherwise = FromKeys (BS.pack cAccess) (BS.pack cSecret)
 
 assertAWS :: (MonadError AWSError m, MonadIO m, Params ps)
           => Format

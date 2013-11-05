@@ -16,13 +16,13 @@
 module Khan.Internal.Parsing where
 
 import           Data.Attoparsec.Text
-import           Data.Char                    (isDigit)
-import qualified Data.Text                    as Text
+import           Data.Char                       (isDigit)
+import qualified Data.Text                       as Text
 import           Data.Version
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS.EC2
-import qualified Text.ParserCombinators.ReadP as ReadP
+import qualified Text.ParserCombinators.ReadP    as ReadP
 
 showDNS :: DNS -> Text -> Text
 showDNS DNS{..} dom = Text.concat
@@ -81,20 +81,18 @@ showRules = Text.intercalate ", " . map rule . toList
             <|> headMay (map irCidrIp $ toList iptIpRanges)
 
 parseRule :: String -> Either String IpPermissionType
-parseRule = msg . parseOnly parser . Text.pack
+parseRule s = msg . parseOnly parser $ Text.pack s
   where
-    msg = fmapL (++ " - expected tcp|udp|icmp:from_port:to_port:group|0.0.0.0")
+    msg = fmapL . const $
+        "expected: tcp|udp|icmp:from_port:to_port:group|0.0.0.0, got: " ++ s
 
     parser = do
         p <- protocol
         f <- decimal <* char ':'
         t <- decimal <* char ':'
         g <- eitherP range group
-
         let perm = IpPermissionType p f t
-
-        return $! either (\x -> perm [] [x])
-                         (\x -> perm [x] []) g
+        return $! either (\x -> perm [] [x]) (\x -> perm [x] []) g
 
     range = do
         a <- takeTill (== '.') <* char '.'
@@ -111,4 +109,4 @@ parseRule = msg . parseOnly parser . Text.pack
             "tcp"  -> return TCP
             "udp"  -> return UDP
             "icmp" -> return ICMP
-            _      -> fail "Failed to parsed protocol"
+            _      -> fail ""

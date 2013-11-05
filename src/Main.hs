@@ -29,7 +29,6 @@ import qualified Khan.CLI.SSH               as SSH
 import           Control.Error
 import           Control.Monad
 import qualified Data.ByteString.Char8      as BS
-import           Data.Text.Encoding
 import           Data.Text.Format           (Shown(..))
 import           Khan.Internal
 import           Khan.Prelude
@@ -40,6 +39,7 @@ import           Options.Applicative.Arrows
 
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
+    opt <- asA commonParser -< ()
     cmd <- (asA . hsubparser)
          ( Routing.commands
         <> Ansible.commands
@@ -51,7 +51,6 @@ programParser = runA $ proc () -> do
         <> Persistent.commands
         <> Ephemeral.commands
          ) -< ()
-    opt <- asA commonParser -< ()
     A helper -< (opt, cmd)
 
 programInfo :: ParserInfo (Common, Command)
@@ -65,9 +64,10 @@ main = customExecParser (prefs showHelpOnError) programInfo >>=
     fmt ex        = show ex
 
     run (a, Command f x) = do
+        unless (cSilent a) $ enableLogging
         b@Common{..} <- isEC2 >>= regionalise a >>= initialise
         validate b
-        r <- lift . runAWS (creds b) cDebug . within cRegion $ do
+        r <- context b $ do
             debug "Running in region {}..." [Shown cRegion]
             p <- isEC2
             y <- discover p x
@@ -81,7 +81,3 @@ main = customExecParser (prefs showHelpOnError) programInfo >>=
         reg <- fmapLT Err $
             tryRead ("Failed to read region from: " ++ az) az
         return $! o { cRegion = reg }
-
-    creds Common{..}
-        | Just r <- cProfile = FromRole $! encodeUtf8 r
-        | otherwise = FromKeys (BS.pack cAccess) (BS.pack cSecret)

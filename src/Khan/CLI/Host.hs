@@ -35,11 +35,11 @@ data Host = Host
 
 hostParser :: Parser Host
 hostParser = Host
-    <$> textOption 'i' "id" mempty
+    <$> textOption "id" mempty
         "Instance Id."
-    <*> textOption 'f' "fqdn" mempty
+    <*> textOption "fqdn" mempty
         "FQDN."
-    <*> readOption 't' "ttl" "SECONDS" (value 120)
+    <*> readOption "ttl" "SECONDS" (value 120)
         "TTL."
 
 instance Options Host where

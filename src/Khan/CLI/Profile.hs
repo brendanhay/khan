@@ -36,8 +36,8 @@ roleParser :: Parser Role
 roleParser = Role
     <$> roleOption
     <*> envOption
-    <*> pathOption 'p' "policy" (value "") "Role policy file."
-    <*> pathOption 't' "trust" (value "") "Trust relationship file."
+    <*> pathOption "policy" (value "" <> short 'p') "Role policy file."
+    <*> pathOption "trust" (value "" <> short 't') "Trust relationship file."
 
 instance Options Role where
     discover _ r@Role{..} = do

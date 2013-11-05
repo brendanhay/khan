@@ -14,24 +14,27 @@
 
 module Khan.CLI.Group (commands) where
 
-import qualified Khan.AWS.EC2     as EC2
+import qualified Khan.AWS.EC2          as EC2
 import           Khan.Internal
+import           Khan.Internal.Ansible
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           Text.Show.Pretty
 
 data Group = Group
-    { gRole  :: !Text
-    , gEnv   :: !Text
-    , gRules :: [IpPermissionType]
+    { gRole    :: !Text
+    , gEnv     :: !Text
+    , gRules   :: [IpPermissionType]
+    , gAnsible :: !Bool
     } deriving (Show)
 
 groupParser :: Parser Group
 groupParser = Group
     <$> roleOption
     <*> envOption
-    <*> many (customOption 'v' "rule" "RULE" parseRule mempty
+    <*> many (customOption "rule" "RULE" parseRule mempty
         "Rule description.")
+    <*> ansibleOption
 
 instance Options Group where
     validate Group{..} = do
@@ -50,10 +53,19 @@ commands = group "group" "Long description."
     <> command "delete" delete groupParser
         "Long long long long description."
   where
-    info _ g = do
-        mg <- EC2.findGroup g
-        liftIO $ maybe (return ()) (putStrLn . ppShow) mg
+    info _ g =
+        EC2.findGroup g >>= liftIO . maybe (return ()) (putStrLn . ppShow)
 
-    update _ g = EC2.updateGroup g [] -- $ gRules g
+    update cmn g@Group{..}
+        | not gAnsible = void $ EC2.updateGroup g gRules
+        | otherwise    = capture cmn $ do
+            p <- EC2.updateGroup g gRules
+            if p
+                then changed "security group {} was updated." [gRole]
+                else unchanged "security group {} unchanged." [gRole]
 
-    delete _ = EC2.deleteGroup
+    delete cmn g@Group{..}
+        | not gAnsible = EC2.deleteGroup g
+        | otherwise    = capture cmn $ do
+            EC2.deleteGroup g
+            changed "security group {} deleted." [gRole]

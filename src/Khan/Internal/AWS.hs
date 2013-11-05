@@ -46,7 +46,7 @@ assertAWS :: (MonadError AWSError m, MonadIO m, Params ps)
           -> ps
           -> m Bool
           -> m ()
-assertAWS f ps action = unlessM action $ throwAWS f ps
+assertAWS f ps act = unlessM act $ throwAWS f ps
 
 throwAWS :: (Params a, MonadError AWSError m) => Format -> a -> m b
 throwAWS f = throwError . Err . LText.unpack . format f

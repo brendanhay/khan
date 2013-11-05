@@ -69,22 +69,11 @@ instance Options Deploy where
         return $! d { dZones = zs }
 
     validate Deploy{..} = do
-        check dRole     "--role must be specified."
-        check dEnv      "--env must be specified."
-        check dDomain   "--domain must be specified."
-        check dVersion  "--version must be specified."
-        check dGrace    "--grace must be greater than 0."
-        check dMin      "--min must be greater than 0."
-        check dMax      "--max must be greater than 0."
-        check dDesired  "--desired must be greater than 0."
-        check dCooldown "--cooldown must be greater than 0."
-        check dZones    "--zones must be specified."
+        check dZones "--zones must be specified."
 
         check (dMax < dMin)     "--max must be greater than or equal to --max."
         check (dDesired < dMin) "--desired must be greater than or equal to --min."
         check (dDesired > dMax) "--desired must be less than or equal to --max."
-
-        check (Within dZones "abcde")      "--zones must be within [a-e]."
 
 instance Naming Deploy where
     names Deploy{..} = versioned dRole dEnv dVersion
@@ -118,15 +107,6 @@ scaleParser = Scale
 
 instance Options Scale where
     validate Scale{..} = do
-        check sRole     "--role must be specified."
-        check sEnv      "--env must be specified."
-        check sVersion  "--version must be specified."
-        check sGrace    "--grace must be greater than 0."
-        check sMin      "--min must be greater than 0."
-        check sMax      "--max must be greater than 0."
-        check sDesired  "--desired must be greater than 0."
-        check sCooldown "--cooldown must be greater than 0"
-
         check (sMin >= sMax)      "--min must be less than --max."
         check (sDesired < sMin) "--desired must be greater than or equal to --min."
         check (sDesired > sMax) "--desired must be less than or equal to --max."
@@ -146,11 +126,7 @@ clusterParser = Cluster
     <*> envOption
     <*> versionOption
 
-instance Options Cluster where
-    validate Cluster{..} = do
-        check cRole    "--role must be specified."
-        check cEnv     "--env must be specified."
-        check cVersion "--version must be specified."
+instance Options Cluster
 
 instance Naming Cluster where
     names Cluster{..} = versioned cRole cEnv cVersion

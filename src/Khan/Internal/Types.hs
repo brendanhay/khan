@@ -14,7 +14,6 @@
 
 module Khan.Internal.Types where
 
-import           Data.List                    ((\\))
 import qualified Data.Text                    as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path

@@ -40,7 +40,7 @@ instance Read OutputFormat where
 
 data Routes = Routes
     { rEnv    :: !Text
-    , rDomain :: !Text
+    , rDomain :: Maybe Text
     , rRoles  :: [Text]
     , rZones  :: !String
     , rFmt    :: OutputFormat
@@ -49,8 +49,8 @@ data Routes = Routes
 routesParser :: Parser Routes
 routesParser = Routes
     <$> envOption
-    <*> textOption "domain" (value "" <> short 'd')
-        "DNS domain restriction."
+    <*> optional (textOption "domain" (short 'd')
+        "DNS domain restriction.")
     <*> many (textOption "role" (short 'r')
         "Role to restrict to.")
     <*> stringOption "zones" (value "")
@@ -67,7 +67,14 @@ instance Options Routes where
             else do
                 iid <- liftEitherT $ Text.decodeUtf8 <$> metadata InstanceId
                 Tags{..} <- findRequiredTags iid
-                return $! r { rDomain = tagDomain, rEnv = tagEnv, rZones = zs }
+                return $! r
+                    { rDomain = Just tagDomain
+                    , rEnv    = tagEnv
+                    , rZones  = zs
+                    }
+
+    validate Routes{..} =
+        check rZones "--zones must be specified."
 
 commands :: Mod CommandFields Command
 commands = command "routes" routes routesParser
@@ -82,7 +89,7 @@ commands = command "routes" routes routesParser
 
         fs = [ Filter "availability-zone" $ map zone rZones
              , Filter ("tag:" <> envTag)    [rEnv]
-             , Filter ("tag:" <> domainTag) [rDomain]
+--             , Filter ("tag:" <> domainTag) [rDomain]
              ] ++ if null rRoles
                       then []
                       else [Filter ("tag:" <> roleTag) rRoles]

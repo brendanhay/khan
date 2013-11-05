@@ -52,7 +52,7 @@ launchParser = Launch
         "Instance's type."
     <*> switchOption "optimised" False
         "EBS optimisation."
-    <*> stringOption "zones" (value "abc")
+    <*> stringOption "zones" (value "")
          "Availability zones suffixes to provision into (psuedo-random)."
 
     -- Block Device Mappings
@@ -69,8 +69,7 @@ instance Options Launch where
         return $! l { lZones = zs }
 
     validate Launch{..} = do
-        check lMin "--min must be greater than 0."
-        check lMax "--max must be greater than 0."
+        check rZones "--zones must be specified."
         check (lMin > lMax) "--min must be less than or equal to --max."
 
 instance Naming Launch where

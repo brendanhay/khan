@@ -26,8 +26,7 @@ data Launch = Launch
     , lEnv       :: !Text
     , lDomain    :: !Text
     , lImage     :: Maybe Text
-    , lMin       :: !Integer
-    , lMax       :: !Integer
+    , lNum       :: !Integer
     , lGroups    :: [Text]
     , lType      :: !InstanceType
     , lOptimised :: !Bool
@@ -42,10 +41,8 @@ launchParser = Launch
         "Instance's DNS domain."
     <*> optional (textOption "image" (value "")
         "Id of the image/ami.")
-    <*> integerOption "min" (value 1)
-        "Minimum number of instances to launch."
-    <*> integerOption "max" (value 1)
-        "Maximum number of instances to launch."
+    <*> integerOption "num" (short 'n' <> value 1)
+        "Number of instances to launch."
     <*> many (textOption "group" mempty
         "Security groups. (discovered)")
     <*> readOption "type" "TYPE" (value M1_Small)
@@ -68,9 +65,8 @@ instance Options Launch where
         debug "Using Availability Zones '{}'" [zs]
         return $! l { lZones = zs }
 
-    validate Launch{..} = do
+    validate Launch{..} =
         check lZones "--zones must be specified."
-        check (lMin > lMax) "--min must be less than or equal to --max."
 
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
@@ -108,7 +104,7 @@ instance Naming Host where
     names Host{..} = unversioned hRole hEnv
 
 commands :: Mod CommandFields Command
-commands = group "persistent" "Persistent shit." $ mconcat
+commands = mconcat
     [ command "launch" launch launchParser
         "Launch 1..n instances."
     , command "terminate" terminate hostParser
@@ -135,7 +131,7 @@ launch Common{..} l@Launch{..} = do
     wait_ g <* log "Found Role Group {}" [groupName]
 
     az  <- shuffle lZones
-    ms1 <- EC2.runInstances l ami lType (AZ cRegion az) lMin lMax lOptimised
+    ms1 <- EC2.runInstances l ami lType (AZ cRegion az) lNum lNum lOptimised
 
     let ids = map riitInstanceId ms1
 

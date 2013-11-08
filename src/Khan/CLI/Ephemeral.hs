@@ -132,7 +132,7 @@ instance Naming Cluster where
     names Cluster{..} = versioned cRole cEnv cVersion
 
 commands :: Mod CommandFields Command
-commands = group "ephemeral" "Ephemeral shit." $ mconcat
+commands = group "autoscale" "Ephemeral shit." $ mconcat
     [ command "deploy" deploy deployParser
         "Deploy a versioned cluster."
     , command "scale" scale scaleParser

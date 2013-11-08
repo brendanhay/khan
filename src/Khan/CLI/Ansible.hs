@@ -57,7 +57,7 @@ ansibleParser = Ansible
         "Path to the inventory file cache."
     <*> switchOption "force" False
         "Force update of any previously cached results."
-    <*> argsOption str mempty
+    <*> argsOption str (action "file")
         "Pass through arugments to ansible."
 
 instance Options Ansible where

@@ -22,6 +22,7 @@ data-files:
       config/policy.json
     , config/trust.json
     , config/user-data
+    , config/haproxy.mustache
 
 source-repository head
     type:     git

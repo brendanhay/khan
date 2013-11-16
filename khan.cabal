@@ -22,6 +22,7 @@ data-files:
       config/policy.json
     , config/trust.json
     , config/user-data
+    , config/haproxy.ede
 
 source-repository head
     type:     git
@@ -44,6 +45,7 @@ executable khan
       , bytestring
       , containers
       , directory
+      , ed-e
       , errors
       , hslogger
       , http-streams

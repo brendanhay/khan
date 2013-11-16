@@ -1,0 +1,44 @@
+{# parlez vous, magical haproxy configuration #}
+global
+    pidfile /var/run/haproxy.pid
+    log 127.0.0.1 local0 info
+
+defaults
+    mode http
+
+    clitimeout 600000
+    srvtimeout 600000
+    timeout connect 8000
+
+    stats enable
+    stats auth admin:password
+    stats uri /monitor
+    stats refresh 5s
+
+    option httpchk GET /status
+    retries 5
+    option redispatch
+
+    balance roundrobin
+
+frontend http
+    bind :80
+    monitor-uri /haproxy
+
+{% for role in roles %}
+    acl {{ role.key }} path_reg ^/{{ role.key }}/?
+{% endfor %}
+
+{% for role in roles %}
+    use_backend {{ role.key }} if {{ role.key }}
+{% endfor %}
+
+{% for role in roles %}
+backend {{ role.key }}
+{% for item in role.value %}
+    server srv0 {{ item.value.dnsName }}:9000 weight 1 maxconn 100 check inter 4000
+{% endfor %}
+{% if !role.last %}
+
+{% endif %}
+{% endfor %}

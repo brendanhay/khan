@@ -204,10 +204,10 @@ inventory _ Inventory{..} = do
 
 module' :: Common -> Module -> AWS ()
 module' c Module{..} = capture c $ do
-    m   <- noteAWS "unsupported module: {}" [mName] $
+    m <- noteAWS "unsupported module: {}" [mName] $
         find (mName ==) ["group", "record", "profile"]
-    kvs <- parseArgsFile mPath
-    exec $ args m kvs
+    k <- parseArgsFile mPath
+    exec $ args m k
   where
     exec xs = liftIO $ Posix.executeFile "khan" True xs Nothing
 

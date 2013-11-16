@@ -16,9 +16,8 @@
 
 module Khan.AWS.EC2 where
 
-import           Control.Arrow             ((***), (&&&))
+import           Control.Arrow             ((***))
 import           Control.Concurrent        (threadDelay)
-import           Data.Aeson
 import           Data.List                 ((\\), partition)
 import qualified Data.Text                 as Text
 import           Data.Time.Clock.POSIX
@@ -187,26 +186,3 @@ defaultZoneSuffixes :: String -> AWS String
 defaultZoneSuffixes sufs
     | invalid sufs = map (azSuffix . azitZoneName) <$> findCurrentZones
     | otherwise    = return sufs
-
-newtype Instance = Instance RunningInstancesItemType
-
-instance ToJSON Instance where
-    toJSON (Instance RunningInstancesItemType{..}) = object
-        [ "instanceId"       .= riitInstanceId
-        , "imageId"          .= riitImageId
-        , "instanceState"    .= istName riitInstanceState
-        , "stateReason"      .= fmap srtMessage riitStateReason
-        , "instanceType"     .= riitInstanceType
-        , "dnsName"          .= riitDnsName
-        , "privateDnsName"   .= riitPrivateDnsName
-        , "ipAddress"        .= riitIpAddress
-        , "privateIpAddress" .= riitPrivateIpAddress
-        , "availabilityZone" .= pruAvailabilityZone riitPlacement
-        , "env"              .= lookup envTag tags
-        , "role"             .= lookup roleTag tags
-        , "domain"           .= lookup domainTag tags
-        , "name"             .= lookup nameTag tags
-        , "version"          .= lookup versionTag tags
-        ]
-      where
-        tags = map (rtsitKey &&& rtsitValue) riitTagSet

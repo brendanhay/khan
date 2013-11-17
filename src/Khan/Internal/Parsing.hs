@@ -16,13 +16,14 @@
 module Khan.Internal.Parsing where
 
 import           Data.Attoparsec.Text
-import           Data.Char                       (isDigit)
-import qualified Data.Text                       as Text
+import           Data.Char                    (isDigit)
+import qualified Data.Text                    as Text
+import           Data.Tuple
 import           Data.Version
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS.EC2
-import qualified Text.ParserCombinators.ReadP    as ReadP
+import qualified Text.ParserCombinators.ReadP as ReadP
 
 showDNS :: DNS -> Text -> Text
 showDNS DNS{..} dom = Text.concat
@@ -84,24 +85,25 @@ parseRule :: String -> Either String IpPermissionType
 parseRule s = msg . parseOnly parser $ Text.pack s
   where
     msg = fmapL . const $
-        "expected: tcp|udp|icmp:from_port:to_port:group|0.0.0.0, got: " ++ s
+        "expected: tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...], got: " ++ s
 
     parser = do
         p <- protocol
         f <- decimal <* char ':'
         t <- decimal <* char ':'
-        g <- eitherP range group
-        let perm = IpPermissionType p f t
-        return $! either (\x -> perm [] [x]) (\x -> perm [x] []) g
+        g <- sepBy1 (eitherP range group) (char ',')
+        return . uncurry (IpPermissionType p f t) . swap $ partitionEithers g
 
     range = do
         a <- takeTill (== '.') <* char '.'
         b <- takeTill (== '.') <* char '.'
         c <- takeTill (== '.') <* char '.'
-        d <- Text.pack <$> many1 anyChar
+        d <- text
         return . IpRange $ Text.intercalate "." [a, b, c, d]
 
-    group = UserIdGroupPair Nothing Nothing <$> (Just <$> takeText)
+    group = UserIdGroupPair Nothing Nothing <$> (Just <$> text)
+
+    text = Text.pack <$> many1 (satisfy $ notInClass ":|,")
 
     protocol = do
         p <- takeTill (== ':') <* char ':'

@@ -49,7 +49,7 @@ routesParser = Routes
         "Role to restrict to.")
     <*> stringOption "zones" (value "")
         "Availability zones suffixes restriction."
-    <*> pathOption "template" (value "" <> short 't')
+    <*> pathOption "template" (action "file" <> value "" <> short 't')
         "Path to the ED-E HAProxy configuration template."
 
 instance Options Routes where
@@ -82,16 +82,13 @@ routes Common{..} r@Routes{..} = do
     is <- EC2.findInstances [] $ filters cRegion r
     f  <- liftIO . LText.readFile $ Path.encodeString rTemplate
 
-    let rs = grouped is
+    let xs = map mkInstance $ filter (isJust . riitDnsName) is
+        ys = Map.fromListWith (<>) [(k, [v]) | (k, v) <- xs]
+        zs = EDE.fromPairs ["roles" .= ys]
 
-    liftIO . LBS.putStrLn $ Aeson.encodePretty rs
+--    liftIO . LBS.putStrLn $ Aeson.encodePretty zs
     liftIO . either print (LText.putStrLn . EDE.toLazyText) $
-        EDE.eitherParse f >>= EDE.eitherRender rs
-  where
-    -- qfilter (isJust . riitDnsName)
-    grouped xs = EDE.fromPairs
-       [ "roles" .= Map.fromListWith (<>) [(k, [v]) | (k, v) <- map mkInstance xs]
-       ]
+        EDE.eitherParse f >>= EDE.eitherRender zs
 
 filters :: Region -> Routes -> [Filter]
 filters reg Routes{..} = catMaybes

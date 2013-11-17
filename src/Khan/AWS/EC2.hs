@@ -174,7 +174,7 @@ findImage fs = do
 findCurrentZones :: AWS [AvailabilityZoneItemType]
 findCurrentZones = do
     reg <- Text.pack . show <$> getRegion
-    log_ "Finding Availability Zones in current region"
+    debug_ "Finding Availability Zones in current region"
     fmap dazrAvailabilityZoneInfo . send $
         DescribeAvailabilityZones []
             [ Filter "region-name" [reg]

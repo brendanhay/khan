@@ -42,7 +42,6 @@ createKey (names -> n@Names{..}) =
              when p $ do
                  ts :: Integer <- truncate <$> liftIO getPOSIXTime
                  Shell.mv f $ f <.> Text.pack (show ts)
-             liftIO . print . Text.lines $ ckqKeyMaterial k
              Shell.mkdir_p $ Path.parent f
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]

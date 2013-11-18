@@ -15,11 +15,12 @@
 
 module Khan.CLI.DNS (commands) where
 
-import qualified Data.Text           as Text
+import qualified Data.Text             as Text
 import           GHC.Word
-import           Khan.AWS.Route53    as R53
+import qualified Khan.AWS.Route53      as R53
 import           Khan.Internal
-import           Khan.Prelude        hiding (for)
+import           Khan.Internal.Ansible
+import           Khan.Prelude          hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
 import           Pipes
@@ -27,6 +28,7 @@ import           Text.Show.Pretty
 
 data Record = Record
     { rZone     :: !Text
+    , rName     :: !Text
     , rType     :: !RecordType
     , rValues   :: [Text]
     , rTTL      :: !Integer
@@ -35,13 +37,19 @@ data Record = Record
     , rSetId    :: !Text
     , rWeight   :: !Word8
     , rFailover :: !Failover
-    , rCheck    :: Maybe Text
+    , rAnsible  :: !Bool
     }
+
+-- FIXME: Get info from tags correctly
+-- Ability to configure a roundrobin set or whatever and
+-- create multiple records and remove unspecified
 
 recordParser :: Parser Record
 recordParser = Record
     <$> textOption "zone" mempty
         "Name of the hosted zone to modify."
+    <*> textOption "name" mempty
+        "Name of the record set to modify."
     <*> readOption "type" "TYPE" (value CNAME)
         "Record set type."
     <*> many (textOption "value" mempty
@@ -58,8 +66,7 @@ recordParser = Record
         "Routing weight for the weighted policy type."
     <*> readOption "failover" "FAILOVER" (value PRIMARY)
         "Specify if this is the primary or secondary set."
-    <*> optional (textOption "check" (value "")
-        "Existing health check to assign.")
+    <*> ansibleOption
 
         -- get zone from tag
         -- get policy from tag
@@ -69,6 +76,8 @@ recordParser = Record
 
 instance Options Record where
     validate Record{..} = do
+        check rZone   "--zone must be specified."
+        check rName   "--name must be specified."
         check rValues "At least one --value must be specified."
         check (rPolicy /= Basic && Text.null rSetId)
             "--set-id must be specified for all non-basic routing policies."
@@ -95,22 +104,49 @@ instance Options Search
 
 commands :: Mod CommandFields Command
 commands = group "dns" "Manage DNS Records." $ mconcat
-    [ command "create" (modify CreateAction) recordParser
+    [ command "update" update recordParser
         "long long long description."
-    , command "delete" (modify DeleteAction) recordParser
+    , command "delete" delete recordParser
         "long long long description."
     , command "search" search searchParser
         "long long long description."
     ]
 
-modify :: ChangeAction -> Common -> Record -> AWS ()
-modify act Common{..} r@Record{..} = do
-    zid <- R53.findZoneId rZone
-    updateRecordSet zid [Change act $ recordSet cRegion zid r]
+update :: Common -> Record -> AWS ()
+update c@Common{..} r@Record{..}
+    | not rAnsible = void upd
+    | otherwise    = capture c $ do
+        p <- upd
+        if p
+            then changed "dns record {} was updated." [rZone]
+            else unchanged "dns record {} unchanged." [rZone]
+  where
+    upd = do
+        zid <- R53.findZoneId rZone
+        R53.updateRecordSet zid $ recordSet cRegion zid r
+
+delete :: Common -> Record -> AWS ()
+delete c@Common{..} r@Record{..}
+    | not rAnsible = void del
+    | otherwise    = capture c $ do
+        p <- del
+        if p
+            then changed "dns record {} was removed." [rZone]
+            else unchanged "dns record {} unchanged." [rZone]
+  where
+    del = do
+        zid <- R53.findZoneId rZone
+        let rset = recordSet cRegion zid r
+        mr  <- R53.findRecordSet zid rName $ R53.matchRecordSet rset
+        if isNothing mr
+            then return False
+            else do
+                R53.modifyRecordSet zid [Change DeleteAction rset]
+                return True
 
 search :: Common -> Search -> AWS ()
 search _ Search{..} = do
-    zid <- findZoneId sZone
+    zid <- R53.findZoneId sZone
     runEffect $ for (paginate $ start zid) (liftIO . display)
   where
     display (matching -> rrs) = unless (null rrs) $ do
@@ -134,18 +170,23 @@ recordSet reg zid Record{..} = mk rPolicy rAlias
     mk Failover True  = aset FailoverAliasRecordSet rFailover
     mk Latency  True  = aset LatencyAliasRecordSet  reg
     mk Weighted True  = aset WeightedAliasRecordSet weight
-    mk Basic    True  = AliasRecordSet rZone rType tgt health
+    mk Basic    True  = AliasRecordSet name rType tgt Nothing
 
     mk Failover False = rset FailoverRecordSet rFailover
     mk Latency  False = rset LatencyRecordSet  reg
     mk Weighted False = rset WeightedRecordSet weight
-    mk Basic    False = BasicRecordSet rZone rType rTTL rrs health
+    mk Basic    False = BasicRecordSet name rType rTTL rrs Nothing
 
-    aset x y = x rZone rType rSetId y tgt health
-    rset x y = x rZone rType rSetId y rTTL rrs health
+    aset x y = x name rType rSetId y tgt Nothing
+    rset x y = x name rType rSetId y rTTL rrs Nothing
 
     tgt = AliasTarget zid (head rValues) False
     rrs = ResourceRecords rValues
 
     weight = fromIntegral rWeight
-    health = HealthCheckId <$> rCheck
+
+    name = mconcat
+        [ fromMaybe rName $ Text.stripSuffix rZone rName
+        , "."
+        , rZone
+        ]

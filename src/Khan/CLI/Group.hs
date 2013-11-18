@@ -26,7 +26,7 @@ data Group = Group
     , gEnv     :: !Text
     , gRules   :: [IpPermissionType]
     , gAnsible :: !Bool
-    } deriving (Show)
+    }
 
 groupParser :: Parser Group
 groupParser = Group

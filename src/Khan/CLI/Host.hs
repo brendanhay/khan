@@ -83,7 +83,7 @@ register Common{..} Host{..} = do
             vs  = ResourceRecords [hFQDN]
             set = BasicRecordSet dns CNAME hTTL vs Nothing
         log "Creating record {} with value {}..." [dns, hFQDN]
-        R53.updateRecordSet zid [Change CreateAction set]
+        R53.modifyRecordSet zid [Change CreateAction set]
 
     newest acc x = max (either (const 0) dnsOrd . parseDNS $ rrsName x) acc
 
@@ -100,7 +100,7 @@ deregister _ Host{..} = do
   where
     delete zid set = do
         log "Deleting record {}..." [rrsName set]
-        R53.updateRecordSet zid [Change DeleteAction set]
+        R53.modifyRecordSet zid [Change DeleteAction set]
 
 describe :: Text -> AWS (Names, Tags)
 describe iid = do

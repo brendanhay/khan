@@ -32,24 +32,41 @@ findZoneId zone = do
     strip = Text.dropWhileEnd (== '.')
     msg   = toError $ "Unable to find a hosted zone zoned " ++ Text.unpack zone
 
-findRecordSet :: HostedZoneId
-              -> (ResourceRecordSet -> Bool)
-              -> AWS (Maybe ResourceRecordSet)
-findRecordSet zid match =
-    Pipes.find match . (paginate ~> each . lrrsrResourceRecordSets) $
-        ListResourceRecordSets zid Nothing Nothing Nothing Nothing
-
-updateRecordSet :: HostedZoneId -> [Change] -> AWS ()
-updateRecordSet zid changes = send batch >>= waitChange . crrsrChangeInfo
+updateRecordSet :: HostedZoneId -> ResourceRecordSet -> AWS Bool
+updateRecordSet zid rset = do
+    mr <- findRecordSet zid (rrsName rset) (matchRecordSet rset)
+    case mr of
+        Just x | x == rset -> return False
+        Just x  -> modifyRecordSet zid (update x) >> return True
+        Nothing -> modifyRecordSet zid create >> return True
   where
-    batch = ChangeResourceRecordSets zid $ ChangeBatch Nothing changes
+    update r = [Change DeleteAction r] ++ create
+    create   = [Change CreateAction rset]
 
-    waitChange ChangeInfo{..} = case ciStatus of
-        INSYNC  -> log "{} INSYNC." [show ciId]
-        PENDING -> do
-            log "Waiting for {}" [Shown ciId]
-            liftIO . threadDelay $ 10 * 1000000
-            send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
+matchRecordSet rset = case rset of
+      BasicRecordSet{..} -> const True
+      AliasRecordSet{..} -> const True
+      _                  -> (rrsSetIdentifier rset ==) . setIdentifier
+
+setIdentifier BasicRecordSet{..} = rrsName
+setIdentifier AliasRecordSet{..} = rrsName
+setIdentifier s                  = rrsSetIdentifier s
+
+modifyRecordSet :: HostedZoneId -> [Change] -> AWS ()
+modifyRecordSet zid cs =
+    send_ (ChangeResourceRecordSets zid $ ChangeBatch Nothing cs)
+  --       >>= waitChange . crrsrChangeInfo
+  -- where
+  --   waitChange ChangeInfo{..} = case ciStatus of
+  --       INSYNC  -> log "{} INSYNC." [show ciId]
+  --       PENDING -> do
+  --           log "Waiting for {}" [Shown ciId]
+  --           liftIO . threadDelay $ 10 * 1000000
+  --           send (GetChange ciId) >>= void . waitChange . gcrChangeInfo
+
+findRecordSet zid name match =
+    Pipes.find match . (paginate ~> each . lrrsrResourceRecordSets) $
+        ListResourceRecordSets zid (Just name) Nothing Nothing Nothing
 
 abbreviate :: Region -> Text
 abbreviate NorthVirginia   = "va"

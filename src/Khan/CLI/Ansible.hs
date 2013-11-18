@@ -205,7 +205,7 @@ inventory _ Inventory{..} = do
 module' :: Common -> Module -> AWS ()
 module' c Module{..} = capture c $ do
     m <- noteAWS "unsupported module: {}" [mName] $
-        find (mName ==) ["group", "record", "profile"]
+        find (mName ==) ["group", "dns", "profile"]
     k <- parseArgsFile mPath
     exec $ args m k
   where

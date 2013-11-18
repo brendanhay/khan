@@ -68,6 +68,9 @@ createGroup (names -> n@Names{..}) = findGroup n >>= maybe create return
         findGroup n >>=
             noteAWS "Unable to find created Security Group {}" [groupName]
 
+-- FIXME: diff causes rules to be revoked before re-adding, due to shallow diff
+-- which doesn't inspect the inner UserIdGroupPairs, this could potentially cause
+-- a brief netsplit.
 updateGroup :: Naming a => a -> [IpPermissionType] -> AWS Bool
 updateGroup (names -> n@Names{..}) (sort -> rules) = createGroup n >>= update
   where

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -e
+
+exec 2>&1
+exec chpst -u khan /usr/bin/env bash -c \
+    "sleep $[($RANDOM % 60) + 120]s; nice khan routes > /etc/khan/haproxy.config"

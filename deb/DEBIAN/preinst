@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -e
+
+# If runit service definition exists, stop the service.
+[[ -L /etc/service/khan ]] && sv down khan

@@ -1,5 +1,6 @@
 Package: khan
 Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Description: Khan
 Maintainer: Brendan Hay <brendan.g.hay@gmail.com>
 Architecture: amd64
-Description: Khan
+Depends: runit

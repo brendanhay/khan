@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -e
+
+exec svlogd -tt /var/log/khan/khan-routes

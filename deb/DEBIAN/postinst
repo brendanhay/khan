@@ -2,8 +2,17 @@
 
 set -e
 
+dirs=(/etc/khan /etc/ssl/khan /var/cache/khan /var/log/khan)
+
+# Create the khan user and group.
+adduser --home ${dirs[0]} --system --group --no-create-home --quiet khan || true
+
 # Ensure expected dirs are created,
-# and ensure dpkg removes them on uninstall:
-mkdir -p /etc/khan
-mkdir -p /etc/ssl/khan
-mkdir -p /var/cache/khan
+# and ensure dpkg removes them on uninstall.
+mkdir -p ${dirs[@]}
+
+# Ensure all directories are owned by the create user.
+chown -R root:root ${dirs[@]}
+
+# Link runit service definition.
+ln -s /etc/sv/khan /etc/service/khan

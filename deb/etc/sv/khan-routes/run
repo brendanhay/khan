@@ -4,4 +4,4 @@ set -e
 
 exec 2>&1
 exec chpst -u khan /usr/bin/env bash -c \
-    "sleep $[($RANDOM % 20) + 180]s; nice khan routes > /etc/khan/haproxy.config"
+    "nice khan routes > /etc/khan/haproxy.config; sleep $[($RANDOM % 20) + 180]s"

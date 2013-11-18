@@ -17,6 +17,7 @@ module Khan.Internal.Parsing where
 
 import           Data.Attoparsec.Text
 import           Data.Char                    (isDigit)
+import           Data.List                    (sort)
 import qualified Data.Text                    as Text
 import           Data.Tuple
 import           Data.Version
@@ -75,11 +76,11 @@ showRules = Text.intercalate ", " . map rule . toList
         [ Text.pack $ show iptIpProtocol
         , Text.pack $ show iptFromPort
         , Text.pack $ show iptToPort
-        , fromMaybe "" groupOrRange
+        , Text.intercalate ","  . sort $ ranges ++ groups
         ]
       where
-        groupOrRange = headMay (mapMaybe uigGroupName $ toList iptGroups)
-            <|> headMay (map irCidrIp $ toList iptIpRanges)
+        ranges = map irCidrIp $ toList iptIpRanges
+        groups = mapMaybe uigGroupName $ toList iptGroups
 
 parseRule :: String -> Either String IpPermissionType
 parseRule s = msg . parseOnly parser $ Text.pack s

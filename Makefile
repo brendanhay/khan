@@ -8,9 +8,7 @@ DEPS  := vendor/amazonka vendor/ed-e
 all: build
 
 build:
-	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS))) \
-	 && rm khan \
-	 ;  cp $(BIN) .
+	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS))) && cp -f $(BIN) .
 
 strip: build
 	strip -o dist/khan $(BIN) && upx dist/khan

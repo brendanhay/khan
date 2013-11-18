@@ -18,7 +18,7 @@ module Khan.AWS.EC2 where
 
 import           Control.Arrow             ((***))
 import           Control.Concurrent        (threadDelay)
-import           Data.List                 ((\\), partition)
+import           Data.List                 ((\\), partition, sort)
 import qualified Data.Text                 as Text
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS as Path
@@ -69,26 +69,25 @@ createGroup (names -> n@Names{..}) = findGroup n >>= maybe create return
             noteAWS "Unable to find created Security Group {}" [groupName]
 
 updateGroup :: Naming a => a -> [IpPermissionType] -> AWS Bool
-updateGroup (names -> n@Names{..}) rules = createGroup n >>= update
+updateGroup (names -> n@Names{..}) (sort -> rules) = createGroup n >>= update
   where
     update grp = do
         log "Updating Security Group {}..." [groupName]
 
         let gid  = sgitGroupId grp
-            strip1 = map (UserIdGroupPair Nothing Nothing . uigGroupName)
-            strip2 = map (\p -> p { iptGroups = strip1 . toList $ iptGroups p })
-
-            ps   = toList $ sgitIpPermissions grp
-            auth = strip2 rules \\ strip2 ps
-            rev  = strip2 ps \\ strip2 rules
-
-        unless (null auth) $ do
-            log "Authorizing {} on {}..." [showRules auth, groupName]
-            send_ $ AuthorizeSecurityGroupIngress (Just gid) Nothing auth
+            f    = map (UserIdGroupPair Nothing Nothing . uigGroupName)
+            g    = map (\p -> p { iptGroups = f $ iptGroups p })
+            ps   = sort . g $ sgitIpPermissions grp
+            auth = rules \\ ps
+            rev  = ps \\ rules
 
         unless (null rev) $ do
             log "Revoking {} on {}..." [showRules rev, groupName]
             send_ $ RevokeSecurityGroupIngress (Just gid) Nothing rev
+
+        unless (null auth) $ do
+            log "Authorizing {} on {}..." [showRules auth, groupName]
+            send_ $ AuthorizeSecurityGroupIngress (Just gid) Nothing auth
 
         log "Security Group {} updated." [groupName]
         return . not $ null auth && null rev

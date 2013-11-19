@@ -16,7 +16,6 @@ module Khan.Model.RecordSet
     ( find
     , update
     , modify
---    , delete
     , wait
     , match
     ) where

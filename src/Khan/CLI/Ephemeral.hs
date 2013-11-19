@@ -14,12 +14,19 @@
 
 module Khan.CLI.Ephemeral (commands) where
 
-import           Control.Concurrent      (threadDelay)
+
+import           Control.Concurrent          (threadDelay)
 import           Data.Version
-import qualified Khan.AWS.AutoScaling    as ASG
-import qualified Khan.AWS.EC2            as EC2
-import qualified Khan.AWS.IAM            as IAM
 import           Khan.Internal
+import qualified Khan.Model.AvailabilityZone as AZ
+import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.LaunchConfig     as Config
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.RecordSet        as RSet
+import qualified Khan.Model.ScalingGroup     as ASG
+import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling hiding (Filter)
@@ -64,7 +71,7 @@ deployParser = Deploy
 
 instance Options Deploy where
     discover _ d@Deploy{..} = do
-        zs <- EC2.defaultZoneSuffixes dZones
+        zs <- AZ.getSuffixes dZones
         debug "Using Availability Zones '{}'" [zs]
         return $! d { dZones = zs }
 
@@ -145,7 +152,7 @@ commands = group "autoscale" "Ephemeral shit." $ mconcat
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do
-    j <- ASG.findGroup d
+    j <- ASG.find d
 
     when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
         log "Waiting for previous deletion of Auto Scaling Group {}" [appName]
@@ -155,32 +162,32 @@ deploy c@Common{..} d@Deploy{..} = do
     when (isJust j) $
         throwAWS "Auto Scaling Group {} already exists." [appName]
 
-    k <- async $ EC2.createKey d
-    r <- async $ IAM.findRole d
-    s <- async $ EC2.updateGroup (sshGroup dEnv) sshRules
-    g <- async $ EC2.createGroup d
-    a <- async $ EC2.findImage [Filter "name" [imageName]]
+    k <- async $ Key.create d
+    p <- async $ Profile.find d
+    s <- async $ Security.update (sshGroup dEnv) sshRules
+    g <- async $ Security.create d
+    a <- async $ AMI.find [Filter "name" [imageName]]
 
     wait_ k
-    wait_ r <* log "Found IAM Profile {}" [profileName]
+    wait_ p <* log "Found IAM Profile {}" [profileName]
     wait_ s <* log "Found SSH Group {}" [sshGroup dEnv]
     wait_ g <* log "Found App Group {}" [groupName]
 
     ami <- wait a
-    log "Found AMI {} named {}" [ami, imageName]
+    log "Found AMI {} named {}" [unImageId ami, imageName]
 
     let zones = map (AZ cRegion) dZones
 
-    ASG.createConfig d ami dType
-    ASG.createGroup d dDomain zones dCooldown dDesired dGrace dMin dMax
+    Config.create d ami dType
+    ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax
   where
     Names{..} = names d
 
 scale :: Common -> Scale -> AWS ()
-scale _ s@Scale{..} = ASG.updateGroup s sCooldown sDesired sGrace sMin sMax
+scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 promote :: Common -> Cluster -> AWS ()
 promote _ _ = return ()
 
 retire :: Common -> Cluster -> AWS ()
-retire _ c = ASG.deleteGroup c >> ASG.deleteConfig c
+retire _ c = ASG.delete c >> Config.delete c

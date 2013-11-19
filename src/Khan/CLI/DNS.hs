@@ -15,16 +15,27 @@
 
 module Khan.CLI.DNS (commands) where
 
-import qualified Data.Text             as Text
+import qualified Data.Text                   as Text
 import           GHC.Word
-import qualified Khan.AWS.Route53      as R53
 import           Khan.Internal
 import           Khan.Internal.Ansible
+import qualified Khan.Model.AvailabilityZone as AZ
+import qualified Khan.Model.HostedZone       as HZone
+import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.LaunchConfig     as Config
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.RecordSet        as RSet
+import qualified Khan.Model.ScalingGroup     as ASG
+import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude          hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
 import           Pipes
 import           Text.Show.Pretty
+
+-- Write an optparse-applicative Parser for the whole ResourceRecordSet union type?
 
 data Record = Record
     { rZone     :: !Text
@@ -115,38 +126,30 @@ commands = group "dns" "Manage DNS Records." $ mconcat
 update :: Common -> Record -> AWS ()
 update c@Common{..} r@Record{..}
     | not rAnsible = void upd
-    | otherwise    = capture c $ do
-        p <- upd
-        if p
-            then changed "dns record {} was updated." [rZone]
-            else unchanged "dns record {} unchanged." [rZone]
+    | otherwise    = capture c "dns record {}" [rName] upd
   where
     upd = do
-        zid <- R53.findZoneId rZone
-        R53.updateRecordSet zid $ recordSet cRegion zid r
+        zid <- HZone.find rZone
+        RSet.update zid $ recordSet cRegion zid r
 
 delete :: Common -> Record -> AWS ()
 delete c@Common{..} r@Record{..}
     | not rAnsible = void del
-    | otherwise    = capture c $ do
-        p <- del
-        if p
-            then changed "dns record {} was removed." [rZone]
-            else unchanged "dns record {} unchanged." [rZone]
+    | otherwise    = capture c "dns record {}" [rName] del
   where
     del = do
-        zid <- R53.findZoneId rZone
+        zid <- HZone.find rZone
         let rset = recordSet cRegion zid r
-        mr  <- R53.findRecordSet zid rName $ R53.matchRecordSet rset
+        mr  <- RSet.find zid rName $ RSet.match rset
         if isNothing mr
             then return False
             else do
-                R53.modifyRecordSet zid [Change DeleteAction rset]
+                RSet.modify zid [Change DeleteAction rset]
                 return True
 
 search :: Common -> Search -> AWS ()
 search _ Search{..} = do
-    zid <- R53.findZoneId sZone
+    zid <- HZone.find sZone
     runEffect $ for (paginate $ start zid) (liftIO . display)
   where
     display (matching -> rrs) = unless (null rrs) $ do

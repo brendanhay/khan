@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
--- Module      : Khan.AWS.AutoScaling
+-- Module      : Khan.Model.ScalingGroup
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -13,52 +13,33 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.AWS.AutoScaling where
+module Khan.Model.ScalingGroup
+    ( find
+    , create
+    , update
+    , delete
+    ) where
 
 import Khan.Internal
-import Khan.Prelude            hiding (min, max)
+import Khan.Prelude            hiding (find, min, max)
 import Network.AWS.AutoScaling hiding (Filter)
 
-createConfig :: Naming a => a -> Text -> InstanceType -> AWS ()
-createConfig (names -> Names{..}) ami typ = do
-    c <- sendCatch $ CreateLaunchConfiguration
-        (Members [])
-        Nothing
-        (Just profileName)              -- Instance Profile
-        ami                             -- Image Id
-        Nothing
-        typ                             -- Instance Type
-        Nothing
-        (Just keyName)                  -- Key Pair Name
-        appName                         -- Launch Configuration Name
-        Nothing
-        (Members [groupName, sshGroup envName]) -- Security Groups
-        Nothing
-        Nothing                         -- User Data
-    verifyAS "AlreadyExists" c
-    log "Created Launch Configuration {}" [appName]
-
-deleteConfig :: Naming a => a -> AWS ()
-deleteConfig (names -> Names{..}) = do
-    send_ $ DeleteLaunchConfiguration appName
-    log "Deleted Launch Configuration {}" [appName]
-
-findGroup :: Naming a => a -> AWS (Maybe AutoScalingGroup)
-findGroup (names -> Names{..}) = fmap
+find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
+find (names -> Names{..}) = fmap
     (listToMaybe . members . dasgrAutoScalingGroups . dashrDescribeAutoScalingGroupsResult)
     (send $ DescribeAutoScalingGroups (Members [appName]) Nothing Nothing)
 
-createGroup :: Naming a
-            => a
-            -> Text
-            -> [AvailabilityZone]
-            -> Integer
-            -> Integer
-            -> Integer
-            -> Integer
-            -> Integer
-            -> AWS ()
-createGroup (names -> n@Names{..}) dom zones cool desired grace min max = do
+create :: Naming a
+       => a
+       -> Text
+       -> [AvailabilityZone]
+       -> Integer
+       -> Integer
+       -> Integer
+       -> Integer
+       -> Integer
+       -> AWS ()
+create (names -> n@Names{..}) dom zones cool desired grace min max = do
     send_ $ CreateAutoScalingGroup
         appName                        -- Name
         (Members zones)                -- Zones
@@ -84,16 +65,16 @@ createGroup (names -> n@Names{..}) dom zones cool desired grace min max = do
        (Just "auto-scaling-group")
        (Just v)
 
-updateGroup :: Naming a
-            => a
-            -> Maybe Integer
-            -> Maybe Integer
-            -> Maybe Integer
-            -> Maybe Integer
-            -> Maybe Integer
-            -> AWS ()
-updateGroup (names -> n@Names{..}) cool desired grace min max = do
-    AutoScalingGroup{..} <- findGroup n >>=
+update :: Naming a
+       => a
+       -> Maybe Integer
+       -> Maybe Integer
+       -> Maybe Integer
+       -> Maybe Integer
+       -> Maybe Integer
+       -> AWS ()
+update (names -> n@Names{..}) cool desired grace min max = do
+    AutoScalingGroup{..} <- find n >>=
         noteAWS "Auto Scaling Group %s doesn't exist." [appName]
     send_ $ UpdateAutoScalingGroup
         appName
@@ -110,7 +91,7 @@ updateGroup (names -> n@Names{..}) cool desired grace min max = do
         Nothing
     log "Updated Auto Scaling Group {}" [appName]
 
-deleteGroup :: Naming a => a -> AWS ()
-deleteGroup (names -> Names{..}) = do
+delete :: Naming a => a -> AWS ()
+delete (names -> Names{..}) = do
     send_ $ DeleteAutoScalingGroup appName (Just True)
     log "Delete of Auto Scaling Group {} in progress" [appName]

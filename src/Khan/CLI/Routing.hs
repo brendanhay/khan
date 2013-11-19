@@ -15,21 +15,29 @@
 
 module Khan.CLI.Routing (commands) where
 
-import           Control.Arrow              ((&&&))
+import           Control.Arrow               ((&&&))
 import           Data.Aeson
-import           Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.Map                   as Map
-import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
-import qualified Data.Text.Lazy.IO          as LText
-import qualified Filesystem.Path.CurrentOS  as Path
-import qualified Khan.AWS.EC2               as EC2
+import           Data.Aeson.Encode.Pretty    as Aeson
+import qualified Data.ByteString.Lazy.Char8  as LBS
+import qualified Data.Map                    as Map
+import qualified Data.Text                   as Text
+import qualified Data.Text.Encoding          as Text
+import qualified Data.Text.Lazy.IO           as LText
+import qualified Filesystem.Path.CurrentOS   as Path
 import           Khan.Internal
+import qualified Khan.Model.AvailabilityZone as AZ
+import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.LaunchConfig     as Config
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.RecordSet        as DNS
+import qualified Khan.Model.ScalingGroup     as ASG
+import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Instance, ec2)
-import           Network.AWS.EC2.Metadata
+import           Network.AWS.EC2.Metadata   as Meta
 import qualified Text.EDE                   as EDE
 
 data Routes = Routes
@@ -54,13 +62,14 @@ routesParser = Routes
 
 instance Options Routes where
     discover ec2 r@Routes{..} = do
-        zs <- EC2.defaultZoneSuffixes rZones
+        zs <- AZ.getSuffixes rZones
         f  <- if invalid rTemplate then configPath "haproxy.ede" else return rTemplate
         debug "Using Availability Zones '{}'" [zs]
         if not ec2
             then return $! r { rZones = zs, rTemplate = f }
             else do
-                iid <- liftEitherT $ Text.decodeUtf8 <$> metadata InstanceId
+                iid <- liftEitherT $
+                    Text.decodeUtf8 <$> Meta.metadata Meta.InstanceId
                 Tags{..} <- findRequiredTags iid
                 return $! r
                     { rDomain   = Just tagDomain
@@ -79,7 +88,7 @@ commands = command "routes" routes routesParser
 
 routes :: Common -> Routes -> AWS ()
 routes Common{..} r@Routes{..} = do
-    is <- EC2.findInstances [] $ filters cRegion r
+    is <- Instance.findAll [] $ filters cRegion r
     f  <- liftIO . LText.readFile $ Path.encodeString rTemplate
 
     let xs = map mkInstance $ filter (isJust . riitDnsName) is

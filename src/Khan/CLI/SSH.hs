@@ -17,8 +17,8 @@ module Khan.CLI.SSH (commands) where
 import           Control.Arrow
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
-import qualified Khan.AWS.EC2              as EC2
 import           Khan.Internal
+import qualified Khan.Model.Instance       as Instance
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           System.IO                 hiding (FilePath)
@@ -56,7 +56,7 @@ commands = command "ssh" ssh sshParser
     "Long description."
   where
     ssh _ SSH{..} = do
-        dns <- mapMaybe riitDnsName <$> EC2.findInstances []
+        dns <- mapMaybe riitDnsName <$> Instance.findAll []
             [ Filter ("tag:" <> envTag)  [sEnv]
             , Filter ("tag:" <> roleTag) [sRole]
             ]

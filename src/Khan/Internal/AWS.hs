@@ -131,3 +131,13 @@ isEC2 = isRight <$> runEitherT (syncIO attempt)
         sendRequest c rq emptyBody
 
     host = "http://instance-data"
+
+abbreviate :: Region -> Text
+abbreviate NorthVirginia   = "va"
+abbreviate NorthCalifornia = "ca"
+abbreviate Oregon          = "or"
+abbreviate Ireland         = "ie"
+abbreviate Singapore       = "sg"
+abbreviate Tokyo           = "tyo"
+abbreviate Sydney          = "syd"
+abbreviate SaoPaulo        = "sao"

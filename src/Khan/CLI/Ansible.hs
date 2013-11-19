@@ -26,9 +26,9 @@ import qualified Data.Text.Format           as Format
 import qualified Data.Text.Lazy.IO          as LText
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
-import qualified Khan.AWS.EC2               as EC2
 import           Khan.Internal
 import           Khan.Internal.Ansible
+import qualified Khan.Model.Instance        as Instance
 import           Khan.Prelude
 import           Network.AWS.EC2            hiding (Failed)
 import           System.Directory
@@ -184,7 +184,7 @@ inventory _ Inventory{..} = do
     debug_ "Writing inventory to stdout"
     unless iSilent . liftIO $ LBS.putStrLn j
   where
-    list = EC2.findInstances [] [Filter ("tag:" <> envTag) [iEnv]] >>=
+    list = Instance.findAll [] [Filter ("tag:" <> envTag) [iEnv]] >>=
         foldlM hosts Map.empty
 
     hosts m RunningInstancesItemType{..} = case riitDnsName of
@@ -203,14 +203,12 @@ inventory _ Inventory{..} = do
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
 module' :: Common -> Module -> AWS ()
-module' c Module{..} = capture c $ do
+module' c Module{..} = capture' c $ do
     m <- noteAWS "unsupported module: {}" [mName] $
         find (mName ==) ["group", "dns", "profile"]
     k <- parseArgsFile mPath
-    exec $ args m k
+    liftIO $ Posix.executeFile "khan" True (args m k) Nothing
   where
-    exec xs = liftIO $ Posix.executeFile "khan" True xs Nothing
-
     args m kvs = map Text.unpack $
         [ "--silent"
         , "--region"

@@ -15,12 +15,20 @@
 module Khan.CLI.Profile (commands) where
 
 import           Data.Aeson
-import qualified Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
-import qualified Khan.AWS.IAM               as IAM
+import qualified Data.Aeson.Encode.Pretty    as Aeson
+import qualified Data.ByteString.Lazy.Char8  as LBS
+import qualified Data.Text                   as Text
+import qualified Data.Text.Encoding          as Text
 import           Khan.Internal
+import qualified Khan.Model.AvailabilityZone as AZ
+import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.LaunchConfig     as Config
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.RecordSet        as DNS
+import qualified Khan.Model.ScalingGroup     as ASG
+import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS.IAM            hiding (Role)
 import           Network.HTTP.Types         (urlDecode)
@@ -63,7 +71,7 @@ commands = group "profile" "Long description." $ mconcat
 
 info :: Common -> Role -> AWS ()
 info _ r = do
-    p <- IAM.findRole r
+    p <- Profile.find r
     log_ . Text.unlines $
         [ "Arn                  = " <> rArn p
         , "RoleId               = " <> rRoleId p
@@ -82,4 +90,4 @@ info _ r = do
     policy = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
 
 update :: Common -> Role -> AWS ()
-update _ r = IAM.updateRole r (rPolicy r) (rTrust r)
+update _ r = Profile.update r (rPolicy r) (rTrust r)

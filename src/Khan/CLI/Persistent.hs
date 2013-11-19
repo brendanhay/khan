@@ -14,9 +14,16 @@
 
 module Khan.CLI.Persistent (commands) where
 
-import qualified Khan.AWS.EC2              as EC2
-import qualified Khan.AWS.IAM              as IAM
 import           Khan.Internal
+import qualified Khan.Model.AvailabilityZone as AZ
+import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.LaunchConfig     as Config
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.RecordSet        as DNS
+import qualified Khan.Model.ScalingGroup     as ASG
+import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
@@ -61,7 +68,7 @@ launchParser = Launch
 
 instance Options Launch where
     discover _ l@Launch{..} = do
-        zs <- EC2.defaultZoneSuffixes lZones
+        zs <- AZ.getSuffixes lZones
         debug "Using Availability Zones '{}'" [zs]
         return $! l { lZones = zs }
 
@@ -113,30 +120,30 @@ commands = mconcat
 
 launch :: Common -> Launch -> AWS ()
 launch Common{..} l@Launch{..} = do
-    a <- async . EC2.findImage . (:[]) $ maybe (Filter "name" [imageName])
+    a <- async . AMI.find . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
-    i <- async $ IAM.findRole l
+    i <- async $ Profile.find l
 
     ami <- wait a
     log "Using Image {}" [ami]
 
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
-    k <- async $ EC2.createKey l
-    s <- async $ EC2.updateGroup (sshGroup lEnv) sshRules
-    g <- async $ EC2.createGroup l
+    k <- async $ Key.create l
+    s <- async $ Security.update (sshGroup lEnv) sshRules
+    g <- async $ Security.create l
 
     wait_ k <* log "Found KeyPair {}" [keyName]
     wait_ s <* log "Found SSH Group {}" [sshGroup lEnv]
     wait_ g <* log "Found Role Group {}" [groupName]
 
     az  <- shuffle lZones
-    ms1 <- EC2.runInstances l ami lType (AZ cRegion az) lNum lNum lOptimised
+    ms1 <- Instance.run l ami lType (AZ cRegion az) lNum lNum lOptimised
 
     let ids = map riitInstanceId ms1
 
-    EC2.tagInstances l lDomain ids
-    EC2.waitForInstances ids
+    Instance.tag l lDomain ids
+    Instance.wait ids
   where
     Names{..} = names l
 

@@ -15,14 +15,22 @@
 
 module Khan.CLI.Host (commands) where
 
-import qualified Data.Text.Encoding       as Text
-import qualified Khan.AWS.EC2             as EC2
-import qualified Khan.AWS.Route53         as R53
+import qualified Data.Text.Encoding          as Text
 import           Khan.Internal
+import qualified Khan.Model.AvailabilityZone as ASG
+import qualified Khan.Model.HostedZone       as HZone
+import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.LaunchConfig     as Config
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.RecordSet        as RSet
+import qualified Khan.Model.ScalingGroup     as ASG
+import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2          hiding (ec2)
-import           Network.AWS.EC2.Metadata
+import qualified Network.AWS.EC2.Metadata as Meta
 import           Network.AWS.Route53
 import           Pipes
 import qualified Pipes.Prelude            as Pipes
@@ -44,13 +52,13 @@ hostParser = Host
 
 instance Options Host where
     discover True h@Host{..} = liftEitherT $ do
-        iid  <- Text.decodeUtf8 <$> metadata InstanceId
-        fqdn <- Text.decodeUtf8 <$> metadata PublicHostname
+        iid  <- Text.decodeUtf8 <$> Meta.metadata Meta.InstanceId
+        fqdn <- Text.decodeUtf8 <$> Meta.metadata Meta.PublicHostname
         return $! h { hId = iid, hFQDN = fqdn }
     discover False h@Host{..}
         | invalid hId || not (invalid hFQDN) = return h
         | otherwise = do
-            is  <- EC2.findInstances [hId] []
+            is  <- Instance.findAll [InstanceId hId] []
             dns <- noteAWS "Unable to find Public DNS for: {}" [hId] .
                 join $ riitDnsName <$> listToMaybe is
             return $! h { hFQDN = dns }
@@ -71,9 +79,9 @@ register :: Common -> Host -> AWS ()
 register Common{..} Host{..} = do
     log "Registering host {}..." [hFQDN]
     (ns@Names{..}, ts@Tags{..}) <- describe hId
-    zid  <- R53.findZoneId tagDomain
+    zid  <- HZone.find tagDomain
     sets <- findPrefix zid roleName envName
-    maybe (create zid ns ts sets) exists $ findValue hFQDN sets
+    maybe (void $ create zid ns ts sets) exists $ findValue hFQDN sets
   where
     exists r = log "Record {} exists, skipping..." [rrsName r]
 
@@ -83,24 +91,24 @@ register Common{..} Host{..} = do
             vs  = ResourceRecords [hFQDN]
             set = BasicRecordSet dns CNAME hTTL vs Nothing
         log "Creating record {} with value {}..." [dns, hFQDN]
-        R53.modifyRecordSet zid [Change CreateAction set]
+        RSet.modify zid [Change CreateAction set]
 
     newest acc x = max (either (const 0) dnsOrd . parseDNS $ rrsName x) acc
 
     name Names{..} Tags{..} n =
-        showDNS (DNS roleName tagVersion n envName $ R53.abbreviate cRegion) tagDomain
+        showDNS (DNS roleName tagVersion n envName $ abbreviate cRegion) tagDomain
 
 deregister :: Common -> Host -> AWS ()
 deregister _ Host{..} = do
     (_, Tags{..}) <- describe hId
-    zid <- R53.findZoneId tagDomain
+    zid <- HZone.find tagDomain
     log "Searching for records for {} with value {}..." [tagRole, hFQDN]
     set <- findValue hFQDN <$> findPrefix zid tagRole tagEnv
-    maybe (log_ "No record found, skipping...") (delete zid) set
+    maybe (log_ "No record found, skipping...") (void . delete zid) set
   where
     delete zid set = do
         log "Deleting record {}..." [rrsName set]
-        R53.modifyRecordSet zid [Change DeleteAction set]
+        RSet.modify zid [Change DeleteAction set]
 
 describe :: Text -> AWS (Names, Tags)
 describe iid = do

@@ -14,9 +14,17 @@
 
 module Khan.CLI.Group (commands) where
 
-import qualified Khan.AWS.EC2          as EC2
 import           Khan.Internal
 import           Khan.Internal.Ansible
+import qualified Khan.Model.AvailabilityZone as ASG
+import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.LaunchConfig     as Config
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.RecordSet        as RSet
+import qualified Khan.Model.ScalingGroup     as ASG
+import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           Text.Show.Pretty
@@ -50,20 +58,18 @@ commands = group "group" "Long description." $ mconcat
     , command "delete" delete groupParser
         "Long long long long description."
     ]
-  where
-    info _ g =
-        EC2.findGroup g >>= liftIO . maybe (return ()) (putStrLn . ppShow)
 
-    update c g@Group{..}
-        | not gAnsible = void $ EC2.updateGroup g gRules
-        | otherwise    = capture c $ do
-            p <- EC2.updateGroup g gRules
-            if p
-                then changed "security group {} was updated." [gRole]
-                else unchanged "security group {} unchanged." [gRole]
+info :: Common -> Group -> AWS ()
+info _ g = Security.find g >>= liftIO . maybe (return ()) (putStrLn . ppShow)
 
-    delete c g@Group{..}
-        | not gAnsible = EC2.deleteGroup g
-        | otherwise    = capture c $ do
-            EC2.deleteGroup g
-            changed "security group {} deleted." [gRole]
+update :: Common -> Group -> AWS ()
+update c g@Group{..}
+    | not gAnsible = void $ Security.update g gRules
+    | otherwise    =
+        capture c "security group {}" [gRole] $ Security.update g gRules
+
+delete :: Common -> Group -> AWS ()
+delete c g@Group{..}
+    | not gAnsible = void $ Security.delete g
+    | otherwise    =
+        capture c "security group {}" [gRole] $ Security.delete g

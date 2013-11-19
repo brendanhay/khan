@@ -60,10 +60,18 @@ unchanged f = return . Unchanged . format f
 failed :: (Monad m, Params ps) => Format -> ps -> m Output
 failed f = return . Failed . format f
 
-capture :: Common -> AWS Output -> AWS ()
-capture c aws = context c aws >>= exit . either failure id
+capture :: Params ps => Common -> Format -> ps -> AWS Bool -> AWS ()
+capture c f ps aws = capture' c $ aws >>= success
   where
-    failure (Err s) = Failed . format "{}" $ Only s
+    success True  = changed (f <> " changed.") ps
+    success False = unchanged (f <> " unchanged.") ps
+
+capture' :: Common -> AWS Output -> AWS ()
+capture' c aws = context c aws
+     >>= either failure (return . id)
+     >>= exit
+  where
+    failure (Err s) = failed "{}" $ Only s
     failure (Ex ex) = failure . toError $ show ex
 
     exit o = liftIO $ LBS.putStrLn (Aeson.encodePretty o) >>

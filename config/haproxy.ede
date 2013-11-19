@@ -12,14 +12,14 @@ defaults
 
     stats enable
     stats auth admin:password
-    stats uri /monitor
+    stats uri /routes
     stats refresh 5s
 
     option httpchk GET /status
-    retries 5
+    retries 3
     option redispatch
 
-    balance roundrobin
+    balance leastconn
 
 frontend http
     bind :80
@@ -39,7 +39,7 @@ frontend http
 {% for role in roles %}
 backend {{ role.key }}
 {% for item in role.value %}
-    server srv0 {{ item.value.dnsName }}:9000 weight 1 maxconn 100 check inter 4000
+    server srv0 {{ item.value.dnsName }}:9000 weight 1 maxconn 100 check inter 3000
 {% endfor %}
 {% if !role.last %}
 

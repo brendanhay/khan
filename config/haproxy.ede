@@ -24,15 +24,18 @@ defaults
 frontend http
     bind :80
     monitor-uri /haproxy
-
 {% for role in roles %}
     acl {{ role.key }} path_reg ^/{{ role.key }}/?
-{% endfor %}
+{% if !role.last %}
 
+{% endif %}
+{% endfor %}
 {% for role in roles %}
     use_backend {{ role.key }} if {{ role.key }}
-{% endfor %}
+{% if !role.last %}
 
+{% endif %}
+{% endfor %}
 {% for role in roles %}
 backend {{ role.key }}
 {% for item in role.value %}

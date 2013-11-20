@@ -27,9 +27,8 @@ import           Khan.Prelude          hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
 import           Pipes
+import qualified Pipes.Prelude         as Pipes
 import           Text.Show.Pretty
-
--- Write an optparse-applicative Parser for the whole ResourceRecordSet union type?
 
 data Record = Record
     { rZone    :: !Text
@@ -131,36 +130,30 @@ update c@Common{..} r@Record{..}
     | rAnsible  = capture c "dns record {}" [rName] f
     | otherwise = void f
   where
-    f = do
-        zid <- HZone.find rZone -- 
-        RSet.set zid fullName $ recordSets cRegion zid r
+    f = HZone.find rZone >>= g
 
---        RSet.update zid $ recordSet cRegion zid r
-
-    fullName = Text.intercalate "." [rName, rZone]
-
-    -- g = do
-    --     zid <- HZone.find rZone
-    --     rs  <- RSet.find rName (const True)
-    --     RSet.modify zid (map (Change DeleteAction) rs)
-
--- FIXME: make sure delete takes all specified parameters into account when deleteing
--- exact match, unless --set is used
+    g True  zid = RSet.set zid (domainName rName rZone) (multiple cRegion zid r)
+    g False zid = RSet.update zid (single cRegion zid r)
 
 delete :: Common -> Record -> AWS ()
 delete c@Common{..} r@Record{..}
     | rAnsible  = capture c "dns record {}" [rName] f
     | otherwise = void f
   where
-    f = return False
-        -- zid <- HZone.find rZone
-        -- let rset = recordSet cRegion zid r
-        -- mr  <- RSet.find zid rName $ RSet.match rset
-        -- if isNothing mr
-        --     then return False
-        --     else do
-        --         RSet.modify zid [Change DeleteAction rset]
-        --         return True
+    f = do
+        zid <- HZone.find rZone
+        -- FIXME: won't work with multi value records, such as SRV
+        rrs <- Pipes.toListM $ RSet.findAll zid (Just name) (g rSet)
+        if null rrs
+            then return False
+            else do
+                void . RSet.modify zid $ map (Change DeleteAction) rrs
+                return True
+
+    g True  = const True
+    g False = (`elem` rValues) . fromMaybe "" . RSet.setId
+
+    name = domainName rName rZone
 
 search :: Common -> Search -> AWS ()
 search _ Search{..} = do
@@ -182,26 +175,37 @@ search _ Search{..} = do
 
     match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
 
-recordSets :: Region -> HostedZoneId -> Record -> [ResourceRecordSet]
-recordSets reg zid Record{..}
-    | rSet      = List.toList $ List.map (mk rPolicy rAlias . (:|[])) rValues
-    | otherwise = [mk rPolicy rAlias $ List.sort rValues]
+single :: Region -> HostedZoneId -> Record -> ResourceRecordSet
+single reg zid r@Record{..} = recordSet reg zid r $ List.sort rValues
+
+multiple :: Region -> HostedZoneId -> Record -> [ResourceRecordSet]
+multiple reg zid r@Record{..} = List.toList $
+    List.map (recordSet reg zid r . (:|[])) rValues
+
+recordSet :: Region
+          -> HostedZoneId
+          -> Record
+          -> NonEmpty Text
+          -> ResourceRecordSet
+recordSet reg zid Record{..} vs = mk rPolicy rAlias
   where
-    mk Failover True  vs = aset FailoverAliasRecordSet rFail vs
-    mk Latency  True  vs = aset LatencyAliasRecordSet reg vs
-    mk Weighted True  vs = aset WeightedAliasRecordSet rWeight vs
-    mk Basic    True  vs = AliasRecordSet name rType (tgt vs) Nothing
+    mk Failover True  = aset FailoverAliasRecordSet rFail
+    mk Latency  True  = aset LatencyAliasRecordSet reg
+    mk Weighted True  = aset WeightedAliasRecordSet rWeight
+    mk Basic    True  = AliasRecordSet name rType tgt Nothing
 
-    mk Failover False vs = rset FailoverRecordSet rFail vs
-    mk Latency  False vs = rset LatencyRecordSet reg vs
-    mk Weighted False vs = rset WeightedRecordSet rWeight vs
-    mk Basic    False vs = BasicRecordSet name rType rTTL (rrs vs) Nothing
+    mk Failover False = rset FailoverRecordSet rFail
+    mk Latency  False = rset LatencyRecordSet reg
+    mk Weighted False = rset WeightedRecordSet rWeight
+    mk Basic    False = BasicRecordSet name rType rTTL rrs Nothing
 
-    aset ctor x vs = ctor name rType (List.head vs) x (tgt vs) Nothing
-    rset ctor x vs = ctor name rType (List.head vs) x rTTL (rrs vs) Nothing
+    aset ctor x = ctor name rType (List.head vs) x tgt Nothing
+    rset ctor x = ctor name rType (List.head vs) x rTTL rrs Nothing
 
-    name = Text.intercalate "." [rName, rZone]
+    name = domainName rName rZone
 
-    tgt vs = AliasTarget zid (List.head vs) False
+    tgt = AliasTarget zid (List.head vs) False
+    rrs = ResourceRecords (List.toList vs)
 
-    rrs = ResourceRecords . List.toList
+domainName :: Text -> Text -> Text
+domainName name zone = name <> "." <> zone

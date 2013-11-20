@@ -70,7 +70,7 @@ update (names -> n@Names{..}) (sort -> rules) = create n >>= f
             send_ $ AuthorizeSecurityGroupIngress (Just gid) Nothing auth
 
         log "Security Group {} updated." [groupName]
-        return $ all (not . null) [rev, auth]
+        return $ any (not . null) [rev, auth]
 
 delete :: Naming a => a -> AWS Bool
 delete (names -> n@Names{..}) = find n >>= maybe (return False) f

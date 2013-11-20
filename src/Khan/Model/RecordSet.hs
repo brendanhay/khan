@@ -23,12 +23,13 @@ module Khan.Model.RecordSet
     , modify
     , wait
     , match
+    , setId
     ) where
 
 import           Control.Arrow
 import           Control.Concurrent  (threadDelay)
 import           Control.Monad
-import           Data.List           ((\\), sort)
+import           Data.List           (sort)
 import qualified Data.Text           as Text
 import           Data.Text.Format    (Shown(..))
 import           Khan.Prelude        hiding (find, min, max)
@@ -68,21 +69,13 @@ set zid name rrs = do
             map (Change DeleteAction) del ++ map (Change CreateAction) cre
         log "Record set {} in zone {} updated." [name, unHostedZoneId zid]
 
-    return $ all (not . null) [cre, del]
+    return $ any (not . null) [cre, del]
  where
    f = Text.intercalate ", " . concatMap (rrValues . rrsResourceRecords)
 
 update :: HostedZoneId -> ResourceRecordSet -> AWS Bool
 update zid rset = do
     mr <- find zid (Just $ rrsName rset) (match rset)
-
-    liftIO $ do
-        print rset
-        putStrLn ""
-        print mr
-        putStrLn ""
-        print $ Just rset == mr
-
     case mr of
         Just x | x == rset -> return False
         Just x  -> modify zid (upd x) >> return True
@@ -112,9 +105,9 @@ match :: ResourceRecordSet -> ResourceRecordSet -> Bool
 match rset = case rset of
       BasicRecordSet{..} -> const True
       AliasRecordSet{..} -> const True
-      _                  -> (Just (rrsSetIdentifier rset) ==) . ident
+      _                  -> (Just (rrsSetIdentifier rset) ==) . setId
 
-ident :: ResourceRecordSet -> Maybe Text
-ident BasicRecordSet{..} = Nothing
-ident AliasRecordSet{..} = Nothing
-ident s                  = Just $ rrsSetIdentifier s
+setId :: ResourceRecordSet -> Maybe Text
+setId BasicRecordSet{..} = Nothing
+setId AliasRecordSet{..} = Nothing
+setId s                  = Just $ rrsSetIdentifier s

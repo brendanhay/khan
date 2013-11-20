@@ -57,6 +57,7 @@ executable khan
       , prelude-prime
       , pretty-show
       , random
+      , semigroups
       , shelly
       , system-filepath
       , text

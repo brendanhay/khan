@@ -18,6 +18,7 @@ module Khan.Prelude
       ByteString
     , Text
     , FilePath
+    , NonEmpty (..)
 
     -- * Monadic
     , forever
@@ -49,6 +50,9 @@ module Khan.Prelude
     , debug
     , debug_
 
+    -- * Lists
+    , diff
+
     -- * Re-exported Modules
     , module Applicative
     , module Error
@@ -58,25 +62,27 @@ module Khan.Prelude
     , module Prime
     ) where
 
-import           Control.Applicative        as Applicative
-import           Control.Error              as Error
-import           Control.Monad              (forever, join, when, unless, void)
-import           Control.Monad.Error        (MonadError, throwError)
-import           Control.Monad.IO.Class     as MonadIO
-import           Control.Monad.Trans.Class  (lift)
-import           Data.ByteString            (ByteString)
-import           Data.Maybe                 as Maybe
-import           Data.Monoid                as Monoid
+import           Control.Applicative       as Applicative
+import           Control.Error             as Error
+import           Control.Monad             (forever, join, when, unless, void)
+import           Control.Monad.Error       (MonadError, throwError)
+import           Control.Monad.IO.Class    as MonadIO
+import           Control.Monad.Trans.Class (lift)
+import           Data.ByteString           (ByteString)
+import           Data.List                 ((\\))
+import           Data.List.NonEmpty        (NonEmpty(..))
+import           Data.Maybe                as Maybe
+import           Data.Monoid               as Monoid
 import           Data.String
-import           Data.Text                  (Text)
+import           Data.Text                 (Text)
 import           Data.Text.Format
 import           Data.Text.Format.Params
-import qualified Data.Text.Lazy             as LText
-import           Filesystem.Path.CurrentOS  (FilePath)
+import qualified Data.Text.Lazy            as LText
+import           Filesystem.Path.CurrentOS (FilePath)
 import           Network.AWS
-import           Prelude.Prime              as Prime hiding (FilePath, error, log, writeFile)
-import           Shelly                     (whenM, unlessM)
-import qualified System.IO                  as IO
+import           Prelude.Prime             as Prime hiding (FilePath, error, log, writeFile)
+import           Shelly                    (whenM, unlessM)
+import qualified System.IO                 as IO
 import           System.Log.Handler.Simple
 import           System.Log.Logger
 
@@ -118,3 +124,6 @@ debug_ = whenDebug . log_
 
 logName :: String
 logName = "log"
+
+diff :: Eq a => [a] -> [a] -> ([a], [a])
+diff xs ys = (xs \\ ys, ys \\ xs)

@@ -43,6 +43,9 @@ instance Invalid a => Invalid [a] where
     invalid [] = True
     invalid xs = invalid `any` xs
 
+instance Invalid (NonEmpty a) where
+    invalid _ = False
+
 instance Invalid Char where
     invalid _ = False
 

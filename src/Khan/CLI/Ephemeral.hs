@@ -174,7 +174,7 @@ deploy c@Common{..} d@Deploy{..} = do
     wait_ g <* log "Found App Group {}" [groupName]
 
     ami <- wait a
-    log "Found AMI {} named {}" [unImageId ami, imageName]
+    log "Found AMI {} named {}" [ami, imageName]
 
     let zones = map (AZ cRegion) dZones
 

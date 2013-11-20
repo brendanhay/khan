@@ -55,12 +55,11 @@ update (names -> n@Names{..}) (sort -> rules) = create n >>= f
     f grp = do
         log "Updating Security Group {}..." [groupName]
 
-        let gid  = sgitGroupId grp
-            fs   = map (UserIdGroupPair Nothing Nothing . uigGroupName)
-            gs   = map (\p -> p { iptGroups = fs $ iptGroups p })
-            ps   = sort . gs $ sgitIpPermissions grp
-            auth = rules \\ ps
-            rev  = ps \\ rules
+        let gid         = sgitGroupId grp
+            fs          = map (UserIdGroupPair Nothing Nothing . uigGroupName)
+            gs          = map (\p -> p { iptGroups = fs $ iptGroups p })
+            ps          = sort . gs $ sgitIpPermissions grp
+            (auth, rev) = diff rules ps
 
         unless (null rev) $ do
             log "Revoking {} on {}..." [showRules rev, groupName]
@@ -71,7 +70,7 @@ update (names -> n@Names{..}) (sort -> rules) = create n >>= f
             send_ $ AuthorizeSecurityGroupIngress (Just gid) Nothing auth
 
         log "Security Group {} updated." [groupName]
-        return . not $ null auth && null rev
+        return $ all (not . null) [rev, auth]
 
 delete :: Naming a => a -> AWS Bool
 delete (names -> n@Names{..}) = find n >>= maybe (return False) f

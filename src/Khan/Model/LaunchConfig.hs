@@ -22,7 +22,7 @@ import Khan.Internal
 import Khan.Prelude            hiding (min, max)
 import Network.AWS.AutoScaling hiding (Filter)
 
-create :: Naming a => a -> ImageId -> InstanceType -> AWS ()
+create :: Naming a => a -> Text -> InstanceType -> AWS ()
 create (names -> Names{..}) ami typ = do
     c <- sendCatch $ CreateLaunchConfiguration
         (Members [])

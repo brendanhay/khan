@@ -34,18 +34,6 @@ instance Buildable [LText.Text] where
 instance Buildable FilePath where
     build = build . toTextIgnore
 
-instance Buildable [InstanceId] where
-    build = build . Text.intercalate ", " . map unInstanceId
-
-instance Buildable ImageId where
-    build = build . unImageId
-
-instance ToJSON InstanceId where
-    toJSON = toJSON . show . unInstanceId
-
-instance ToJSON ImageId where
-    toJSON = toJSON . show . unImageId
-
 instance ToJSON InstanceType where
     toJSON = toJSON . show
 

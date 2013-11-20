@@ -30,7 +30,7 @@ import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2          hiding (ec2)
-import qualified Network.AWS.EC2.Metadata as Meta
+import           Network.AWS.EC2.Metadata
 import           Network.AWS.Route53
 import           Pipes
 import qualified Pipes.Prelude            as Pipes
@@ -52,13 +52,13 @@ hostParser = Host
 
 instance Options Host where
     discover True h@Host{..} = liftEitherT $ do
-        iid  <- Text.decodeUtf8 <$> Meta.metadata Meta.InstanceId
-        fqdn <- Text.decodeUtf8 <$> Meta.metadata Meta.PublicHostname
+        iid  <- Text.decodeUtf8 <$> metadata InstanceId
+        fqdn <- Text.decodeUtf8 <$> metadata PublicHostname
         return $! h { hId = iid, hFQDN = fqdn }
     discover False h@Host{..}
         | invalid hId || not (invalid hFQDN) = return h
         | otherwise = do
-            is  <- Instance.findAll [InstanceId hId] []
+            is  <- Instance.findAll [hId] []
             dns <- noteAWS "Unable to find Public DNS for: {}" [hId] .
                 join $ riitDnsName <$> listToMaybe is
             return $! h { hFQDN = dns }
@@ -117,13 +117,9 @@ describe iid = do
         maybe (unversioned tagRole tagEnv) (versioned tagRole tagEnv) tagVersion
 
 findPrefix :: HostedZoneId -> Text -> Text -> AWS [ResourceRecordSet]
-findPrefix zid pre env = Pipes.toListM $ paginate start
-    >-> Pipes.map lrrsrResourceRecordSets
-    >-> Pipes.concat
-    >-> Pipes.filter (either (const False) match . parseDNS . rrsName)
+findPrefix zid pre env = Pipes.toListM $
+    RSet.findAll zid Nothing (either (const False) match . parseDNS . rrsName)
   where
-    start = ListResourceRecordSets zid Nothing Nothing Nothing Nothing
-
     match DNS{..} = dnsRole == pre && dnsEnv == env
 
 findValue :: Text -> [ResourceRecordSet] -> Maybe ResourceRecordSet

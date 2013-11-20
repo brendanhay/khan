@@ -228,4 +228,5 @@ module' c Module{..} = capture' c $ do
     name ("state", v)
         | "present" `Text.isInfixOf` v = Just "update"
         | "absent"  `Text.isInfixOf` v = Just "delete"
+        | otherwise                    = Just v
     name _ = Nothing

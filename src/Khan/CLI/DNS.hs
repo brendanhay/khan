@@ -15,20 +15,14 @@
 
 module Khan.CLI.DNS (commands) where
 
-import qualified Data.Text                   as Text
+import qualified Data.List.NonEmpty    as List
+import qualified Data.Text             as Text
 import           GHC.Word
 import           Khan.Internal
 import           Khan.Internal.Ansible
-import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.HostedZone       as HZone
-import qualified Khan.Model.Image            as AMI
-import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.LaunchConfig     as Config
-import qualified Khan.Model.Profile          as Profile
-import qualified Khan.Model.RecordSet        as RSet
-import qualified Khan.Model.ScalingGroup     as ASG
-import qualified Khan.Model.SecurityGroup    as Security
+import           Khan.Internal.Text
+import qualified Khan.Model.HostedZone as HZone
+import qualified Khan.Model.RecordSet  as RSet
 import           Khan.Prelude          hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
@@ -38,17 +32,17 @@ import           Text.Show.Pretty
 -- Write an optparse-applicative Parser for the whole ResourceRecordSet union type?
 
 data Record = Record
-    { rZone     :: !Text
-    , rName     :: !Text
-    , rType     :: !RecordType
-    , rValues   :: [Text]
-    , rTTL      :: !Integer
-    , rAlias    :: !Bool
-    , rPolicy   :: !RoutingPolicy
-    , rSetId    :: !Text
-    , rWeight   :: !Word8
-    , rFailover :: !Failover
-    , rAnsible  :: !Bool
+    { rZone    :: !Text
+    , rName    :: !Text
+    , rType    :: !RecordType
+    , rValues  :: NonEmpty Text
+    , rTTL     :: !Integer
+    , rAlias   :: !Bool
+    , rPolicy  :: !RoutingPolicy
+    , rWeight  :: !Integer
+    , rFail    :: !Failover
+    , rSet     :: !Bool
+    , rAnsible :: !Bool
     }
 
 -- FIXME: Get info from tags correctly
@@ -63,35 +57,44 @@ recordParser = Record
         "Name of the record set to modify."
     <*> readOption "type" "TYPE" (value CNAME)
         "Record set type."
-    <*> many (textOption "value" mempty
-        "A value to add.")
+    <*> (List.fromList <$> some (textOption "value" mempty
+        "A value to add."))
     <*> readOption "ttl" "SECONDS" (value 90)
         "Record resource cache time to live in seconds."
     <*> switchOption "alias" False
         "Whether this record should be an alias for an AWS resource."
     <*> readOption "policy" "POLICY" (value Basic)
         "Routing policy type."
-    <*> textOption "set-id" (value "")
-        "Differentiate and group record sets with identical policy types."
     <*> readOption "weight" "WORD8" (value 100)
         "Routing weight for the weighted policy type."
     <*> readOption "failover" "FAILOVER" (value PRIMARY)
         "Specify if this is the primary or secondary set."
+    <*> switchOption "set" False
+        "Use the specified values for multiple individual records sets."
     <*> ansibleOption
 
         -- get zone from tag
         -- get policy from tag
-        -- get set-id from tag
         -- get region from metadata
         -- get values from metadata
 
 instance Options Record where
+    discover _ r@Record{..}
+        | invalid rZone = return r
+        | otherwise     = return $ r { rZone = tappend rZone "." }
+
     validate Record{..} = do
         check rZone   "--zone must be specified."
         check rName   "--name must be specified."
-        check rValues "At least one --value must be specified."
-        check (rPolicy /= Basic && Text.null rSetId)
-            "--set-id must be specified for all non-basic routing policies."
+        check rValues "--value must be specified."
+
+        check (not $ "." `Text.isSuffixOf` rZone)
+            "--zone must be suffixed with '.'."
+
+        case rType of
+            SRV -> return ()
+            _   -> check (not rSet && List.length rValues /= 1)
+                "Exactly one --value must be specified if --set is not used."
 
 data Search = Search
     { sZone   :: !Text
@@ -125,27 +128,39 @@ commands = group "dns" "Manage DNS Records." $ mconcat
 
 update :: Common -> Record -> AWS ()
 update c@Common{..} r@Record{..}
-    | not rAnsible = void upd
-    | otherwise    = capture c "dns record {}" [rName] upd
+    | rAnsible  = capture c "dns record {}" [rName] f
+    | otherwise = void f
   where
-    upd = do
-        zid <- HZone.find rZone
-        RSet.update zid $ recordSet cRegion zid r
+    f = do
+        zid <- HZone.find rZone -- 
+        RSet.set zid fullName $ recordSets cRegion zid r
+
+--        RSet.update zid $ recordSet cRegion zid r
+
+    fullName = Text.intercalate "." [rName, rZone]
+
+    -- g = do
+    --     zid <- HZone.find rZone
+    --     rs  <- RSet.find rName (const True)
+    --     RSet.modify zid (map (Change DeleteAction) rs)
+
+-- FIXME: make sure delete takes all specified parameters into account when deleteing
+-- exact match, unless --set is used
 
 delete :: Common -> Record -> AWS ()
 delete c@Common{..} r@Record{..}
-    | not rAnsible = void del
-    | otherwise    = capture c "dns record {}" [rName] del
+    | rAnsible  = capture c "dns record {}" [rName] f
+    | otherwise = void f
   where
-    del = do
-        zid <- HZone.find rZone
-        let rset = recordSet cRegion zid r
-        mr  <- RSet.find zid rName $ RSet.match rset
-        if isNothing mr
-            then return False
-            else do
-                RSet.modify zid [Change DeleteAction rset]
-                return True
+    f = return False
+        -- zid <- HZone.find rZone
+        -- let rset = recordSet cRegion zid r
+        -- mr  <- RSet.find zid rName $ RSet.match rset
+        -- if isNothing mr
+        --     then return False
+        --     else do
+        --         RSet.modify zid [Change DeleteAction rset]
+        --         return True
 
 search :: Common -> Search -> AWS ()
 search _ Search{..} = do
@@ -167,29 +182,26 @@ search _ Search{..} = do
 
     match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
 
-recordSet :: Region -> HostedZoneId -> Record -> ResourceRecordSet
-recordSet reg zid Record{..} = mk rPolicy rAlias
+recordSets :: Region -> HostedZoneId -> Record -> [ResourceRecordSet]
+recordSets reg zid Record{..}
+    | rSet      = List.toList $ List.map (mk rPolicy rAlias . (:|[])) rValues
+    | otherwise = [mk rPolicy rAlias $ List.sort rValues]
   where
-    mk Failover True  = aset FailoverAliasRecordSet rFailover
-    mk Latency  True  = aset LatencyAliasRecordSet  reg
-    mk Weighted True  = aset WeightedAliasRecordSet weight
-    mk Basic    True  = AliasRecordSet name rType tgt Nothing
+    mk Failover True  vs = aset FailoverAliasRecordSet rFail vs
+    mk Latency  True  vs = aset LatencyAliasRecordSet reg vs
+    mk Weighted True  vs = aset WeightedAliasRecordSet rWeight vs
+    mk Basic    True  vs = AliasRecordSet name rType (tgt vs) Nothing
 
-    mk Failover False = rset FailoverRecordSet rFailover
-    mk Latency  False = rset LatencyRecordSet  reg
-    mk Weighted False = rset WeightedRecordSet weight
-    mk Basic    False = BasicRecordSet name rType rTTL rrs Nothing
+    mk Failover False vs = rset FailoverRecordSet rFail vs
+    mk Latency  False vs = rset LatencyRecordSet reg vs
+    mk Weighted False vs = rset WeightedRecordSet rWeight vs
+    mk Basic    False vs = BasicRecordSet name rType rTTL (rrs vs) Nothing
 
-    aset x y = x name rType rSetId y tgt Nothing
-    rset x y = x name rType rSetId y rTTL rrs Nothing
+    aset ctor x vs = ctor name rType (List.head vs) x (tgt vs) Nothing
+    rset ctor x vs = ctor name rType (List.head vs) x rTTL (rrs vs) Nothing
 
-    tgt = AliasTarget zid (head rValues) False
-    rrs = ResourceRecords rValues
+    name = Text.intercalate "." [rName, rZone]
 
-    weight = fromIntegral rWeight
+    tgt vs = AliasTarget zid (List.head vs) False
 
-    name = mconcat
-        [ fromMaybe rName $ Text.stripSuffix rZone rName
-        , "."
-        , rZone
-        ]
+    rrs = ResourceRecords . List.toList

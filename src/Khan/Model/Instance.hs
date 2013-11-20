@@ -28,13 +28,13 @@ import Khan.Internal
 import Khan.Prelude       hiding (min, max)
 import Network.AWS.EC2    hiding (Instance, wait)
 
-findAll :: [InstanceId] -> [Filter] -> AWS [RunningInstancesItemType]
+findAll :: [Text] -> [Filter] -> AWS [RunningInstancesItemType]
 findAll ids = fmap (concatMap ritInstancesSet . dirReservationSet) .
     send . DescribeInstances ids
 
 run :: Naming a
     => a
-    -> ImageId
+    -> Text
     -> InstanceType
     -> AvailabilityZone
     -> Integer
@@ -65,14 +65,14 @@ run (names -> Names{..}) image typ az min max opt =
         [IamInstanceProfileRequestType Nothing (Just profileName)]
         (Just opt)
 
-tag :: Naming a => a -> Text -> [InstanceId] -> AWS ()
+tag :: Naming a => a -> Text -> [Text] -> AWS ()
 tag (names -> n) dom ids = do
     log_ "Tagging instances..."
-    send_ . CreateTags (map unInstanceId ids)
+    send_ . CreateTags ids
           . map (uncurry ResourceTagSetItemType)
           $ defaultTags n dom
 
-wait :: [InstanceId] -> AWS ()
+wait :: [Text] -> AWS ()
 wait []  = log_ "All instances running"
 wait ids = do
     xs <- findAll ids []

@@ -38,25 +38,23 @@ import           Pipes
 import qualified Pipes.Prelude       as Pipes
 
 findAll :: HostedZoneId
-        -> Maybe Text
         -> (ResourceRecordSet -> Bool)
         -> Producer' ResourceRecordSet AWS ()
-findAll zid name p = paginate start
+findAll zid p = paginate start
     >-> Pipes.map lrrsrResourceRecordSets
     >-> Pipes.concat
     >-> Pipes.filter p
   where
-    start = ListResourceRecordSets zid name Nothing Nothing Nothing
+    start = ListResourceRecordSets zid Nothing Nothing Nothing Nothing
 
 find :: HostedZoneId
-     -> Maybe Text
      -> (ResourceRecordSet -> Bool)
      -> AWS (Maybe ResourceRecordSet)
-find zid name p = Pipes.find (const True) (findAll zid name p)
+find zid p = Pipes.find (const True) (findAll zid p)
 
 set :: HostedZoneId -> Text -> [ResourceRecordSet] -> AWS Bool
 set zid name rrs = do
-    rrs' <- Pipes.toListM $ findAll zid (Just name) (const True)
+    rrs' <- Pipes.toListM $ findAll zid (match name Nothing)
 
     let (cre, del) = join (***) sort $ diff rrs rrs'
         (cp,  dp)  = (null cre, null del)
@@ -75,7 +73,7 @@ set zid name rrs = do
 
 update :: HostedZoneId -> ResourceRecordSet -> AWS Bool
 update zid rset = do
-    mr <- find zid (Just $ rrsName rset) (match rset)
+    mr <- find zid $ match (rrsName rset) (setId rset)
     case mr of
         Just x | x == rset -> return False
         Just x  -> modify zid (upd x) >> return True
@@ -88,11 +86,6 @@ modify :: HostedZoneId -> [Change] -> AWS ChangeInfo
 modify zid cs = fmap crrsrChangeInfo . send $
     ChangeResourceRecordSets zid (ChangeBatch Nothing cs)
 
--- equal :: ResourceRecordSet -> ResourceRecordSet -> Bool
-
-  --       >>= waitChange . crrsrChangeInfo
-  -- where
-
 wait :: ChangeInfo -> AWS ()
 wait ChangeInfo{..} = case ciStatus of
     INSYNC  -> log "{} INSYNC." [show ciId]
@@ -101,11 +94,9 @@ wait ChangeInfo{..} = case ciStatus of
         liftIO . threadDelay $ 10 * 1000000
         send (GetChange ciId) >>= void . wait . gcrChangeInfo
 
-match :: ResourceRecordSet -> ResourceRecordSet -> Bool
-match rset = case rset of
-      BasicRecordSet{..} -> const True
-      AliasRecordSet{..} -> const True
-      _                  -> (Just (rrsSetIdentifier rset) ==) . setId
+match :: Text -> Maybe Text -> ResourceRecordSet -> Bool
+match n Nothing x = n == rrsName x
+match n setid   x = match n Nothing x && setid == setId x
 
 setId :: ResourceRecordSet -> Maybe Text
 setId BasicRecordSet{..} = Nothing

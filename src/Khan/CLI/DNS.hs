@@ -143,14 +143,14 @@ delete c@Common{..} r@Record{..}
     f = do
         zid <- HZone.find rZone
         -- FIXME: won't work with multi value records, such as SRV
-        rrs <- Pipes.toListM $ RSet.findAll zid (Just name) (g rSet)
+        rrs <- Pipes.toListM $ RSet.findAll zid (g rSet)
         if null rrs
             then return False
             else do
                 void . RSet.modify zid $ map (Change DeleteAction) rrs
                 return True
 
-    g True  = const True
+    g True  = RSet.match name Nothing
     g False = (`elem` rValues) . fromMaybe "" . RSet.setId
 
     name = domainName rName rZone

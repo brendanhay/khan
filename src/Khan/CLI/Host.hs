@@ -118,7 +118,7 @@ describe iid = do
 
 findPrefix :: HostedZoneId -> Text -> Text -> AWS [ResourceRecordSet]
 findPrefix zid pre env = Pipes.toListM $
-    RSet.findAll zid Nothing (either (const False) match . parseDNS . rrsName)
+    RSet.findAll zid (either (const False) match . parseDNS . rrsName)
   where
     match DNS{..} = dnsRole == pre && dnsEnv == env
 

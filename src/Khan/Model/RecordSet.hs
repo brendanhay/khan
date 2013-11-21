@@ -41,10 +41,10 @@ findAll :: HostedZoneId
         -> Maybe Text
         -> (ResourceRecordSet -> Bool)
         -> Producer' ResourceRecordSet AWS ()
-findAll zid name f = paginate start
+findAll zid name p = paginate start
     >-> Pipes.map lrrsrResourceRecordSets
     >-> Pipes.concat
-    >-> Pipes.filter f
+    >-> Pipes.filter p
   where
     start = ListResourceRecordSets zid name Nothing Nothing Nothing
 
@@ -52,7 +52,7 @@ find :: HostedZoneId
      -> Maybe Text
      -> (ResourceRecordSet -> Bool)
      -> AWS (Maybe ResourceRecordSet)
-find zid name f = Pipes.find (const True) (findAll zid name f)
+find zid name p = Pipes.find (const True) (findAll zid name p)
 
 set :: HostedZoneId -> Text -> [ResourceRecordSet] -> AWS Bool
 set zid name rrs = do

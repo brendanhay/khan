@@ -102,12 +102,14 @@ instance Options Inventory where
 data Module = Module
     { mName :: !Text
     , mPath :: !FilePath
+    , mArgs :: [String]
     }
 
 moduleParser :: Parser Module
 moduleParser = Module
     <$> argument (return . Text.pack) (metavar "MODULE" <> value "")
     <*> argument (return . Path.decodeString) (metavar "ARGS_FILE" <> value "")
+    <*> argsOption str mempty "Pass through arugments to khan."
 
 instance Options Module
 
@@ -207,6 +209,7 @@ module' c Module{..} = capture' c $ do
     m <- noteAWS "unsupported module: {}" [mName] $
         find (mName ==) ["group", "dns", "profile"]
     k <- parseArgsFile mPath
+    whenDebug . liftIO $ print k
     liftIO $ Posix.executeFile "khan" True (args m k) Nothing
   where
     args m kvs = map Text.unpack $

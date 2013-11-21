@@ -17,6 +17,7 @@
 module Main (main) where
 
 import qualified Khan.CLI.Ansible           as Ansible
+import qualified Khan.CLI.Check             as Check
 import qualified Khan.CLI.DNS               as DNS
 import qualified Khan.CLI.Ephemeral         as Ephemeral
 import qualified Khan.CLI.Group             as Group
@@ -46,6 +47,7 @@ programParser = runA $ proc () -> do
         <> Group.commands
         <> Profile.commands
         <> DNS.commands
+        <> Check.commands
         <> Host.commands
         <> Persistent.commands
         <> Ephemeral.commands

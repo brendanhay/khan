@@ -78,44 +78,10 @@ instance Options Launch where
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
 
-data Host = Host
-    { hRole  :: !Text
-    , hEnv   :: !Text
-    , hKey   :: !FilePath
-    , hHosts :: [Text]
-    }
-
-hostParser :: Parser Host
-hostParser = Host
-    <$> roleOption
-    <*> envOption
-    <*> keyOption
-    <*> many (textOption "host" mempty
-        "Hosts to run on.")
-
-instance Options Host where
-    discover _ h@Host{..}
-        | not $ invalid hKey = return h
-        | otherwise = do
-            f <- keyPath $ names h
-            return $! h { hKey = f }
-
-    validate Host{..} = do
-        if invalid hHosts
-            then check hRole "--role must be specified." >>
-                 check hEnv  "--env must be specified."
-            else check hHosts "--host must be specified at least once."
-        checkPath hKey " specified by --key must exist."
-
-instance Naming Host where
-    names Host{..} = unversioned hRole hEnv
-
 commands :: Mod CommandFields Command
 commands = mconcat
     [ command "launch" launch launchParser
         "Launch 1..n instances."
-    , command "terminate" terminate hostParser
-        "Terminate a single instance."
     ]
 
 launch :: Common -> Launch -> AWS ()
@@ -146,6 +112,3 @@ launch Common{..} l@Launch{..} = do
     Instance.wait ids
   where
     Names{..} = names l
-
-terminate :: Common -> Host -> AWS ()
-terminate _ _ = return ()

@@ -130,7 +130,7 @@ update c@Common{..} r@Record{..}
     | rAnsible  = capture c "dns record {}" [rName] f
     | otherwise = void f
   where
-    f = HZone.find rZone >>= g
+    f = HZone.find rZone >>= g rSet
 
     g True  zid = RSet.set zid (domainName rName rZone) (multiple cRegion zid r)
     g False zid = RSet.update zid (single cRegion zid r)

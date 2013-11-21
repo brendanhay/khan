@@ -99,20 +99,6 @@ instance Options Inventory where
         c <- inventoryPath iCache iEnv
         return $! i { iCache = c }
 
-data Module = Module
-    { mName :: !Text
-    , mPath :: !FilePath
-    , mArgs :: [String]
-    }
-
-moduleParser :: Parser Module
-moduleParser = Module
-    <$> argument (return . Text.pack) (metavar "MODULE" <> value "")
-    <*> argument (return . Path.decodeString) (metavar "ARGS_FILE" <> value "")
-    <*> argsOption str mempty "Pass through arugments to khan."
-
-instance Options Module
-
 commands :: Mod CommandFields Command
 commands = mconcat
     [ command "ansible" ansible ansibleParser
@@ -121,8 +107,6 @@ commands = mconcat
         "Ansible Playbook."
     , command "inventory" inventory inventoryParser
         "Output ansible compatible inventory."
-    , command "module" module' moduleParser
-        "Run a khan action using ansibles module interface."
     ]
 
 ansible :: Common -> Ansible -> AWS ()
@@ -203,33 +187,3 @@ inventory _ Inventory{..} = do
                 [roleName, envName, reg, "khan", tagDomain]
 
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
-
-module' :: Common -> Module -> AWS ()
-module' c Module{..} = capture' c $ do
-    m <- noteAWS "unsupported module: {}" [mName] $
-        find (mName ==) ["group", "dns", "profile"]
-    k <- parseArgsFile mPath
-    whenDebug . liftIO $ print k
-    liftIO $ Posix.executeFile "khan" True (args m k) Nothing
-  where
-    args m kvs = map Text.unpack $
-        [ "--silent"
-        , "--region"
-        , reg kvs
-        , m
-        , cmd kvs
-        , "--ansible"
-        ] ++ concatMap val kvs
-
-    val ("state",  _) = []
-    val ("region", _) = []
-    val (k, v)        = ["--" <> k, v]
-
-    reg = fromMaybe (Text.pack . show $ cRegion c) . lookup "region"
-    cmd = fromMaybe "update" . listToMaybe . mapMaybe name
-
-    name ("state", v)
-        | "present" `Text.isInfixOf` v = Just "update"
-        | "absent"  `Text.isInfixOf` v = Just "delete"
-        | otherwise                    = Just v
-    name _ = Nothing

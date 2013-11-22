@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.CLI.Group
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -54,31 +55,33 @@ instance Naming SSH where
 commands :: Mod CommandFields Command
 commands = command "ssh" ssh sshParser
     "Long description."
+
+ssh :: Common -> SSH -> AWS ()
+ssh _ SSH{..} = do
+    dns <- mapMaybe riitDnsName <$> Instance.findAll []
+        [ Filter ("tag:" <> envTag)  [sEnv]
+        , Filter ("tag:" <> roleTag) [sRole]
+        ]
+    case dns of
+        []  -> log_ "No hosts found, exiting..."
+        [x] -> liftIO $ exec x
+        _   -> do
+            let cs = map (first show) $ zip ([1..] :: [Int]) dns
+            mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
+            x <- liftIO choose
+            a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
+            liftIO $ exec a
   where
-    ssh _ SSH{..} = do
-        dns <- mapMaybe riitDnsName <$> Instance.findAll []
-            [ Filter ("tag:" <> envTag)  [sEnv]
-            , Filter ("tag:" <> roleTag) [sRole]
-            ]
+    exec (args -> xs) = do
+        log "ssh {}" [unwords xs]
+        Posix.executeFile "ssh" True xs Nothing
 
-        let cs = map (first show) $ zip ([1..] :: [Int]) dns
+    args addr =
+        [ "-i" ++ Path.encodeString sKey
+        , Text.unpack $ Text.concat [sUser, "@", addr]
+        ] ++ sArgs
 
-        mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
-
-        unless (null dns) $ do
-            x    <- choose
-            addr <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
-
-            let args = [ "-i" ++ Path.encodeString sKey
-                       , Text.unpack $ Text.concat [sUser, "@", addr]
-                       ] ++ sArgs
-
-            log "ssh {}" [unwords args]
-            exec args
-
-    exec xs = liftIO $ Posix.executeFile "ssh" True xs Nothing
-
-    choose = liftIO $ do
+    choose = do
         hSetBuffering stdout NoBuffering
         putStr "Select the host to connect to: "
         getLine

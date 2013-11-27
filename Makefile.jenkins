@@ -29,6 +29,7 @@ dist: dist/$(DEB)
 
 add-sources: cabal.sandbox.config
 	cabal sandbox add-source vendor/amazonka
+	cabal sandbox add-source vendor/ed-e
 
 cabal.sandbox.config:
 	cabal sandbox init

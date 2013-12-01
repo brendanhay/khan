@@ -25,6 +25,8 @@ import           Network.AWS.EC2
 import           System.IO                 hiding (FilePath)
 import qualified System.Posix.Process      as Posix
 
+-- FIXME: Add scp
+
 data SSH = SSH
     { sRole :: !Text
     , sEnv  :: !Text

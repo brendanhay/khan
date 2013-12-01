@@ -65,6 +65,7 @@ run (names -> Names{..}) image typ az min max opt =
         [IamInstanceProfileRequestType Nothing (Just profileName)]
         (Just opt)
 
+-- FIXME: give a unique Name tag
 tag :: Naming a => a -> Text -> [Text] -> AWS ()
 tag (names -> n) dom ids = do
     log_ "Tagging instances..."

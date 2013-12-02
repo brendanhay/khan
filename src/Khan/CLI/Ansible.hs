@@ -151,12 +151,18 @@ ansible c Ansible{..} = do
 
 playbook :: Common -> Ansible -> AWS ()
 playbook c a@Ansible{..} = do
-    r <- show <$> getRegion
+    reg <- getRegion
     ansible c $ a
         { aBin  = mplus aBin (Just "ansible-playbook")
         , aArgs = aArgs ++
             [ "--extra-vars"
-            , concat ["khan_region=", r, " khan_env=", Text.unpack aEnv]
+            , concat [ "khan_region="
+                     , show reg
+                     , " khan_region_abbrev="
+                     , Text.unpack $ abbreviate reg
+                     , " khan_env="
+                     , Text.unpack aEnv
+                     ]
             ]
         }
 

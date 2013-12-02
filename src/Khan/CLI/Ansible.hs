@@ -176,7 +176,7 @@ inventory _ Inventory{..} = do
     hosts m RunningInstancesItemType{..} = case riitDnsName of
         Nothing   -> return m
         Just fqdn -> do
-            reg      <- Text.pack . show <$> getRegion
+            reg      <- getRegion
             Tags{..} <- lookupTags $ map tag riitTagSet
 
             let n@Names{..} = createNames tagRole tagEnv tagVersion
@@ -184,6 +184,6 @@ inventory _ Inventory{..} = do
                 update k = Map.insertWith (<>) k (Set.singleton host)
 
             return $! foldl' (flip update) m
-                [roleName, envName, reg, "khan", tagDomain]
+                [roleName, envName, Text.pack $ show reg, "khan", tagDomain]
 
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)

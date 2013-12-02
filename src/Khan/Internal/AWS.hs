@@ -141,3 +141,4 @@ abbreviate Singapore       = "sg"
 abbreviate Tokyo           = "tyo"
 abbreviate Sydney          = "syd"
 abbreviate SaoPaulo        = "sao"
+

@@ -112,7 +112,7 @@ data Host = Host
     { hvFQDN   :: !Text
     , hvDomain :: !Text
     , hvNames  :: !Names
-    , hvRegion :: !Text
+    , hvRegion :: !Region
     } deriving (Eq, Ord)
 
 instance ToJSON (Inv (HashMap Text (Set Host))) where
@@ -145,14 +145,15 @@ instance ToJSON (Inv Host) where
 
         pack = Aeson.String
 
-        vars = [ ("khan_region",  pack hvRegion)
-               , ("khan_domain",  pack hvDomain)
-               , ("khan_env",     pack envName)
-               , ("khan_key",     pack keyName)
-               , ("khan_role",    pack roleName)
-               , ("khan_profile", pack profileName)
-               , ("khan_group",   pack groupName)
-               , ("khan_image",   pack imageName)
-               , ("khan_app",     pack appName)
-               , ("khan_version", toJSON versionName)
+        vars = [ ("khan_region",        pack . Text.pack $ show hvRegion)
+               , ("khan_region_abbrev", pack $ abbreviate hvRegion)
+               , ("khan_domain",        pack hvDomain)
+               , ("khan_env",           pack envName)
+               , ("khan_key",           pack keyName)
+               , ("khan_role",          pack roleName)
+               , ("khan_profile",       pack profileName)
+               , ("khan_group",         pack groupName)
+               , ("khan_image",         pack imageName)
+               , ("khan_app",           pack appName)
+               , ("khan_version",       toJSON versionName)
                ]

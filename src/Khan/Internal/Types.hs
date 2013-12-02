@@ -104,8 +104,12 @@ createNames role env ver = Names
 safeVersion :: Version -> Text
 safeVersion ver = Text.pack $
     case ver of
-        (Version (ma:mi:p:_) _) -> concat [show ma, "m", show mi, "p", show p]
-        _                       -> showVersion ver
+        (Version (ma:mi:p:_) b) ->
+            concat [show ma, "m", show mi, "p", show p, "b", filter f $ concat b]
+        _ -> showVersion ver
+  where
+    f '+' = False
+    f  _  = True
 
 unversioned :: Text -> Text -> Names
 unversioned role env = createNames role env Nothing

@@ -99,6 +99,8 @@ createNames role env ver = Names
     nameEnv = Text.concat [env, "-", role]
     safeVer = safeVersion <$> ver
 
+-- FIXME: correctly add build number suffix
+
 safeVersion :: Version -> Text
 safeVersion ver = Text.pack $
     case ver of

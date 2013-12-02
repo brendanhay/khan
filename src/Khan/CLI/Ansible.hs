@@ -162,6 +162,10 @@ playbook c a@Ansible{..} = do
                      , Text.unpack $ abbreviate reg
                      , " khan_env="
                      , Text.unpack aEnv
+                     , " khan_key="
+                     , Text.unpack $ aEnv <> "-khan"
+                     -- , " khan_key_path="
+                     -- ,
                      ]
             ]
         }

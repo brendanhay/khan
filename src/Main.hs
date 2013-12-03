@@ -17,6 +17,7 @@
 module Main (main) where
 
 import qualified Khan.CLI.Ansible           as Ansible
+import qualified Khan.CLI.Artifact          as Artifact
 import qualified Khan.CLI.Check             as Check
 import qualified Khan.CLI.DNS               as DNS
 import qualified Khan.CLI.Ephemeral         as Ephemeral
@@ -41,16 +42,17 @@ import           Options.Applicative.Arrows
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
     cmd <- (asA . hsubparser)
-         ( Routing.commands
-        <> Ansible.commands
-        <> SSH.commands
-        <> Group.commands
-        <> Profile.commands
-        <> DNS.commands
+         ( Ansible.commands
+        <> Artifact.commands
         <> Check.commands
+        <> DNS.commands
+        <> Ephemeral.commands
+        <> Group.commands
         <> Host.commands
         <> Persistent.commands
-        <> Ephemeral.commands
+        <> Profile.commands
+        <> Routing.commands
+        <> SSH.commands
          ) -< ()
     opt <- asA commonParser -< ()
     A helper -< (opt, cmd)

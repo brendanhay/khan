@@ -43,17 +43,16 @@ executable khan
       , attoparsec
       , base                 >= 4.6 && < 5
       , bytestring
+      , conduit
       , containers
       , directory
       , ed-e
       , errors
       , hslogger
-      , http-streams
+      , http-conduit
       , http-types
-      , io-streams
       , mtl
       , optparse-applicative
-      , pipes                >= 4.0
       , prelude-prime
       , pretty-show
       , random

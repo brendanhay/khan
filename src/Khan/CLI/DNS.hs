@@ -15,6 +15,8 @@
 
 module Khan.CLI.DNS (commands) where
 
+import           Data.Conduit
+import qualified Data.Conduit.List     as Conduit
 import qualified Data.List.NonEmpty    as List
 import qualified Data.Text             as Text
 import           GHC.Word
@@ -26,8 +28,6 @@ import qualified Khan.Model.RecordSet  as RSet
 import           Khan.Prelude          hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
-import           Pipes
-import qualified Pipes.Prelude         as Pipes
 import           Text.Show.Pretty
 
 data Record = Record
@@ -121,8 +121,6 @@ commands = group "dns" "Manage DNS Records." $ mconcat
         "long long long description."
     , command "delete" delete recordParser
         "long long long description."
-    , command "search" search searchParser
-        "long long long description."
     ]
 
 update :: Common -> Record -> AWS ()
@@ -130,7 +128,7 @@ update c@Common{..} r@Record{..}
     | rAnsible  = capture c "dns record {}" [rName] f
     | otherwise = void f
   where
-    f = HZone.find rZone >>= g rSet
+    f = HZone.findId rZone >>= g rSet
 
     g True  zid = RSet.set zid (domainName rName rZone) (multiple cRegion zid r)
     g False zid = RSet.update zid (single cRegion zid r)
@@ -141,9 +139,9 @@ delete c@Common{..} r@Record{..}
     | otherwise = void f
   where
     f = do
-        zid <- HZone.find rZone
+        zid <- HZone.findId rZone
         -- FIXME: won't work with multi value records, such as SRV
-        rrs <- Pipes.toListM $ RSet.findAll zid (g rSet)
+        rrs <- RSet.findAll zid (g rSet) $$ Conduit.consume
         if null rrs
             then return False
             else do
@@ -154,26 +152,6 @@ delete c@Common{..} r@Record{..}
     g False = (`elem` rValues) . fromMaybe "" . RSet.setId
 
     name = domainName rName rZone
-
-search :: Common -> Search -> AWS ()
-search _ Search{..} = do
-    zid <- HZone.find sZone
-    runEffect $ for (paginate $ start zid) (liftIO . display)
-  where
-    display (matching -> rrs) = unless (null rrs) $ do
-        mapM_ (putStrLn . ppShow) rrs
-        log_ "Press enter to continue..." >> void getLine
-
-    start zid = ListResourceRecordSets zid Nothing Nothing Nothing (Just sMax)
-
-    matching (lrrsrResourceRecordSets -> rr)
-        | null sNames && null sValues = rr
-        | otherwise = filter (\x -> ns x || vs x) rr
-
-    ns = (`match` sNames) . rrsName
-    vs = any (`match` sValues) . rrValues . rrsResourceRecords
-
-    match x = any (\y -> y `Text.isPrefixOf` x || y `Text.isSuffixOf` x)
 
 single :: Region -> HostedZoneId -> Record -> ResourceRecordSet
 single reg zid r@Record{..} = recordSet reg zid r $ List.sort rValues

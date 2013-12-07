@@ -18,24 +18,22 @@ module Khan.Model.HealthCheck where
 import           Control.Arrow
 import           Control.Concurrent  (threadDelay)
 import           Control.Monad
+import           Data.Conduit
+import qualified Data.Conduit.List   as Conduit
 import           Data.List           (sort)
 import qualified Data.Text           as Text
 import           Data.Text.Format    (Shown(..))
 import           Khan.Prelude        hiding (find, min, max)
 import           Network.AWS.Route53 hiding (wait)
-import           Pipes
-import qualified Pipes.Prelude       as Pipes
 
-findAll :: (HealthCheck -> Bool)
-        -> Producer' HealthCheck AWS ()
-findAll f = paginate (ListHealthChecks Nothing Nothing)
-    >-> Pipes.map lhcrHealthChecks
-    >-> Pipes.concat
-    >-> Pipes.filter f
+findAll :: (HealthCheck -> Bool) -> Source AWS HealthCheck
+findAll p = paginate (ListHealthChecks Nothing Nothing)
+    $= Conduit.concatMap lhcrHealthChecks
+    $= Conduit.filter p
 
 update :: HealthCheckConfig -> AWS Bool
 update hcc = do
-    mhc <- Pipes.find (match partial) $ findAll (const True)
+    mhc <- findAll (match partial) $$ Conduit.head
     case mhc of
         Just x | match exact x -> return False
         Just x  -> del x >> cre >> return True

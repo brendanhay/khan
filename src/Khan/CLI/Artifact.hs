@@ -2,7 +2,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
 
 -- Module      : Khan.CLI.Artifact
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -16,43 +15,46 @@
 
 module Khan.CLI.Artifact (commands) where
 
-import qualified Data.Attoparsec.Text      as P
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import           Khan.Internal.Ansible
 import qualified Khan.Model.HealthCheck    as Check
+import qualified Khan.Model.Object         as Obj
 import           Khan.Prelude              hiding (for)
 import           Network.AWS.Route53
 
-data Artifact
-    = Remote Text Text
-    | Local FilePath
-      deriving (Show)
+data Artifact = Artifact
+    { aBucket :: !Text
+    , aKey    :: !Text
+    , aPath   :: !FilePath
+    , aForce  :: !Bool
+    } deriving (Show)
 
-pathsParser :: Parser (Artifact, Artifact)
-pathsParser = (,)
-    <$> customOption "src" "SOURCE" parser (short 's')
-        "Source path."
-    <*> customOption "dest" "DEST" parser (short 'd')
-        "Destination path."
+artifactParser :: Parser Artifact
+artifactParser = Artifact
+    <$> textOption "bucket" (short 'b')
+        "Bucket."
+    <*> textOption "key" (short 'k')
+        "Key."
+    <*> pathOption "file" (short 'f')
+        "Local file."
+    <*> switchOption "force" False
+        "Overwrite if exists."
 
-instance Options (Artifact, Artifact)
+instance Options Artifact
 
 commands :: Mod CommandFields Command
-commands = command "artifact" copy pathsParser
-    "Copy Artifacts."
+commands = mconcat
+    [ command "upload" upload artifactParser
+        "Upload an artifact to S3."
+    , command "download" download artifactParser
+        "Download an artifact to disk."
+    ]
 
-copy :: Common -> (Artifact, Artifact) -> AWS ()
-copy c@Common{..} (src, dest) = liftIO $ do
-    print src
-    print dest
+upload :: Common -> Artifact -> AWS ()
+upload c@Common{..} Artifact{..} = do
+    return ()
 
-parser :: String -> Either String Artifact
-parser s = flip P.parseOnly text $
-    if "s3://" `Text.isPrefixOf` text
-        then P.string "s3://" *> (Remote <$> P.takeTill (== '/') <*> rest)
-        else Local . Path.fromText <$> rest
-  where
-    text = Text.pack s
-    rest = P.takeWhile1 (const True) <* P.endOfInput
+download :: Common -> Artifact -> AWS ()
+download c@Common{..} Artifact{..} = void $ Obj.download aBucket aKey aPath

@@ -29,32 +29,32 @@ module Khan.Model.RecordSet
 import           Control.Arrow
 import           Control.Concurrent  (threadDelay)
 import           Control.Monad
+import           Data.Conduit
+import qualified Data.Conduit.List   as Conduit
 import           Data.List           (sort)
 import qualified Data.Text           as Text
 import           Data.Text.Format    (Shown(..))
 import           Khan.Prelude        hiding (find, min, max)
 import           Network.AWS.Route53 hiding (wait)
-import           Pipes
-import qualified Pipes.Prelude       as Pipes
 
 findAll :: HostedZoneId
         -> (ResourceRecordSet -> Bool)
-        -> Producer' ResourceRecordSet AWS ()
+        -> Source AWS ResourceRecordSet
 findAll zid p = paginate start
-    >-> Pipes.map lrrsrResourceRecordSets
-    >-> Pipes.concat
-    >-> Pipes.filter p
+    $= Conduit.map lrrsrResourceRecordSets
+    $= Conduit.concat
+    $= Conduit.filter p
   where
     start = ListResourceRecordSets zid Nothing Nothing Nothing Nothing
 
 find :: HostedZoneId
      -> (ResourceRecordSet -> Bool)
      -> AWS (Maybe ResourceRecordSet)
-find zid p = Pipes.find (const True) (findAll zid p)
+find zid p = findAll zid p $$ Conduit.head
 
 set :: HostedZoneId -> Text -> [ResourceRecordSet] -> AWS Bool
 set zid name rrs = do
-    rrs' <- Pipes.toListM $ findAll zid (match name Nothing)
+    rrs' <- findAll zid (match name Nothing) $$ Conduit.consume
 
     let (cre, del) = join (***) sort $ diff rrs rrs'
         (cp,  dp)  = (null cre, null del)

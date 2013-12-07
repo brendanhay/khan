@@ -18,6 +18,7 @@ module Khan.Model.LaunchConfig
     , delete
     ) where
 
+import Control.Monad
 import Khan.Internal
 import Khan.Prelude            hiding (min, max)
 import Network.AWS.AutoScaling hiding (Filter)
@@ -43,5 +44,5 @@ create (names -> Names{..}) ami typ = do
 
 delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
-    send_ $ DeleteLaunchConfiguration appName
+    void . send $ DeleteLaunchConfiguration appName
     log "Deleted Launch Configuration {}" [appName]

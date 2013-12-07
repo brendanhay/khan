@@ -12,21 +12,29 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.HostedZone
-    ( find
+    ( findId
+    , findAll
+    , find
     ) where
 
+import           Data.Conduit
+import qualified Data.Conduit.List   as Conduit
 import qualified Data.Text           as Text
+import           Khan.Internal
 import           Khan.Prelude        hiding (find)
 import           Network.AWS.Route53 hiding (wait)
-import           Pipes
-import qualified Pipes.Prelude       as Pipes
 
-find :: Text -> AWS HostedZoneId
-find zone = do
-    mz <- Pipes.find match . (paginate ~> each . lhzrHostedZones) .
-        ListHostedZones Nothing $ Just 10
-    hzId <$> hoistError (note msg mz)
+findId :: Text -> AWS HostedZoneId
+findId name =
+    fmap hzId $ find name >>= noteAWS "Unable to find hosted zone: {}" [name]
+
+findAll :: (HostedZone -> Bool) -> Source AWS HostedZone
+findAll p = paginate (ListHostedZones Nothing $ Just 10)
+    $= Conduit.concatMap lhzrHostedZones
+    $= Conduit.filter p
+
+find :: Text -> AWS (Maybe HostedZone)
+find name = findAll match $$ Conduit.head
   where
-    match = (strip zone ==) . strip . hzName
+    match = (strip name ==) . strip . hzName
     strip = Text.dropWhileEnd (== '.')
-    msg   = toError $ "Unable to find a hosted zone zoned " ++ Text.unpack zone

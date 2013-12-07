@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.Model.Object
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -16,25 +17,33 @@ module Khan.Model.Object
     , upload
     ) where
 
+import           Data.Conduit
+import qualified Data.Conduit.Binary       as Conduit
 import qualified Data.Text                 as Text
 import           Filesystem.Path.CurrentOS
+import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS.S3
-import qualified Shell                     as Shell
+import           Network.HTTP.Conduit
+import qualified Shelly                    as Shell
 import           System.Directory
-import           System.IO.Streams         (InputStream)
+import           System.IO                 hiding (FilePath)
 
 download :: Text -> Text -> FilePath -> AWS Bool
-download b k f = do
-    p <- shell $ Shell.test_e f
-    if p
-        then return False
-        else send_ (GetObject b k) >> return True
+download b k (Path.encodeString -> f) = do
+    p <- liftIO $ doesFileExist f
+    unless p $ do
+        rs <- send $ GetObject b k []
+        responseBody rs $$+- Conduit.sinkFile f
+    return $ not p
 
-upload :: Text -> Text -> [AnyHeader] -> InputStream ByteString -> AWS Bool
-upload b k hs body = do
-    p <- isRight <$> sendCatch (HeadObject b k [])
-    if p
-        then return False
-        else send_ (PutObject b k hs $ Streaming body) >> return True
+upload :: Text -> Text -> FilePath -> AWS Bool
+upload b k f = undefined
+    -- p <- isRight <$> sendCatch (HeadObject b k [])
+    -- if p
+    --     then return False
+    --     else do
+    --         h <- liftIO $ openFile (Path.encodeString f) ReadMode
+    --         i <- liftIO $ Streams.handleToInputStream h
+    --         send_ (PutObject b k [] $ Streaming i) >> return True

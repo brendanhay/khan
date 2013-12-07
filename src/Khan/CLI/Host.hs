@@ -32,8 +32,8 @@ import           Network.AWS
 import           Network.AWS.EC2          hiding (ec2)
 import           Network.AWS.EC2.Metadata
 import           Network.AWS.Route53
-import           Pipes
-import qualified Pipes.Prelude            as Pipes
+import           Data.Conduit
+import qualified Data.Conduit.List   as Conduit
 
 data Host = Host
     { hId   :: !Text
@@ -79,7 +79,7 @@ register :: Common -> Host -> AWS ()
 register Common{..} Host{..} = do
     log "Registering host {}..." [hFQDN]
     (ns@Names{..}, ts@Tags{..}) <- describe hId
-    zid  <- HZone.find tagDomain
+    zid  <- HZone.findId tagDomain
     sets <- findPrefix zid roleName envName
     maybe (void $ create zid ns ts sets) exists $ findValue hFQDN sets
   where
@@ -101,7 +101,7 @@ register Common{..} Host{..} = do
 deregister :: Common -> Host -> AWS ()
 deregister _ Host{..} = do
     (_, Tags{..}) <- describe hId
-    zid <- HZone.find tagDomain
+    zid <- HZone.findId tagDomain
     log "Searching for records for {} with value {}..." [tagRole, hFQDN]
     set <- findValue hFQDN <$> findPrefix zid tagRole tagEnv
     maybe (log_ "No record found, skipping...") (void . delete zid) set
@@ -117,8 +117,8 @@ describe iid = do
         maybe (unversioned tagRole tagEnv) (versioned tagRole tagEnv) tagVersion
 
 findPrefix :: HostedZoneId -> Text -> Text -> AWS [ResourceRecordSet]
-findPrefix zid pre env = Pipes.toListM $
-    RSet.findAll zid (either (const False) match . parseDNS . rrsName)
+findPrefix zid pre env =
+    RSet.findAll zid (either (const False) match . parseDNS . rrsName) $$ Conduit.consume
   where
     match DNS{..} = dnsRole == pre && dnsEnv == env
 

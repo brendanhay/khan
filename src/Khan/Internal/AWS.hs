@@ -16,7 +16,6 @@
 
 module Khan.Internal.AWS where
 
-import           Control.Exception
 import           Control.Monad.Error
 import qualified Data.ByteString.Char8   as BS
 import qualified Data.HashMap.Strict     as Map
@@ -33,7 +32,6 @@ import           Network.AWS
 import           Network.AWS.AutoScaling hiding (DescribeTags)
 import           Network.AWS.EC2         as EC2
 import           Network.AWS.IAM
-import           Network.Http.Client     hiding (get)
 
 context :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
 context Common{..} = liftIO . runAWS creds cDebug . within cRegion
@@ -123,15 +121,6 @@ verify k f = g
     g (Left  x) | k == f x  = return ()
                 | otherwise = throwError $ toError x
 
-isEC2 :: (Functor m, MonadIO m) => m Bool
-isEC2 = isRight <$> runEitherT (syncIO attempt)
-  where
-    attempt = bracket (establishConnection host) closeConnection $ \c -> do
-        rq <- buildRequest $ http GET "/latest"
-        sendRequest c rq emptyBody
-
-    host = "http://instance-data"
-
 abbreviate :: Region -> Text
 abbreviate NorthVirginia   = "va"
 abbreviate NorthCalifornia = "ca"
@@ -141,4 +130,3 @@ abbreviate Singapore       = "sg"
 abbreviate Tokyo           = "tyo"
 abbreviate Sydney          = "syd"
 abbreviate SaoPaulo        = "sao"
-

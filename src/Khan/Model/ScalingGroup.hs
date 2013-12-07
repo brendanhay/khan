@@ -40,7 +40,7 @@ create :: Naming a
        -> Integer
        -> AWS ()
 create (names -> n@Names{..}) dom zones cool desired grace min max = do
-    send_ $ CreateAutoScalingGroup
+    void . send $ CreateAutoScalingGroup
         appName                        -- Name
         (Members zones)                -- Zones
         (Just cool)                    -- Default Cooldown

@@ -23,6 +23,7 @@ module Khan.Model.Instance
 
 import Control.Arrow      ((***))
 import Control.Concurrent (threadDelay)
+import Control.Monad
 import Data.List          (partition)
 import Khan.Internal
 import Khan.Prelude       hiding (min, max)
@@ -69,9 +70,10 @@ run (names -> Names{..}) image typ az min max opt =
 tag :: Naming a => a -> Text -> [Text] -> AWS ()
 tag (names -> n) dom ids = do
     log_ "Tagging instances..."
-    send_ . CreateTags ids
-          . map (uncurry ResourceTagSetItemType)
-          $ defaultTags n dom
+    void . send
+         . CreateTags ids
+         . map (uncurry ResourceTagSetItemType)
+         $ defaultTags n dom
 
 wait :: [Text] -> AWS ()
 wait []  = log_ "All instances running"

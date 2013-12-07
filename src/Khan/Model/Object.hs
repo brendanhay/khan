@@ -17,42 +17,36 @@ module Khan.Model.Object
     , upload
     ) where
 
-import GHC.Int
 import           Control.Error
-import           Control.Exception
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
-import qualified Data.Text                 as Text
 import           Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS.S3
 import           Network.HTTP.Conduit
-import qualified Shelly                    as Shell
+import           Network.HTTP.Conduit
+import           Network.HTTP.Types
 import           System.Directory
-import           System.IO                 hiding (FilePath)
 
 download :: Text -> Text -> FilePath -> AWS Bool
 download b k (Path.encodeString -> f) = do
     p <- liftIO $ doesFileExist f
-    unless p $ do
-        rs <- send $ GetObject b k []
-        responseBody rs $$+- Conduit.sinkFile f
+    if p
+        then log "File '{}' already exists." [f]
+        else do
+            rs <- send $ GetObject b k []
+            responseBody rs $$+- Conduit.sinkFile f
     return $ not p
 
--- FIXME: check if local file exists
 upload :: Text -> Text -> FilePath -> AWS Bool
 upload b k (Path.encodeString -> f) = do
-    -- p <- isRight <$> sendCatch (HeadObject b k [])
-    -- unless p $ do
-    mn <- getFileSize
-    n  <- noteAWS "Unable to get file size: {}" [f] mn
-    send_ $ PutObject b k [] (requestBodySource n $ Conduit.sourceFile f)
-    return True
-  where
-    getFileSize :: MonadIO m => m (Maybe Int64)
-    getFileSize = liftIO $
-        bracket (openBinaryFile f ReadMode)
-                hClose
-                (fmap (Just . fromIntegral) . hFileSize)
+    p <- fmap (statusIsSuccessful . responseStatus) . send $ HeadObject b k []
+    if p
+        then log "Object '{}{}' already exists." [b, k]
+        else do
+            mb  <- requestBodyFile f
+            bdy <- noteAWS "Unable to get file size: {}" [f] mb
+            send_ $ PutObject b k [] bdy
+    return $ not p

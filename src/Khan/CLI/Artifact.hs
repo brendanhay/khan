@@ -37,7 +37,7 @@ artifactParser = Artifact
         "Bucket."
     <*> textOption "key" (short 'k')
         "Key."
-    <*> pathOption "file" (short 'f')
+    <*> pathOption "file" (short 'f' <> action "file")
         "Local file."
     <*> switchOption "force" False
         "Overwrite if exists."
@@ -53,8 +53,7 @@ commands = mconcat
     ]
 
 upload :: Common -> Artifact -> AWS ()
-upload c@Common{..} Artifact{..} = do
-    return ()
+upload c@Common{..} Artifact{..} = void $ Obj.upload aBucket aKey aPath
 
 download :: Common -> Artifact -> AWS ()
 download c@Common{..} Artifact{..} = void $ Obj.download aBucket aKey aPath

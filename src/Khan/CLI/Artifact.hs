@@ -50,6 +50,8 @@ commands = mconcat
         "Upload an artifact to S3."
     , command "download" download artifactParser
         "Download an artifact to disk."
+    , command "sync" sync artifactParser
+        "Synchronize a bucket to disk."
     ]
 
 upload :: Common -> Artifact -> AWS ()
@@ -57,3 +59,6 @@ upload c@Common{..} Artifact{..} = void $ Obj.upload aBucket aKey aPath
 
 download :: Common -> Artifact -> AWS ()
 download c@Common{..} Artifact{..} = void $ Obj.download aBucket aKey aPath
+
+sync :: Common -> Artifact -> AWS ()
+sync c@Common{..} Artifact{..} = void $ Obj.download aBucket aKey aPath

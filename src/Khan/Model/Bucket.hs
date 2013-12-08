@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.Model.Bucket
@@ -26,21 +27,20 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import qualified Shelly                    as Shell
 
-download :: Text -> Maybe Text -> FilePath -> AWS Bool
-download b p dir = do
+download :: Int -> Text -> Maybe Text -> FilePath -> AWS Bool
+download n b p dir = do
     log "Paginating bucket '{}' contents" [b]
-    rs <- paginate start
-        $= Conduit.mapM startAll
+    or <$> (paginate start
+        $= Conduit.concatMap (filter valid . gbrContents)
+        $= chunked []
+        $= Conduit.mapM (mapM (async . retrieve))
         $= Conduit.concatMapM (mapM wait)
-        $$ Conduit.consume
-    return $ or rs
+        $$ Conduit.consume)
   where
-    start = GetBucket b (Delimiter '/') (prefix p) 100 Nothing
+    start = GetBucket b (Delimiter '/') (prefix p) 250 Nothing
 
     prefix (Just x) = Just . fromMaybe x $ Text.stripPrefix "/" x
     prefix Nothing  = Nothing
-
-    startAll = mapM (async . retrieve) . filter valid . gbrContents
 
     valid Contents{..}
         | bcSize == 0               = False
@@ -51,3 +51,10 @@ download b p dir = do
         let dest = dir </> Path.fromText bcKey
         shell . Shell.mkdir_p $ Path.parent dest
         Object.download b bcKey dest
+
+    chunked xs = do
+        mx <- await
+        case mx of
+            Just x | length xs < (n - 1) -> chunked (x : xs)
+            Just x                       -> yield (x : xs) >> chunked []
+            Nothing                      -> yield xs >> return ()

@@ -45,6 +45,7 @@ data Bucket = Bucket
     { bBucket :: !Text
     , bPrefix :: Maybe Text
     , bDir    :: !FilePath
+    , bN      :: !Int
     , bForce  :: !Bool
     } deriving (Show)
 
@@ -56,6 +57,8 @@ bucketParser = Bucket
         "Key.")
     <*> pathOption "dir" (short 'd' <> action "directory")
         "Local file."
+    <*> readOption "concurrency" "INT" (short 'n' <> value 4)
+        "Number of simultaneous downloads."
     <*> switchOption "force" False
         "Overwrite if exists."
 
@@ -75,4 +78,4 @@ object :: (Text -> Text -> FilePath -> AWS a) -> Common -> Object -> AWS ()
 object f _ Object{..} = void $ f oBucket oKey oPath
 
 sync :: Common -> Bucket -> AWS ()
-sync _ Bucket{..} = void $ Bucket.download bBucket bPrefix bDir
+sync _ Bucket{..} = void $ Bucket.download bN bBucket bPrefix bDir

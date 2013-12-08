@@ -16,35 +16,31 @@ module Khan.Model.Bucket
     ( download
     ) where
 
-import           Control.Error
 import           Data.Conduit
-import qualified Data.Conduit.Binary       as Conduit
+import qualified Data.Conduit.List         as Conduit
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import qualified Khan.Model.Object         as Object
 import           Khan.Prelude
 import           Network.AWS.S3
-import           Network.HTTP.Conduit
-import           Network.HTTP.Conduit
-import           Network.HTTP.Types
 import qualified Shelly                    as Shell
 
--- FIXME: Add async download
 download :: Text -> Maybe Text -> FilePath -> AWS Bool
 download b p dir = do
-    log "Listing bucket '{}' contents" [b]
-    GetBucketResponse{..} <- send $
-        GetBucket b (Delimiter '/') (prefix p) 100 Nothing
-    -- FIXME: Need to paginate
-
-    as <- mapM (async . retrieve) (filter valid gbrContents)
-    bs <- mapM wait as
-
-    return $ or bs
+    log "Paginating bucket '{}' contents" [b]
+    rs <- paginate start
+        $= Conduit.mapM startAll
+        $= Conduit.concatMapM (mapM wait)
+        $$ Conduit.consume
+    return $ or rs
   where
+    start = GetBucket b (Delimiter '/') (prefix p) 100 Nothing
+
     prefix (Just x) = Just . fromMaybe x $ Text.stripPrefix "/" x
     prefix Nothing  = Nothing
+
+    startAll = mapM (async . retrieve) . filter valid . gbrContents
 
     valid Contents{..}
         | bcSize == 0               = False

@@ -17,36 +17,41 @@ module Khan.Model.Object
     , upload
     ) where
 
-import           Control.Error
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
+import qualified Data.Text                 as Text
+import qualified Data.Text.Encoding        as Text
 import           Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS.S3
 import           Network.HTTP.Conduit
-import           Network.HTTP.Conduit
 import           Network.HTTP.Types
 import           System.Directory
 
 download :: Text -> Text -> FilePath -> AWS Bool
-download b k (Path.encodeString -> f) = do
+download b (safeKey -> k) (Path.encodeString -> f) = do
     p <- liftIO $ doesFileExist f
     if p
         then log "File '{}' already exists." [f]
         else do
+            log "Downloading {}/{} to {}" [b, k, Text.pack f]
             rs <- send $ GetObject b k []
             responseBody rs $$+- Conduit.sinkFile f
     return $ not p
 
 upload :: Text -> Text -> FilePath -> AWS Bool
-upload b k (Path.encodeString -> f) = do
+upload b (safeKey -> k) (Path.encodeString -> f) = do
     p <- fmap (statusIsSuccessful . responseStatus) . send $ HeadObject b k []
     if p
-        then log "Object '{}{}' already exists." [b, k]
+        then log "Object '{}/{}' already exists." [b, k]
         else do
+            log "Uploading {} to {}/{}" [Text.pack f, b, k]
             mb  <- requestBodyFile f
             bdy <- noteAWS "Unable to get file size: {}" [f] mb
             send_ $ PutObject b k [] bdy
     return $ not p
+
+safeKey :: Text -> Text
+safeKey = Text.decodeUtf8 . urlEncode True . Text.encodeUtf8

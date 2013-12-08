@@ -15,24 +15,21 @@
 
 module Khan.CLI.Artifact (commands) where
 
-import qualified Data.Text                 as Text
-import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
-import           Khan.Internal.Ansible
-import qualified Khan.Model.HealthCheck    as Check
-import qualified Khan.Model.Object         as Obj
-import           Khan.Prelude              hiding (for)
-import           Network.AWS.Route53
+import qualified Khan.Model.Bucket as Bucket
+import qualified Khan.Model.Object as Object
+import           Khan.Prelude      hiding (sync)
+import           Network.AWS.S3    (AWS)
 
-data Artifact = Artifact
-    { aBucket :: !Text
-    , aKey    :: !Text
-    , aPath   :: !FilePath
-    , aForce  :: !Bool
+data Object = Object
+    { oBucket :: !Text
+    , oKey    :: !Text
+    , oPath   :: !FilePath
+    , oForce  :: !Bool
     } deriving (Show)
 
-artifactParser :: Parser Artifact
-artifactParser = Artifact
+objectParser :: Parser Object
+objectParser = Object
     <$> textOption "bucket" (short 'b')
         "Bucket."
     <*> textOption "key" (short 'k')
@@ -42,23 +39,40 @@ artifactParser = Artifact
     <*> switchOption "force" False
         "Overwrite if exists."
 
-instance Options Artifact
+instance Options Object
+
+data Bucket = Bucket
+    { bBucket :: !Text
+    , bPrefix :: Maybe Text
+    , bDir    :: !FilePath
+    , bForce  :: !Bool
+    } deriving (Show)
+
+bucketParser :: Parser Bucket
+bucketParser = Bucket
+    <$> textOption "bucket" (short 'b')
+        "Bucket."
+    <*> optional (textOption "prefix" (short 'p')
+        "Key.")
+    <*> pathOption "dir" (short 'd' <> action "directory")
+        "Local file."
+    <*> switchOption "force" False
+        "Overwrite if exists."
+
+instance Options Bucket
 
 commands :: Mod CommandFields Command
 commands = mconcat
-    [ command "upload" upload artifactParser
-        "Upload an artifact to S3."
-    , command "download" download artifactParser
-        "Download an artifact to disk."
-    , command "sync" sync artifactParser
+    [ command "upload" (object Object.upload) objectParser
+        "Upload an object to S3."
+    , command "download" (object Object.download) objectParser
+        "Download an object to disk."
+    , command "sync" sync bucketParser
         "Synchronize a bucket to disk."
     ]
 
-upload :: Common -> Artifact -> AWS ()
-upload c@Common{..} Artifact{..} = void $ Obj.upload aBucket aKey aPath
+object :: (Text -> Text -> FilePath -> AWS a) -> Common -> Object -> AWS ()
+object f _ Object{..} = void $ f oBucket oKey oPath
 
-download :: Common -> Artifact -> AWS ()
-download c@Common{..} Artifact{..} = void $ Obj.download aBucket aKey aPath
-
-sync :: Common -> Artifact -> AWS ()
-sync c@Common{..} Artifact{..} = void $ Obj.download aBucket aKey aPath
+sync :: Common -> Bucket -> AWS ()
+sync _ Bucket{..} = void $ Bucket.download bBucket bPrefix bDir

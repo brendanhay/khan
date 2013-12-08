@@ -37,7 +37,11 @@ download b p dir = do
     GetBucketResponse{..} <- send $
         GetBucket b (Delimiter '/') (prefix p) 100 Nothing
     -- FIXME: Need to paginate
-    or <$> mapM retrieve (filter valid gbrContents)
+
+    as <- mapM (async . retrieve) (filter valid gbrContents)
+    bs <- mapM wait as
+
+    return $ or bs
   where
     prefix (Just x) = Just . fromMaybe x $ Text.stripPrefix "/" x
     prefix Nothing  = Nothing

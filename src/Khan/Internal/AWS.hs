@@ -17,10 +17,11 @@
 module Khan.Internal.AWS where
 
 import           Control.Monad.Error
-import qualified Data.ByteString.Char8   as BS
 import qualified Data.HashMap.Strict     as Map
 import qualified Data.Text               as Text
+import qualified Data.Text               as Text
 import           Data.Text.Encoding
+import qualified Data.Text.Encoding      as Text
 import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy          as LText
@@ -32,6 +33,7 @@ import           Network.AWS
 import           Network.AWS.AutoScaling hiding (DescribeTags)
 import           Network.AWS.EC2         as EC2
 import           Network.AWS.IAM
+import           Network.HTTP.Types
 
 contextAWS :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
 contextAWS Common{..} = liftIO . runAWS CredDiscover cDebug . within cRegion
@@ -127,3 +129,10 @@ abbreviate Singapore       = "sg"
 abbreviate Tokyo           = "tyo"
 abbreviate Sydney          = "syd"
 abbreviate SaoPaulo        = "sao"
+
+safeKey :: Text -> Text
+safeKey x = Text.decodeUtf8
+    . urlEncode True
+    . Text.encodeUtf8
+    . fromMaybe x
+    $ Text.stripPrefix "/" x

@@ -75,10 +75,12 @@ import           Data.Maybe                as Maybe
 import           Data.Monoid               as Monoid
 import           Data.String
 import           Data.Text                 (Text)
+import qualified Data.Text.Encoding        as Text
 import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy            as LText
 import           Filesystem.Path.CurrentOS (FilePath)
+import qualified Filesystem.Path.CurrentOS as Path
 import           Network.AWS
 import           Prelude.Prime             as Prime hiding (FilePath, error, log, writeFile)
 import           Shelly                    (whenM, unlessM)

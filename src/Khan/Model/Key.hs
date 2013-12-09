@@ -16,6 +16,7 @@
 
 module Khan.Model.Key
     ( create
+    , path
     ) where
 
 import qualified Data.Text                 as Text
@@ -27,8 +28,8 @@ import           Khan.Prelude              hiding (min, max)
 import           Network.AWS.EC2           hiding (Instance)
 import qualified Shelly                    as Shell
 
-create :: Naming a => a -> AWS ()
-create (names -> n@Names{..}) =
+create :: Naming a => Text -> a -> AWS ()
+create b (names -> n@Names{..}) =
     sendCatch (CreateKeyPair keyName) >>= either exist write
   where
     exist e = do
@@ -46,4 +47,16 @@ create (names -> n@Names{..}) =
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
         log "Wrote new Key Pair to {}" [f]
---        Object.upload 
+        void $ Object.upload b (Path.encode $ Path.filename f) f
+
+path :: Naming a => Text -> a -> AWS FilePath
+path b (names -> n@Names{..}) = do
+    f <- keyPath n
+    void $ Object.download b (Path.encode $ Path.filename f) f
+    shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
+    return f
+
+keyPath :: Names -> AWS FilePath
+keyPath Names{..} = do
+    r <- Text.pack . show <$> getRegion
+    certPath . Shell.fromText $ Text.concat [r, "_", keyName, ".pem"]

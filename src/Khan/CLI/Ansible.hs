@@ -29,6 +29,7 @@ import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal
 import           Khan.Internal.Ansible
 import qualified Khan.Model.Instance        as Instance
+import qualified Khan.Model.Key             as Key
 import           Khan.Prelude
 import           Network.AWS.EC2            hiding (Failed)
 import           System.Directory
@@ -37,7 +38,7 @@ import qualified System.Posix.Process       as Posix
 
 data Ansible = Ansible
     { aEnv    :: !Text
-    , aKey    :: !FilePath
+    , aKey    :: Maybe FilePath
     , aBin    :: Maybe Text
     , aRetain :: !Int
     , aCache  :: !FilePath
@@ -62,12 +63,10 @@ ansibleParser = Ansible
 
 instance Options Ansible where
     discover _ a@Ansible{..} = do
-        f <- if invalid aKey then keyPath $ names a else return aKey
         c <- inventoryPath aCache aEnv
-        return $! a { aKey = f, aCache = c }
+        return $! a { aCache = c }
 
     validate Ansible{..} = do
-        checkPath aKey " specified by --key must exist."
         check aArgs "Pass ansible options through using the -- delimiter.\n\
                     \Usage: khan ansible [KHAN OPTIONS] -- [ANSIBLE OPTIONS]."
 
@@ -110,7 +109,9 @@ commands = mconcat
     ]
 
 ansible :: Common -> Ansible -> AWS ()
-ansible c Ansible{..} = do
+ansible c@Common{..} a@Ansible{..} = do
+    key <- maybe (Key.path cBucket a) return aKey
+
     whenM ((|| aForce) <$> exceeds) $ do
         log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]
         inventory c $ Inventory aEnv aCache True True Nothing
@@ -122,12 +123,14 @@ ansible c Ansible{..} = do
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    log "{} {}" [bin, unwords args]
-    liftIO $ Posix.executeFile bin True args Nothing
+    let xs = args key
+
+    log "{} {}" [bin, unwords xs]
+    liftIO $ Posix.executeFile bin True xs Nothing
   where
-    args = aArgs ++ foldr' add []
+    args key = aArgs ++ foldr' add []
         [ ("-i", script)
-        , ("--private-key", Path.encodeString aKey)
+        , ("--private-key", Path.encodeString key)
         ]
 
     add (k, v) xs =

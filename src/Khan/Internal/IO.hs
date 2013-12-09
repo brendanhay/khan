@@ -20,7 +20,7 @@ module Khan.Internal.IO
 
     -- * Files
     , defaultPath
-    , keyPath
+    , certPath
     , cachePath
     , configPath
     , expandPath
@@ -42,7 +42,6 @@ import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
-import           Network.AWS
 import           Shelly                     (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                     as Shell
 import           System.Directory
@@ -59,11 +58,6 @@ defaultPath :: (Functor m, MonadIO m) => FilePath -> m FilePath -> m FilePath
 defaultPath p def
     | invalid p = def
     | otherwise = return p
-
-keyPath :: Names -> AWS FilePath
-keyPath Names{..} = do
-    r <- Text.pack . show <$> getRegion
-    certPath . Shell.fromText $ Text.concat [r, "_", keyName, ".pem"]
 
 certPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 certPath f = (</> f) <$> ensurePath True "/etc/ssl/khan" "certs"

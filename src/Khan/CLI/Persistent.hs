@@ -95,7 +95,7 @@ launch Common{..} l@Launch{..} = do
 
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
-    k <- async $ Key.create l
+    k <- async $ Key.create cBucket l
     s <- async $ Security.update (sshGroup lEnv) sshRules
     g <- async $ Security.create l
 

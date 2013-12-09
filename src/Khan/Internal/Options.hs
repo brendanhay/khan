@@ -168,8 +168,8 @@ versionOption :: Parser Version
 versionOption = customOption "version" "MAJ.MIN.PATCH+BUILD" eitherVersion mempty
     "Version of the application."
 
-keyOption :: Parser FilePath
-keyOption = pathOption "key" (value "" <> short 'i')
+keyOption :: Parser (Maybe FilePath)
+keyOption = optional $ pathOption "key" (short 'i')
     "Path to the private key to use."
 
 ansibleOption :: Parser Bool

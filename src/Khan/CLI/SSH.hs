@@ -20,6 +20,7 @@ import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import qualified Khan.Model.Instance       as Instance
+import qualified Khan.Model.Key            as Key
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           System.IO                 hiding (FilePath)
@@ -30,7 +31,7 @@ import qualified System.Posix.Process      as Posix
 data SSH = SSH
     { sRole :: !Text
     , sEnv  :: !Text
-    , sKey  :: !FilePath
+    , sKey  :: Maybe FilePath
     , sUser :: !Text
     , sArgs :: [String]
     } deriving (Show)
@@ -43,13 +44,7 @@ sshParser = SSH
     <*> textOption "user" (value "ubuntu" <> short 'u') "SSH User."
     <*> argsOption str mempty "Pass through arugments to ssh."
 
-instance Options SSH where
-    discover _ s@SSH{..} = do
-        f <- if invalid sKey then keyPath $ names s else return sKey
-        return $! s { sKey = f }
-
-    validate SSH{..} =
-        checkPath sKey " specified by --key must exist."
+instance Options SSH
 
 instance Naming SSH where
     names SSH{..} = unversioned sRole sEnv
@@ -59,29 +54,28 @@ commands = command "ssh" ssh sshParser
     "Long description."
 
 ssh :: Common -> SSH -> AWS ()
-ssh _ SSH{..} = do
+ssh Common{..} s@SSH{..} = do
+    key <- maybe (Key.path cBucket s) return sKey
     dns <- mapMaybe riitDnsName <$> Instance.findAll []
         [ Filter ("tag:" <> envTag)  [sEnv]
         , Filter ("tag:" <> roleTag) [sRole]
         ]
     case dns of
         []  -> log_ "No hosts found, exiting..."
-        [x] -> liftIO $ exec x
+        [x] -> liftIO $ exec x key
         _   -> do
             let cs = map (first show) $ zip ([1..] :: [Int]) dns
             mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
             x <- liftIO choose
             a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
-            liftIO $ exec a
+            liftIO $ exec a key
   where
-    exec (args -> xs) = do
+    exec addr key = do
+        let xs = [ "-i" ++ Path.encodeString key
+                 , Text.unpack $ Text.concat [sUser, "@", addr]
+                 ] ++ sArgs
         log "ssh {}" [unwords xs]
         Posix.executeFile "ssh" True xs Nothing
-
-    args addr =
-        [ "-i" ++ Path.encodeString sKey
-        , Text.unpack $ Text.concat [sUser, "@", addr]
-        ] ++ sArgs
 
     choose = do
         hSetBuffering stdout NoBuffering

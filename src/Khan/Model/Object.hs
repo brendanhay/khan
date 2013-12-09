@@ -53,10 +53,3 @@ upload b k (Path.encodeString -> f) = do
             bdy <- noteAWS "Unable to get file size: {}" [f] mb
             send_ $ PutObject b (safeKey k) [] bdy
     return $ not p
-
-safeKey :: Text -> Text
-safeKey x = Text.decodeUtf8
-    . urlEncode True
-    . Text.encodeUtf8
-    . fromMaybe x
-    $ Text.stripPrefix "/" x

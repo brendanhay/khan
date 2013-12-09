@@ -33,7 +33,7 @@ executable khan
     hs-source-dirs:    src
     main-is:           Main.hs
 
-    ghc-options:       -Wall -rtsopts -threaded
+    ghc-options:       -Wall -rtsopts -threaded -O2
 
     build-depends:
         aeson

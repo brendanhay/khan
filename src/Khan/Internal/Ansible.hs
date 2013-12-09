@@ -26,6 +26,7 @@ import qualified Data.Attoparsec.Text       as T
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import           Data.HashMap.Strict        (HashMap)
 import qualified Data.HashMap.Strict        as Map
+import           Data.List                  (intercalate)
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
@@ -67,12 +68,13 @@ capture c f ps aws = capture' c $ aws >>= success
     success False = unchanged (f <> " unchanged.") ps
 
 capture' :: Common -> AWS Output -> AWS ()
-capture' c aws = context c aws
+capture' c aws = contextAWS c aws
      >>= either failure (return . id)
      >>= exit
   where
-    failure (Err s) = failed "{}" $ Only s
-    failure (Ex ex) = failure . toError $ show ex
+    failure (Err s)  = failed "{}" $ Only s
+    failure (Ex  ex) = failure . toError $ show ex
+    failure (Ers es) = failure . toError . intercalate ", " $ map show es
 
     exit o = liftIO $ LBS.putStrLn (Aeson.encodePretty o) >>
         case o of

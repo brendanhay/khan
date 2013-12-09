@@ -22,6 +22,7 @@ import qualified Data.Text                 as Text
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
+import qualified Khan.Model.Object         as Object
 import           Khan.Prelude              hiding (min, max)
 import           Network.AWS.EC2           hiding (Instance)
 import qualified Shelly                    as Shell
@@ -45,3 +46,4 @@ create (names -> n@Names{..}) =
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
         log "Wrote new Key Pair to {}" [f]
+--        Object.upload 

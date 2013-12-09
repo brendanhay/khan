@@ -54,7 +54,7 @@ bucketParser = Bucket
     <$> textOption "bucket" (short 'b')
         "Bucket."
     <*> optional (textOption "prefix" (short 'p')
-        "Key.")
+        "Prefix.")
     <*> pathOption "dir" (short 'd' <> action "directory")
         "Local file."
     <*> readOption "concurrency" "INT" (short 'n' <> value 4)

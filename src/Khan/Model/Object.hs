@@ -31,27 +31,32 @@ import           Network.HTTP.Types
 import           System.Directory
 
 download :: Text -> Text -> FilePath -> AWS Bool
-download b (safeKey -> k) (Path.encodeString -> f) = do
+download b k (Path.encodeString -> f) = do
     p <- liftIO $ doesFileExist f
     if p
         then log "File '{}' already exists." [f]
         else do
             log "Downloading {}/{} to {}" [b, k, Text.pack f]
-            rs <- send $ GetObject b k []
+            rs <- send $ GetObject b (safeKey k) []
             responseBody rs $$+- Conduit.sinkFile f
     return $ not p
 
 upload :: Text -> Text -> FilePath -> AWS Bool
-upload b (safeKey -> k) (Path.encodeString -> f) = do
-    p <- fmap (statusIsSuccessful . responseStatus) . send $ HeadObject b k []
+upload b k (Path.encodeString -> f) = do
+    p <- fmap (statusIsSuccessful . responseStatus) . send $
+        HeadObject b (safeKey k) []
     if p
         then log "Object '{}/{}' already exists." [b, k]
         else do
             log "Uploading {} to {}/{}" [Text.pack f, b, k]
             mb  <- requestBodyFile f
             bdy <- noteAWS "Unable to get file size: {}" [f] mb
-            send_ $ PutObject b k [] bdy
+            send_ $ PutObject b (safeKey k) [] bdy
     return $ not p
 
 safeKey :: Text -> Text
-safeKey = Text.decodeUtf8 . urlEncode True . Text.encodeUtf8
+safeKey x = Text.decodeUtf8
+    . urlEncode True
+    . Text.encodeUtf8
+    . fromMaybe x
+    $ Text.stripPrefix "/" x

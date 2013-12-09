@@ -41,6 +41,7 @@ import           Options.Applicative.Arrows
 
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
+    opt <- asA commonParser -< ()
     cmd <- (asA . hsubparser)
          ( Ansible.commands
         <> Artifact.commands
@@ -54,7 +55,6 @@ programParser = runA $ proc () -> do
         <> Routing.commands
         <> SSH.commands
          ) -< ()
-    opt <- asA commonParser -< ()
     A helper -< (opt, cmd)
 
 programInfo :: ParserInfo (Common, Command)
@@ -69,9 +69,9 @@ main = customExecParser (prefs showHelpOnError) programInfo >>=
 
     run (a, Command f x) = do
         unless (cSilent a) enableLogging
-        b@Common{..} <- isEC2 >>= regionalise a >>= initialise
+        b@Common{..} <- isEC2 >>= regionalise a
         validate b
-        r <- context b $ do
+        r <- contextAWS b $ do
             debug "Running in region {}..." [Shown cRegion]
             p <- isEC2
             y <- discover p x

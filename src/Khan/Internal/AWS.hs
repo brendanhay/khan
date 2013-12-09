@@ -33,11 +33,8 @@ import           Network.AWS.AutoScaling hiding (DescribeTags)
 import           Network.AWS.EC2         as EC2
 import           Network.AWS.IAM
 
-context :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
-context Common{..} = liftIO . runAWS creds cDebug . within cRegion
-  where
-    creds | Just r <- cProfile = FromRole $! encodeUtf8 r
-          | otherwise = FromKeys (BS.pack cAccess) (BS.pack cSecret)
+contextAWS :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
+contextAWS Common{..} = liftIO . runAWS CredDiscover cDebug . within cRegion
 
 assertAWS :: (MonadError AWSError m, MonadIO m, Params ps)
           => Format

@@ -18,7 +18,6 @@ module Khan.Internal.Options
     , Common  (..)
 
     , commonParser
-    , initialise
 
     , group
     , command
@@ -62,12 +61,10 @@ data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
 
 data Common = Common
-    { cDebug   :: !Bool
-    , cSilent  :: !Bool
-    , cRegion  :: !Region
-    , cProfile :: Maybe Text
-    , cAccess  :: !String
-    , cSecret  :: !String
+    { cDebug  :: !Bool
+    , cSilent :: !Bool
+    , cRegion :: !Region
+    , cBucket :: !Text
     } deriving (Show)
 
 commonParser :: Parser Common
@@ -78,42 +75,19 @@ commonParser = Common
         "Suppress standard log output."
     <*> readOption "region" "REGION" (value NorthCalifornia <> short 'R')
         "Region to operate in."
-    <*> optional (textOption "iam-profile" (short 'P')
-        "IAM profile to use.")
-    <*> stringOption "access-key" (value "")
-        "AWS access key."
-    <*> stringOption "secret-key" (value "")
-        "AWS secret key."
+    <*> textOption "bucket" (short 'B' <> value "")
+        "Shared configuration bucket."
 
 instance Options Common where
+    discover _ c@Common{..}
+        | invalid cBucket = do
+            mb <- liftIO $ lookupEnv "KHAN_BUCKET"
+            liftIO $ print mb
+            return $! maybe c (\b -> c { cBucket = Text.pack b }) mb
+        | otherwise = return c
+
     validate Common{..} = do
-        check (null cAccess && profile) $ msg "--access-key" accessKey
-        check (null cSecret && profile) $ msg "--secret-key" secretKey
-      where
-        profile = isNothing cProfile
-        msg k e = concat
-            [ k
-            , " must be specified or "
-            , e
-            , " env must be set if --iam-role is not set."
-            ]
-
-initialise :: (Applicative m, MonadIO m) => Common -> EitherT AWSError m Common
-initialise o@Common{..}
-    | isJust cProfile = right o
-    | validKeys       = right o
-    | otherwise       = lookupKeys
-  where
-    validKeys = (not . null) `all` [cAccess, cSecret]
-
-    lookupKeys = fmapLT toError . syncIO $ do
-        acc <- env accessKey cAccess
-        sec <- env secretKey cSecret
-        return $! o { cAccess = acc, cSecret = sec }
-      where
-        env k v
-            | null v    = fromMaybe "" <$> lookupEnv k
-            | otherwise = return v
+       check cBucket "--bucket or KHAN_BUCKET must be specified."
 
 group ::  String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs = Options.command name $

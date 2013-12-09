@@ -18,7 +18,7 @@ import qualified Data.Text                    as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Prelude
-import           Network.AWS.EC2
+import           Network.AWS.EC2              (AWS, AWSError)
 import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
 import qualified Text.Read                    as Read

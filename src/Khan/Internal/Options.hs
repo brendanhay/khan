@@ -79,13 +79,6 @@ commonParser = Common
         "Shared configuration bucket."
 
 instance Options Common where
-    discover _ c@Common{..}
-        | invalid cBucket = do
-            mb <- liftIO $ lookupEnv "KHAN_BUCKET"
-            liftIO $ print mb
-            return $! maybe c (\b -> c { cBucket = Text.pack b }) mb
-        | otherwise = return c
-
     validate Common{..} = do
        check cBucket "--bucket or KHAN_BUCKET must be specified."
 

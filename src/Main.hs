@@ -31,6 +31,7 @@ import qualified Khan.CLI.SSH               as SSH
 import           Control.Error
 import           Control.Monad
 import qualified Data.ByteString.Char8      as BS
+import qualified Data.Text                  as Text
 import           Data.Text.Format           (Shown(..))
 import           Khan.Internal
 import           Khan.Prelude
@@ -38,6 +39,7 @@ import           Network.AWS
 import           Network.AWS.EC2.Metadata
 import           Options.Applicative
 import           Options.Applicative.Arrows
+import           System.Environment
 
 programParser :: Parser (Common, Command)
 programParser = runA $ proc () -> do
@@ -69,15 +71,21 @@ main = customExecParser (prefs showHelpOnError) programInfo >>=
 
     run (a, Command f x) = do
         unless (cSilent a) enableLogging
-        b@Common{..} <- isEC2 >>= regionalise a
+        p <- isEC2
+        b@Common{..} <- regionalise a p >>= bucket
         validate b
         r <- contextAWS b $ do
             debug "Running in region {}..." [Shown cRegion]
-            p <- isEC2
             y <- discover p x
             liftEitherT $ validate y
             f b y
         hoistEither r
+
+    bucket o
+        | invalid $ cBucket o = do
+            mb <- liftIO $ lookupEnv "KHAN_BUCKET"
+            return $! maybe o (\b -> o { cBucket = Text.pack b }) mb
+        | otherwise = return o
 
     regionalise o False = return o
     regionalise o True  = do

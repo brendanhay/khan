@@ -34,7 +34,7 @@ update hcc = do
         Just x  -> del x >> cre >> return True
         Nothing -> cre >> return True
   where
-    match xs HealthCheck{..} = and $ map ($ hcHealthCheckConfig) xs
+    match xs HealthCheck{..} = all ($ hcHealthCheckConfig) xs
 
     exact   = [eq hccPort, eq hccResourcePath] ++ partial
     partial = [eq hccIPAddress, eq hccFullyQualifiedDomainName]

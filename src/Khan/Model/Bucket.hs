@@ -59,4 +59,4 @@ download n b p dir = do
         case mx of
             Just x | length xs < (n - 1) -> chunked (x : xs)
             Just x                       -> yield (x : xs) >> chunked []
-            Nothing                      -> yield xs >> return ()
+            Nothing                      -> void $ yield xs

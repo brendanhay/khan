@@ -1,6 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.Internal.IO
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>

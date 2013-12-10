@@ -66,7 +66,7 @@ instance Options Ansible where
         c <- inventoryPath aCache aEnv
         return $! a { aCache = c }
 
-    validate Ansible{..} = do
+    validate Ansible{..} =
         check aArgs "Pass ansible options through using the -- delimiter.\n\
                     \Usage: khan ansible [KHAN OPTIONS] -- [ANSIBLE OPTIONS]."
 

@@ -17,16 +17,9 @@ module Khan.CLI.Host (commands) where
 
 import qualified Data.Text.Encoding          as Text
 import           Khan.Internal
-import qualified Khan.Model.AvailabilityZone as ASG
 import qualified Khan.Model.HostedZone       as HZone
-import qualified Khan.Model.Image            as AMI
 import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.LaunchConfig     as Config
-import qualified Khan.Model.Profile          as Profile
 import qualified Khan.Model.RecordSet        as RSet
-import qualified Khan.Model.ScalingGroup     as ASG
-import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2          hiding (ec2)
@@ -86,8 +79,9 @@ register Common{..} Host{..} = do
     exists r = log "Record {} exists, skipping..." [rrsName r]
 
     create zid ns ts sets = do
+        reg <- getRegion
         let n   = 1 + foldl' newest 0 sets
-            dns = name ns ts n
+            dns = name ns ts n reg
             vs  = ResourceRecords [hFQDN]
             set = BasicRecordSet dns CNAME hTTL vs Nothing
         log "Creating record {} with value {}..." [dns, hFQDN]
@@ -95,8 +89,8 @@ register Common{..} Host{..} = do
 
     newest acc x = max (either (const 0) dnsOrd . parseDNS $ rrsName x) acc
 
-    name Names{..} Tags{..} n =
-        showDNS (DNS roleName tagVersion n envName $ abbreviate cRegion) tagDomain
+    name Names{..} Tags{..} n reg =
+        showDNS (DNS roleName tagVersion n envName $ abbreviate reg) tagDomain
 
 deregister :: Common -> Host -> AWS ()
 deregister _ Host{..} = do

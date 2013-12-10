@@ -16,15 +16,7 @@ module Khan.CLI.Group (commands) where
 
 import           Khan.Internal
 import           Khan.Internal.Ansible
-import qualified Khan.Model.AvailabilityZone as ASG
-import qualified Khan.Model.Image            as AMI
-import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.LaunchConfig     as Config
-import qualified Khan.Model.Profile          as Profile
-import qualified Khan.Model.RecordSet        as RSet
-import qualified Khan.Model.ScalingGroup     as ASG
-import qualified Khan.Model.SecurityGroup    as Security
+import qualified Khan.Model.SecurityGroup as Security
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           Text.Show.Pretty

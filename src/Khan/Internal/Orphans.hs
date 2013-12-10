@@ -22,7 +22,6 @@ import           Data.Text.Buildable
 import qualified Data.Text.Lazy      as LText
 import           Khan.Prelude
 import           Network.AWS.EC2
-import           Network.AWS
 import           Shelly
 
 instance Buildable [Text] where

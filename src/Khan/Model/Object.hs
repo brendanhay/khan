@@ -20,7 +20,6 @@ module Khan.Model.Object
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
 import qualified Data.Text                 as Text
-import qualified Data.Text.Encoding        as Text
 import           Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal

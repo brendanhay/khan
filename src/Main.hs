@@ -69,27 +69,33 @@ main = customExecParser (prefs showHelpOnError) programInfo >>=
     fmt (Err msg) = msg
     fmt ex        = show ex
 
-    run (a, Command f x) = do
-        unless (cSilent a) enableLogging
+    run (c, Command f x) = do
+        unless (cSilent c) enableLogging
         p <- isEC2
-        b@Common{..} <- regionalise a p >>= bucket
-        validate b
-        r <- contextAWS b $ do
-            debug "Running in region {}..." [Shown cRegion]
+        c'@Common{..} <- setRegion c p >>= setBucket
+        validate c'
+        rs <- contextAWS c' $ do
+            r <- getRegion
+            debug "Running in region {}..." [Shown r]
             y <- discover p x
             liftEitherT $ validate y
-            f b y
-        hoistEither r
+            f c' y
+        hoistEither rs
 
-    bucket o
-        | invalid $ cBucket o = do
+    setRegion c _     | isJust $ cRegion c = return c
+    setRegion c False = do
+        mr <- liftIO $ lookupEnv "KHAN_REGION"
+        r  <- maybe (return NorthVirginia)
+                    (tryRead "Failed to read valid region from KHAN_REGION")
+                    mr
+        return $! c { cRegion = Just r }
+    setRegion c True  = do
+        az <- BS.unpack . BS.init <$> metadata AvailabilityZone
+        r  <- fmapLT Err $ tryRead ("Failed to read region from: " ++ az) az
+        return $! c { cRegion = Just r }
+
+    setBucket c
+        | invalid $ cBucket c = do
             mb <- liftIO $ lookupEnv "KHAN_BUCKET"
-            return $! maybe o (\b -> o { cBucket = Text.pack b }) mb
-        | otherwise = return o
-
-    regionalise o False = return o
-    regionalise o True  = do
-        az  <- BS.unpack . BS.init <$> metadata AvailabilityZone
-        reg <- fmapLT Err $
-            tryRead ("Failed to read region from: " ++ az) az
-        return $! o { cRegion = reg }
+            return $! c { cBucket = maybe (cBucket c) Text.pack mb }
+        | otherwise = return c

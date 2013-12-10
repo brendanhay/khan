@@ -15,14 +15,9 @@
 
 module Khan.Model.HealthCheck where
 
-import           Control.Arrow
-import           Control.Concurrent  (threadDelay)
 import           Control.Monad
 import           Data.Conduit
 import qualified Data.Conduit.List   as Conduit
-import           Data.List           (sort)
-import qualified Data.Text           as Text
-import           Data.Text.Format    (Shown(..))
 import           Khan.Prelude        hiding (find, min, max)
 import           Network.AWS.Route53 hiding (wait)
 

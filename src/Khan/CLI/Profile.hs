@@ -15,20 +15,12 @@
 module Khan.CLI.Profile (commands) where
 
 import           Data.Aeson
-import qualified Data.Aeson.Encode.Pretty    as Aeson
-import qualified Data.ByteString.Lazy.Char8  as LBS
-import qualified Data.Text                   as Text
-import qualified Data.Text.Encoding          as Text
+import qualified Data.Aeson.Encode.Pretty   as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
 import           Khan.Internal
-import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as AMI
-import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.LaunchConfig     as Config
-import qualified Khan.Model.Profile          as Profile
-import qualified Khan.Model.RecordSet        as DNS
-import qualified Khan.Model.ScalingGroup     as ASG
-import qualified Khan.Model.SecurityGroup    as Security
+import qualified Khan.Model.Profile         as Profile
 import           Khan.Prelude
 import           Network.AWS.IAM            hiding (Role)
 import           Network.HTTP.Types         (urlDecode)

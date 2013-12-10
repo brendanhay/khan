@@ -19,16 +19,13 @@ import           Data.Conduit
 import qualified Data.Conduit.List     as Conduit
 import qualified Data.List.NonEmpty    as List
 import qualified Data.Text             as Text
-import           GHC.Word
 import           Khan.Internal
 import           Khan.Internal.Ansible
-import           Khan.Internal.Text
 import qualified Khan.Model.HostedZone as HZone
 import qualified Khan.Model.RecordSet  as RSet
 import           Khan.Prelude          hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
-import           Text.Show.Pretty
 
 data Record = Record
     { rZone    :: !Text
@@ -95,26 +92,6 @@ instance Options Record where
             _   -> check (not rSet && List.length rValues /= 1)
                 "Exactly one --value must be specified if --set is not used."
 
-data Search = Search
-    { sZone   :: !Text
-    , sMax    :: !Integer
-    , sNames  :: [Text]
-    , sValues :: [Text]
-    }
-
-searchParser :: Parser Search
-searchParser = Search
-    <$> textOption "zone" mempty
-        "Name of the hosted zone to inspect."
-    <*> integerOption "max" (value 4)
-        "Pagination window size."
-    <*> many (textOption "name" mempty
-        "A name to filter by.")
-    <*> many (textOption "value" mempty
-        "A value to filter by.")
-
-instance Options Search
-
 commands :: Mod CommandFields Command
 commands = group "dns" "Manage DNS Records." $ mconcat
     [ command "update" update recordParser
@@ -130,11 +107,14 @@ update c@Common{..} r@Record{..}
   where
     f = HZone.findId rZone >>= g rSet
 
-    g True  zid = RSet.set zid (domainName rName rZone) (multiple cRegion zid r)
-    g False zid = RSet.update zid (single cRegion zid r)
+    g p zid = do
+        reg <- getRegion
+        if p
+            then RSet.set zid (domainName rName rZone) (multiple reg zid r)
+            else RSet.update zid (single reg zid r)
 
 delete :: Common -> Record -> AWS ()
-delete c@Common{..} r@Record{..}
+delete c@Common{..} Record{..}
     | rAnsible  = capture c "dns record {}" [rName] f
     | otherwise = void f
   where

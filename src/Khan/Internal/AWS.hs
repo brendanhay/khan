@@ -19,8 +19,6 @@ module Khan.Internal.AWS where
 import           Control.Monad.Error
 import qualified Data.HashMap.Strict     as Map
 import qualified Data.Text               as Text
-import qualified Data.Text               as Text
-import           Data.Text.Encoding
 import qualified Data.Text.Encoding      as Text
 import           Data.Text.Format
 import           Data.Text.Format.Params
@@ -36,7 +34,9 @@ import           Network.AWS.IAM
 import           Network.HTTP.Types
 
 contextAWS :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
-contextAWS Common{..} = liftIO . runAWS CredDiscover cDebug . within cRegion
+contextAWS Common{..} = liftIO
+    . runAWS CredDiscover cDebug
+    . within (fromMaybe NorthVirginia cRegion)
 
 assertAWS :: (MonadError AWSError m, MonadIO m, Params ps)
           => Format

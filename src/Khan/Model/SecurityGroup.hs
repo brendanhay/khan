@@ -21,7 +21,7 @@ module Khan.Model.SecurityGroup
     , delete
     ) where
 
-import Data.List       ((\\), sort)
+import Data.List       (sort)
 import Khan.Internal
 import Khan.Prelude    hiding (find, min, max)
 import Network.AWS.EC2 hiding (Instance)

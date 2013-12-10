@@ -55,7 +55,6 @@ import           Network.AWS
 import           Options.Applicative       as Export hiding (command, info)
 import qualified Options.Applicative       as Options
 import qualified Shelly                    as Shell
-import           System.Environment
 
 data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
@@ -63,7 +62,7 @@ data Command where
 data Common = Common
     { cDebug  :: !Bool
     , cSilent :: !Bool
-    , cRegion :: !Region
+    , cRegion :: Maybe Region
     , cBucket :: !Text
     } deriving (Show)
 
@@ -73,14 +72,15 @@ commonParser = Common
         "Log debug output."
     <*> switchOption "silent" False
         "Suppress standard log output."
-    <*> readOption "region" "REGION" (value NorthCalifornia <> short 'R')
-        "Region to operate in."
+    <*> optional (readOption "region" "REGION" (short 'R')
+        "Region to operate in.")
     <*> textOption "bucket" (short 'B' <> value "")
         "Shared configuration bucket."
 
 instance Options Common where
     validate Common{..} = do
        check cBucket "--bucket or KHAN_BUCKET must be specified."
+       check (isNothing cRegion) "--region or KHAN_REGION must be specified."
 
 group ::  String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs = Options.command name $
@@ -95,14 +95,14 @@ command :: Options a
 command name f p desc = Options.command name $
     Options.info (Command f <$> p) (progDesc desc <> fullDesc)
 
-readOption :: Read a
+readOption :: (Show a, Read a)
            => String
            -> String
            -> Mod OptionFields a
            -> String
            -> Parser a
 readOption key typ m desc = option $ mconcat
-    [long key, metavar typ, reader auto, help desc, m]
+    [long key, metavar typ, reader auto, help desc, m, showDefault]
 
 switchOption :: String -> Bool -> String -> Parser Bool
 switchOption key p desc = flag p (not p) $ long key <> help desc
@@ -121,11 +121,7 @@ stringOption :: String
              -> String
              -> Parser String
 stringOption key m desc = strOption $ mconcat
-    [ long key
-    , metavar "STR"
-    , help desc
-    , m
-    ]
+    [long key, metavar "STR", help desc, m, showDefault]
 
 integerOption :: String
               -> Mod OptionFields Integer
@@ -133,14 +129,15 @@ integerOption :: String
               -> Parser Integer
 integerOption key = readOption key "INT"
 
-customOption :: String
+customOption :: Show a
+             => String
              -> String
              -> (String -> Either String a)
              -> Mod OptionFields a
              -> String
              -> Parser a
 customOption key typ rdr m desc = nullOption $ mconcat
-    [long key, metavar typ, eitherReader rdr, help desc, m]
+    [long key, metavar typ, eitherReader rdr, help desc, m, showDefault]
 
 argsOption :: (String -> Maybe a)
            -> Mod ArgumentFields a

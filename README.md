@@ -25,7 +25,6 @@ These versioned artifacts are then launched into an environment which dicates wh
 traffic and service instances are visible, ensuring that entire (or subsets thereof)
 environments are consistent and reproducible.
 
-
 ### Persistent vs Ephemeral
 
 Terminology and workflow is described to outline a layer of separation between the
@@ -56,7 +55,6 @@ Examples:
 * Jenkins Master
 * MySQL/PostgreSQL Master
 * Nagios
-
 
 #### Ephemeral
 

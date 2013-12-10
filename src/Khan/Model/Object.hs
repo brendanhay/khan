@@ -26,7 +26,6 @@ import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS.S3
 import           Network.HTTP.Conduit
-import           Network.HTTP.Types
 import           System.Directory
 
 download :: Text -> Text -> FilePath -> AWS Bool
@@ -42,8 +41,7 @@ download b k (Path.encodeString -> f) = do
 
 upload :: Text -> Text -> FilePath -> AWS Bool
 upload b k (Path.encodeString -> f) = do
-    p <- fmap (statusIsSuccessful . responseStatus) . send $
-        HeadObject b (safeKey k) []
+    p <- fmap isRight . sendCatch $ HeadObject b (safeKey k) []
     if p
         then log "Object '{}/{}' already exists." [b, k]
         else do

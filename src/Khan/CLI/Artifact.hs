@@ -16,16 +16,18 @@
 module Khan.CLI.Artifact (commands) where
 
 import           Khan.Internal
-import qualified Khan.Model.Bucket as Bucket
-import qualified Khan.Model.Object as Object
-import           Khan.Prelude      hiding (sync)
-import           Network.AWS.S3    (AWS)
+import           Khan.Internal.Ansible
+import qualified Khan.Model.Bucket     as Bucket
+import qualified Khan.Model.Object     as Object
+import           Khan.Prelude          hiding (sync)
+import           Network.AWS.S3        (AWS)
 
 data Object = Object
-    { oBucket :: !Text
-    , oKey    :: !Text
-    , oPath   :: !FilePath
-    , oForce  :: !Bool
+    { oBucket  :: !Text
+    , oKey     :: !Text
+    , oPath    :: !FilePath
+    , oForce   :: !Bool
+    , oAnsible :: !Bool
     } deriving (Show)
 
 objectParser :: Parser Object
@@ -38,15 +40,17 @@ objectParser = Object
         "Local file."
     <*> switchOption "force" False
         "Overwrite if exists."
+    <*> ansibleOption
 
 instance Options Object
 
 data Bucket = Bucket
-    { bBucket :: !Text
-    , bPrefix :: Maybe Text
-    , bDir    :: !FilePath
-    , bN      :: !Int
-    , bForce  :: !Bool
+    { bBucket  :: !Text
+    , bPrefix  :: Maybe Text
+    , bDir     :: !FilePath
+    , bN       :: !Int
+    , bForce   :: !Bool
+    , bAnsible :: !Bool
     } deriving (Show)
 
 bucketParser :: Parser Bucket
@@ -61,6 +65,7 @@ bucketParser = Bucket
         "Number of simultaneous downloads."
     <*> switchOption "force" False
         "Overwrite if exists."
+    <*> ansibleOption
 
 instance Options Bucket
 
@@ -74,8 +79,16 @@ commands = mconcat
         "Synchronize a bucket to disk."
     ]
 
-object :: (Text -> Text -> FilePath -> AWS a) -> Common -> Object -> AWS ()
-object f _ Object{..} = void $ f oBucket oKey oPath
+object :: (Text -> Text -> FilePath -> AWS Bool) -> Common -> Object -> AWS ()
+object g c Object{..}
+    | oAnsible  = capture c "object {}/{}" [oBucket, oKey] f
+    | otherwise = void f
+  where
+    f = g oBucket oKey oPath
 
 sync :: Common -> Bucket -> AWS ()
-sync _ Bucket{..} = void $ Bucket.download bN bBucket bPrefix bDir
+sync c Bucket{..}
+    | bAnsible  = capture c "bucket {}/{}" [bBucket, fromMaybe "" bPrefix] f
+    | otherwise = void f
+  where
+    f = Bucket.download bN bBucket bPrefix bDir

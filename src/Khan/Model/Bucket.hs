@@ -27,8 +27,6 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import qualified Shelly                    as Shell
 
--- FIXME: add create
-
 download :: Int -> Text -> Maybe Text -> FilePath -> AWS Bool
 download n b p dir = do
     log "Paginating bucket '{}' contents" [b]

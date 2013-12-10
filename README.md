@@ -1,4 +1,4 @@
-# Khan
+n# Khan
 
 ## Table of Contents
 
@@ -22,10 +22,8 @@ Khan provides a workflow centered around immutable build artifacts (in the form 
 which are continuously deployed into `[1..n]` segregated environments.
 
 These versioned artifacts are then launched into an environment which dicates what
-traffic and other service instances are visible.
-
-be promoted and retired, ensuring that
-entire (or subsets thereof) environments are consistent and reproducible.
+traffic and service instances are visible, ensuring that entire (or subsets thereof)
+environments are consistent and reproducible.
 
 
 ### Persistent vs Ephemeral
@@ -59,7 +57,6 @@ Examples:
 * MySQL/PostgreSQL Master
 * Nagios
 
-> Diagram
 
 #### Ephemeral
 
@@ -75,31 +72,18 @@ Examples:
 * Backend Services
 * Jenkins Slaves
 
-> Diagram
 
 ### Environments
 
-
 ### Versioning
-
 
 ### Service Discovery
 
-
-### Key Pair
-
-Khan creates and saves private key information locally (under `~/.khan` by default) and
-uses these keys to launch and connect to persistent and ephemeral instances.
-
-Read the [AWS documentation](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html)
-for more information.
+### Key Pairs
 
 ### Role
 
 ### Group
-
-###
-
 
 ### Application
 

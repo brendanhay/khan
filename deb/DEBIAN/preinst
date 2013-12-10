@@ -3,4 +3,5 @@
 set -e
 
 # If runit service definition exists, stop the service.
-[[ -L /etc/service/khan ]] && sv down khan
+[[ -L /etc/service/khan ]] || exit 0
+sv down khan

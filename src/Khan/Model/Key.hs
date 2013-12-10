@@ -47,12 +47,12 @@ create b (names -> n@Names{..}) =
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
         log "Wrote new Key Pair to {}" [f]
-        void $ Object.upload b (Path.encode $ Path.filename f) f
+        void $ Object.upload b (Text.pack . Path.encodeString $ Path.filename f) f
 
 path :: Naming a => Text -> a -> AWS FilePath
 path b (names -> n@Names{..}) = do
     f <- keyPath n
-    void $ Object.download b (Path.encode $ Path.filename f) f
+    void $ Object.download b (Text.pack . Path.encodeString $ Path.filename f) f
     shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
     return f
 

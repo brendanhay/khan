@@ -13,12 +13,15 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.Object
-    ( download
+    ( latest
+    , download
     , upload
     ) where
 
+import           Control.Arrow
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
+import qualified Data.Conduit.List         as Conduit
 import qualified Data.Text                 as Text
 import           Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as Path
@@ -27,6 +30,21 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import           Network.HTTP.Conduit
 import           System.Directory
+
+latest :: Text -> Text -> FilePath -> AWS Bool
+latest b p f = do
+    log "Paginating bucket '{}' contents" [b]
+    mk <- paginate start
+        $= Conduit.concatMap con
+        $$ Conduit.fold max Nothing
+    maybe (throwAWS "No semantically versioned keys in bucket '{}'" [b])
+          (\(k, _) -> download b k f)
+          mk
+  where
+    start = GetBucket b (Delimiter '/') (Text.stripPrefix "/" p) 250 Nothing
+
+    con = map (Just . second ver . join (,) . bcKey) . gbrContents
+    ver = hush . eitherVersion . Text.unpack
 
 download :: Text -> Text -> FilePath -> AWS Bool
 download b k (Path.encodeString -> f) = do

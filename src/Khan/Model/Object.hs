@@ -13,9 +13,9 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.Object
-    ( latest
-    , download
+    ( download
     , upload
+    , latest
     ) where
 
 import           Control.Arrow
@@ -30,21 +30,6 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import           Network.HTTP.Conduit
 import           System.Directory
-
-latest :: Text -> Text -> FilePath -> AWS Bool
-latest b p f = do
-    log "Paginating bucket '{}' contents" [b]
-    mk <- paginate start
-        $= Conduit.concatMap con
-        $$ Conduit.fold max Nothing
-    maybe (throwAWS "No semantically versioned keys in bucket '{}'" [b])
-          (\(k, _) -> download b k f)
-          mk
-  where
-    start = GetBucket b (Delimiter '/') (Text.stripPrefix "/" p) 250 Nothing
-
-    con = map (Just . second ver . join (,) . bcKey) . gbrContents
-    ver = hush . eitherVersion . Text.unpack
 
 download :: Text -> Text -> FilePath -> AWS Bool
 download b k (Path.encodeString -> f) = do
@@ -68,3 +53,18 @@ upload b k (Path.encodeString -> f) = do
             bdy <- noteAWS "Unable to get file size: {}" [f] mb
             send_ $ PutObject b (safeKey k) [] bdy
     return $ not p
+
+latest :: Text -> Text -> FilePath -> AWS Bool
+latest b p f = do
+    log "Paginating bucket '{}' contents" [b]
+    mk <- paginate start
+        $= Conduit.concatMap con
+        $$ Conduit.fold max Nothing
+    maybe (throwAWS "No semantically versioned keys in bucket '{}'" [b])
+          (\(k, _) -> download b k f)
+          mk
+  where
+    start = GetBucket b (Delimiter '/') (Text.stripPrefix "/" p) 250 Nothing
+
+    con = map (Just . second ver . join (,) . bcKey) . gbrContents
+    ver = hush . eitherVersion . Text.unpack

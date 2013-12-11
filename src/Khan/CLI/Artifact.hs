@@ -75,6 +75,8 @@ commands = mconcat
         "Upload an object to S3."
     , command "download" (object Object.download) objectParser
         "Download an object to disk."
+    , command "latest" (object Object.latest) objectParser
+        "Download the latest semantically versioned object to disk."
     , command "sync" sync bucketParser
         "Synchronize a bucket to disk."
     ]

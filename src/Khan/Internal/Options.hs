@@ -74,13 +74,13 @@ commonParser = Common
         "Suppress standard log output."
     <*> optional (readOption "region" "REGION" (short 'R')
         "Region to operate in.")
-    <*> textOption "bucket" (short 'B' <> value "")
+    <*> textOption "config-bucket" (short 'B' <> value "")
         "Shared configuration bucket."
 
 instance Options Common where
     validate Common{..} = do
-       check cBucket "--bucket or KHAN_BUCKET must be specified."
-       check (isNothing cRegion) "--region or KHAN_REGION must be specified."
+       check cBucket "-B or KHAN_BUCKET must be specified."
+       check (isNothing cRegion) "-R or KHAN_REGION must be specified."
 
 group ::  String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs = Options.command name $

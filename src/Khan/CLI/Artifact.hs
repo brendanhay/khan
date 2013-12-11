@@ -70,7 +70,7 @@ bucketParser = Bucket
 instance Options Bucket
 
 commands :: Mod CommandFields Command
-commands = mconcat
+commands = group "artifact" "Manage S3 Artifacts." $ mconcat
     [ command "upload" (object Object.upload) objectParser
         "Upload an object to S3."
     , command "download" (object Object.download) objectParser

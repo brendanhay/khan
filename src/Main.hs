@@ -31,7 +31,6 @@ import qualified Khan.CLI.SSH               as SSH
 import           Control.Error
 import           Control.Monad
 import qualified Data.ByteString.Char8      as BS
-import qualified Data.Text                  as Text
 import           Data.Text.Format           (Shown(..))
 import           Khan.Internal
 import           Khan.Prelude
@@ -41,9 +40,9 @@ import           Options.Applicative
 import           Options.Applicative.Arrows
 import           System.Environment
 
-programParser :: Parser (Common, Command)
-programParser = runA $ proc () -> do
-    opt <- asA commonParser -< ()
+programParser :: [(String, String)] -> Parser (Common, Command)
+programParser env = runA $ proc () -> do
+    opt <- asA (commonParser env) -< ()
     cmd <- (asA . hsubparser)
          ( Ansible.commands
         <> Artifact.commands
@@ -59,12 +58,11 @@ programParser = runA $ proc () -> do
          ) -< ()
     A helper -< (opt, cmd)
 
-programInfo :: ParserInfo (Common, Command)
-programInfo = info programParser idm
-
 main :: IO ()
-main = customExecParser (prefs showHelpOnError) programInfo >>=
-    runScript . fmapLT fmt . run
+main = do
+    env <- getEnvironment
+    cmd <- customExecParser (prefs showHelpOnError) (info (programParser env) idm)
+    runScript . fmapLT fmt $ run cmd
   where
     fmt (Err msg) = msg
     fmt ex        = show ex
@@ -72,30 +70,18 @@ main = customExecParser (prefs showHelpOnError) programInfo >>=
     run (c, Command f x) = do
         unless (cSilent c) enableLogging
         p <- isEC2
-        c'@Common{..} <- setRegion c p >>= setBucket
+        c'@Common{..} <- regionalise c p
         validate c'
         rs <- contextAWS c' $ do
             r <- getRegion
             debug "Running in region {}..." [Shown r]
-            y <- discover p x
+            y <- discover p c' x
             liftEitherT $ validate y
             f c' y
         hoistEither rs
 
-    setRegion c _     | isJust $ cRegion c = return c
-    setRegion c False = do
-        mr <- liftIO $ lookupEnv "KHAN_REGION"
-        r  <- maybe (return NorthVirginia)
-                    (tryRead "Failed to read valid region from KHAN_REGION")
-                    mr
-        return $! c { cRegion = Just r }
-    setRegion c True  = do
+    regionalise c False = return c
+    regionalise c True  = do
         az <- BS.unpack . BS.init <$> metadata AvailabilityZone
         r  <- fmapLT Err $ tryRead ("Failed to read region from: " ++ az) az
-        return $! c { cRegion = Just r }
-
-    setBucket c
-        | invalid $ cBucket c = do
-            mb <- liftIO $ lookupEnv "KHAN_BUCKET"
-            return $! c { cBucket = maybe (cBucket c) Text.pack mb }
-        | otherwise = return c
+        return $! c { cRegion = r }

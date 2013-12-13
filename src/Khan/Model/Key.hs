@@ -56,7 +56,7 @@ path b (names -> n@Names{..}) = do
     shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
     return f
 
-keyPath :: Names -> AWS FilePath
-keyPath Names{..} = do
+keyPath :: Common -> Names -> AWS FilePath
+keyPath Common{..} Names{..} = do
     r <- Text.pack . show <$> getRegion
-    certPath . Shell.fromText $ Text.concat [r, "_", keyName, ".pem"]
+    cCerts </> Shell.fromText (Text.concat [r, "_", keyName, ".pem"])

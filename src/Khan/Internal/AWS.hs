@@ -34,9 +34,7 @@ import           Network.AWS.IAM
 import           Network.HTTP.Types
 
 contextAWS :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
-contextAWS Common{..} = liftIO
-    . runAWS CredDiscover cDebug
-    . within (fromMaybe NorthVirginia cRegion)
+contextAWS Common{..} = liftIO . runAWS CredDiscover cDebug . within cRegion
 
 assertAWS :: (MonadError AWSError m, MonadIO m, Params ps)
           => Format

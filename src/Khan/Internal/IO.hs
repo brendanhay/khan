@@ -19,12 +19,8 @@ module Khan.Internal.IO
 
     -- * Files
     , defaultPath
-    , certPath
-    , cachePath
-    , configPath
     , expandPath
     , writeFile
-    , readConfig
 
     -- * Psuedo Randomisation
     , shuffle
@@ -36,16 +32,15 @@ module Khan.Internal.IO
     ) where
 
 import           Data.String
-import qualified Data.Text                  as Text
+import qualified Data.Text                 as Text
 import           Data.Time.Clock.POSIX
-import qualified Filesystem.Path.CurrentOS  as Path
+import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
-import           Shelly                     (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
-import qualified Shelly                     as Shell
+import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
+import qualified Shelly                    as Shell
 import           System.Directory
-import qualified System.Environment         as Env
-import           System.Random              (randomRIO)
+import           System.Random             (randomRIO)
 
 sh :: MonadIO m => Sh a -> EitherT String m a
 sh = fmapLT show . syncIO . shell
@@ -57,28 +52,6 @@ defaultPath :: (Functor m, MonadIO m) => FilePath -> m FilePath -> m FilePath
 defaultPath p def
     | invalid p = def
     | otherwise = return p
-
-certPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
-certPath f = (</> f) <$> ensurePath True "/etc/ssl/khan" "certs"
-
-cachePath :: (Functor m, MonadIO m) => FilePath -> m FilePath
-cachePath f = (</> f) <$> ensurePath True "/var/cache/khan" "cache"
-
-configPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
-configPath f = (</> f) <$> ensurePath False "/etc/khan" "config"
-
-ensurePath :: MonadIO m => Bool -> FilePath -> FilePath -> m FilePath
-ensurePath parent dir sub = liftIO $ do
-    p <- doesDirectoryExist $ Path.encodeString full
-    f <- if p
-             then return dir
-             else format <$> Env.getExecutablePath
-    createDirectoryIfMissing False $ Path.encodeString f
-    expandPath f
-  where
-    full = if parent then Path.parent dir else dir
-
-    format = (</> sub) . Path.parent . Path.decodeString
 
 expandPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 expandPath f =
@@ -99,9 +72,6 @@ writeFile file mode contents = shell $ do
         ts <- liftIO (truncate <$> getPOSIXTime :: IO Integer)
         Shell.mv f $ f <.> Text.pack (show ts)
         backup f
-
-readConfig :: (Functor m, MonadIO m) => FilePath -> m ByteString
-readConfig f = configPath f >>= shell . Shell.readBinary
 
 shuffle :: MonadIO m => [a] -> m a
 shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)

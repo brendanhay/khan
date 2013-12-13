@@ -18,20 +18,33 @@ import qualified Data.Text                    as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Prelude
-import           Network.AWS.EC2              (AWS, AWSError)
+import           Network.AWS                  (AWS, AWSError, Region)
 import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
 import qualified Text.Read                    as Read
 
+data Common = Common
+    { cDebug  :: !Bool
+    , cSilent :: !Bool
+    , cRegion :: !Region
+    , cBucket :: !Text
+    , cCerts  :: !FilePath
+    , cCache  :: !FilePath
+    , cConfig :: !FilePath
+    } deriving (Show)
+
 class Options a where
-    discover :: Bool -> a -> AWS a
+    discover :: Bool -> Common -> a -> AWS a
     validate :: MonadIO m => a -> EitherT AWSError m ()
 
-    discover = const return
-    validate = void . return
+    discover _ _ = return
+    validate     = void . return
 
 class Invalid a where
     invalid :: a -> Bool
+    valid   :: a -> Bool
+
+    valid = not . invalid
 
 instance Invalid Bool where
     invalid = id
@@ -57,6 +70,9 @@ instance Invalid FilePath where
 instance Invalid a => Invalid (Maybe a) where
     invalid (Just x) = invalid x
     invalid Nothing  = False
+
+instance Invalid Region where
+    invalid _ = False
 
 data Tags = Tags
     { tagRole    :: !Text

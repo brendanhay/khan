@@ -31,7 +31,7 @@ download :: Int -> Text -> Maybe Text -> FilePath -> AWS Bool
 download n b p dir = do
     log "Paginating bucket '{}' contents" [b]
     or <$> (paginate start
-        $= Conduit.concatMap (filter valid . gbrContents)
+        $= Conduit.concatMap (filter match . gbrContents)
         $= chunked []
         $= Conduit.mapM (mapM (async . retrieve))
         $= Conduit.concatMapM (mapM wait)
@@ -42,7 +42,7 @@ download n b p dir = do
     prefix (Just x) = Just . fromMaybe x $ Text.stripPrefix "/" x
     prefix Nothing  = Nothing
 
-    valid Contents{..}
+    match Contents{..}
         | bcSize == 0               = False
         | bcStorageClass == Glacier = False
         | otherwise                 = True

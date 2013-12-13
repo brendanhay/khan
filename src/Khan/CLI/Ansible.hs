@@ -62,8 +62,8 @@ ansibleParser = Ansible
         "Pass through arugments to ansible."
 
 instance Options Ansible where
-    discover _ a@Ansible{..} = do
-        c <- inventoryPath aCache aEnv
+    discover _ Common{..} a@Ansible{..} = do
+        c <- inventoryPath cCache aCache aEnv
         return $! a { aCache = c }
 
     validate Ansible{..} =
@@ -94,8 +94,8 @@ inventoryParser = Inventory
         "Host.")
 
 instance Options Inventory where
-    discover _ i@Inventory{..} = do
-        c <- inventoryPath iCache iEnv
+    discover _ Common{..} i@Inventory{..} = do
+        c <- inventoryPath cCache iCache iEnv
         return $! i { iCache = c }
 
 commands :: Mod CommandFields Command

@@ -59,30 +59,46 @@ import qualified Shelly                    as Shell
 data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
 
-data Common = Common
-    { cDebug  :: !Bool
-    , cSilent :: !Bool
-    , cRegion :: Maybe Region
-    , cBucket :: !Text
-    } deriving (Show)
-
-commonParser :: Parser Common
-commonParser = Common
+commonParser :: [(String, String)] -> Parser Common
+commonParser env = Common
     <$> switchOption "debug" False
         "Log debug output."
     <*> switchOption "silent" False
         "Suppress standard log output."
-    <*> optional (readOption "region" "REGION" (short 'R')
+    <*> lookupReg "KHAN_REGION"
+        (readOption "region" "REGION" (short 'R')
         "Region to operate in.")
-    <*> textOption "config-bucket" (short 'B' <> value "")
-        "Shared configuration bucket."
+    <*> lookupEnv "KHAN_BUCKET" Text.pack
+        (textOption "cert-bucket" (value "")
+        "Bucket to retrieve/store certificates.")
+    <*> lookupEnv "KHAN_CERTS" Path.decodeString
+        (pathOption "certs" (value "")
+        "Path to certificates.")
+    <*> lookupEnv "KHAN_CACHE" Path.decodeString
+        (pathOption "cache" (value "")
+        "Path to cache.")
+    <*> lookupEnv "KHAN_CONFIG" Path.decodeString
+        (pathOption "config" (value "")
+        "Path to configuration files.")
+  where
+    lookupReg :: String -> Parser Region -> Parser Region
+    lookupReg k =
+        fmap (fromMaybe NorthVirginia) . lookupEnv k readMay . optional
+
+    lookupEnv :: Invalid a => String -> (String -> a) -> Parser a -> Parser a
+    lookupEnv k f = fmap g
+      where
+        g v | valid v   = v
+            | otherwise = fromMaybe v . fmap f $ k `lookup` env
 
 instance Options Common where
     validate Common{..} = do
-       check cBucket "-B or KHAN_BUCKET must be specified."
-       check (isNothing cRegion) "-R or KHAN_REGION must be specified."
+       check cBucket     "--cert-bucket or KHAN_BUCKET must be specified."
+       checkPath cCerts  " specified by --certs or KHAN_CERTS must exist."
+       checkPath cCache  " specified by --cache or KHAN_CACHE must exist."
+       checkPath cConfig " specified by --config or KHAN_CONFIG must exist."
 
-group ::  String -> String -> Mod CommandFields a -> Mod CommandFields a
+group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs = Options.command name $
     Options.info (hsubparser cs) (progDesc desc <> fullDesc)
 

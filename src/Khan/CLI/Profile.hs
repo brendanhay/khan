@@ -40,10 +40,10 @@ roleParser = Role
     <*> pathOption "trust" (value "") "Trust relationship file."
 
 instance Options Role where
-    discover _ r@Role{..} = do
+    discover _ Common{..} r@Role{..} = do
         (p, t) <- (,)
-            <$> defaultPath rPolicy (configPath "policy.json")
-            <*> defaultPath rTrust  (configPath "trust.json")
+            <$> defaultPath rPolicy (cConfig </> "policy.json")
+            <*> defaultPath rTrust  (cConfig </> "trust.json")
         return $! r { rPolicy = p, rTrust  = t }
 
     validate Role{..} = do

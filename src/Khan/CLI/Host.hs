@@ -44,11 +44,12 @@ hostParser = Host
         "TTL."
 
 instance Options Host where
-    discover True h@Host{..} = liftEitherT $ do
+    discover True _ h@Host{..} = liftEitherT $ do
         iid  <- Text.decodeUtf8 <$> metadata InstanceId
         fqdn <- Text.decodeUtf8 <$> metadata PublicHostname
         return $! h { hId = iid, hFQDN = fqdn }
-    discover False h@Host{..}
+
+    discover False _ h@Host{..}
         | invalid hId || not (invalid hFQDN) = return h
         | otherwise = do
             is  <- Instance.findAll [hId] []

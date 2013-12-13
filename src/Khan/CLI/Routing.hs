@@ -52,9 +52,9 @@ routesParser = Routes
         "Path to the ED-E HAProxy configuration template."
 
 instance Options Routes where
-    discover ec2 r@Routes{..} = do
+    discover ec2 Common{..} r@Routes{..} = do
         zs <- AZ.getSuffixes rZones
-        f  <- if invalid rTemplate then configPath "haproxy.ede" else return rTemplate
+        f  <- if invalid rTemplate then cConfig </> "haproxy.ede" else return rTemplate
         debug "Using Availability Zones '{}'" [zs]
         if not ec2
             then return $! r { rZones = zs, rTemplate = f }

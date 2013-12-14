@@ -18,6 +18,7 @@ module Khan.CLI.Routing (commands) where
 import           Control.Arrow               ((&&&))
 import           Data.Aeson
 import qualified Data.Map                    as Map
+import           Data.String
 import qualified Data.Text                   as Text
 import qualified Data.Text.Encoding          as Text
 import qualified Data.Text.Lazy.IO           as LText
@@ -36,7 +37,7 @@ data Routes = Routes
     , rDomain   :: Maybe Text
     , rRoles    :: [Text]
     , rZones    :: !String
-    , rTemplate :: FilePath
+    , rTemplate :: !FilePath
     }
 
 routesParser :: Parser Routes
@@ -54,7 +55,6 @@ routesParser = Routes
 instance Options Routes where
     discover ec2 Common{..} r@Routes{..} = do
         zs <- AZ.getSuffixes rZones
-        f  <- if invalid rTemplate then cConfig </> "haproxy.ede" else return rTemplate
         debug "Using Availability Zones '{}'" [zs]
         if not ec2
             then return $! r { rZones = zs, rTemplate = f }
@@ -68,6 +68,10 @@ instance Options Routes where
                     , rZones    = zs
                     , rTemplate = f
                     }
+      where
+        f = if invalid rTemplate
+                then cConfig </> Path.decodeString "haproxy.ede"
+                else rTemplate
 
     validate Routes{..} = do
         check rZones "--zones must be specified."

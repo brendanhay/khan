@@ -74,7 +74,7 @@ recordParser = Record
         -- get values from metadata
 
 instance Options Record where
-    discover _ r@Record{..}
+    discover _ _ r@Record{..}
         | invalid rZone = return r
         | otherwise     = return $ r { rZone = tappend rZone "." }
 

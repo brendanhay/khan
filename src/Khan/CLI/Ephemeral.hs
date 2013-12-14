@@ -68,7 +68,7 @@ deployParser = Deploy
         "Type of instance to provision."
 
 instance Options Deploy where
-    discover _ d@Deploy{..} = do
+    discover _ _ d@Deploy{..} = do
         zs <- AZ.getSuffixes dZones
         debug "Using Availability Zones '{}'" [zs]
         return $! d { dZones = zs }
@@ -160,7 +160,7 @@ deploy c@Common{..} d@Deploy{..} = do
     when (isJust j) $
         throwAWS "Auto Scaling Group {} already exists." [appName]
 
-    k <- async $ Key.create cBucket d
+    k <- async $ Key.create cBucket d cCerts
     p <- async $ Profile.find d
     s <- async $ Security.update (sshGroup dEnv) sshRules
     g <- async $ Security.create d

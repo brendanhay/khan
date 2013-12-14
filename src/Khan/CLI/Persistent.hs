@@ -64,7 +64,7 @@ launchParser = Launch
     -- Network Interfaces
 
 instance Options Launch where
-    discover _ l@Launch{..} = do
+    discover _ _ l@Launch{..} = do
         zs <- AZ.getSuffixes lZones
         debug "Using Availability Zones '{}'" [zs]
         return $! l { lZones = zs }
@@ -93,7 +93,7 @@ launch Common{..} l@Launch{..} = do
 
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
-    k <- async $ Key.create cBucket l
+    k <- async $ Key.create cBucket l cCerts
     s <- async $ Security.update (sshGroup lEnv) sshRules
     g <- async $ Security.create l
 

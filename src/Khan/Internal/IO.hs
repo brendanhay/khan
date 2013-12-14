@@ -48,10 +48,10 @@ sh = fmapLT show . syncIO . shell
 shell :: MonadIO m => Sh a -> m a
 shell = shellyNoDir
 
-defaultPath :: (Functor m, MonadIO m) => FilePath -> m FilePath -> m FilePath
+defaultPath :: FilePath -> FilePath -> FilePath
 defaultPath p def
     | invalid p = def
-    | otherwise = return p
+    | otherwise = p
 
 expandPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 expandPath f =

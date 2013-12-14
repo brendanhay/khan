@@ -19,6 +19,7 @@ import qualified Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Text                  as Text
 import qualified Data.Text.Encoding         as Text
+import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal
 import qualified Khan.Model.Profile         as Profile
 import           Khan.Prelude
@@ -37,13 +38,12 @@ roleParser = Role
     <$> roleOption
     <*> envOption
     <*> pathOption "policy" (value "") "Role policy file."
-    <*> pathOption "trust" (value "") "Trust relationship file."
+    <*> pathOption "trust"  (value "") "Trust relationship file."
 
 instance Options Role where
     discover _ Common{..} r@Role{..} = do
-        (p, t) <- (,)
-            <$> defaultPath rPolicy (cConfig </> "policy.json")
-            <*> defaultPath rTrust  (cConfig </> "trust.json")
+        let p = defaultPath rPolicy (cConfig </> Path.fromText "policy.json")
+            t = defaultPath rTrust  (cConfig </> Path.fromText "trust.json")
         return $! r { rPolicy = p, rTrust  = t }
 
     validate Role{..} = do

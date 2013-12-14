@@ -28,8 +28,8 @@ import           Khan.Prelude              hiding (min, max)
 import           Network.AWS.EC2           hiding (Instance)
 import qualified Shelly                    as Shell
 
-create :: Naming a => Text -> a -> AWS ()
-create b (names -> n@Names{..}) =
+create :: Naming a => Text -> a -> FilePath -> AWS ()
+create b (names -> n@Names{..}) dir =
     sendCatch (CreateKeyPair keyName) >>= either exist write
   where
     exist e = do
@@ -37,7 +37,7 @@ create b (names -> n@Names{..}) =
         log "Key Pair {} exists, not updating." [keyName]
 
     write k = do
-        f <- keyPath n
+        f <- path' n dir
         shell $ do
              p <- Shell.test_e f
              when p $ do
@@ -49,14 +49,14 @@ create b (names -> n@Names{..}) =
         log "Wrote new Key Pair to {}" [f]
         void $ Object.upload b (Text.pack . Path.encodeString $ Path.filename f) f
 
-path :: Naming a => Text -> a -> AWS FilePath
-path b (names -> n@Names{..}) = do
-    f <- keyPath n
+path :: Naming a => Text -> a -> FilePath -> AWS FilePath
+path b (names -> n@Names{..}) dir = do
+    f <- path' n dir
     void $ Object.download b (Text.pack . Path.encodeString $ Path.filename f) f
     shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
     return f
 
-keyPath :: Common -> Names -> AWS FilePath
-keyPath Common{..} Names{..} = do
+path' :: Names -> FilePath -> AWS FilePath
+path' Names{..} dir = do
     r <- Text.pack . show <$> getRegion
-    cCerts </> Shell.fromText (Text.concat [r, "_", keyName, ".pem"])
+    return $ dir </> Shell.fromText (Text.concat [r, "_", keyName, ".pem"])

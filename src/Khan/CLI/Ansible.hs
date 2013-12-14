@@ -110,7 +110,7 @@ commands = mconcat
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
-    key <- maybe (Key.path cBucket a) return aKey
+    key <- maybe (Key.path cBucket a cCerts) return aKey
 
     whenM ((|| aForce) <$> exceeds) $ do
         log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]

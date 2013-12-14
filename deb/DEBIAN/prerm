@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-
-set -e
-
-# If runit service definition exists, stop the service and remove the link.
-[[ -L /etc/service/khan ]] && sv down khan && rm /etc/service/khan && sleep 1

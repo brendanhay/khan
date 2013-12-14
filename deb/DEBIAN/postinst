@@ -11,8 +11,5 @@ adduser --home ${dirs[0]} --system --group --no-create-home --quiet khan || true
 # and ensure dpkg removes them on uninstall.
 mkdir -p ${dirs[@]}
 
-# Ensure all directories are owned by the create user.
-chown -R root:root ${dirs[@]}
-
-# Link runit service definition.
-ln -s /etc/sv/khan /etc/service/khan
+# Ensure all directories are owned by the created user.
+chown -R khan:khan ${dirs[@]}

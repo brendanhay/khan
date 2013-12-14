@@ -41,7 +41,6 @@ data Ansible = Ansible
     , aKey    :: Maybe FilePath
     , aBin    :: Maybe Text
     , aRetain :: !Int
-    , aCache  :: !FilePath
     , aForce  :: !Bool
     , aArgs   :: [String]
     }
@@ -54,18 +53,12 @@ ansibleParser = Ansible
         "Ansible binary name to exec.")
     <*> readOption "retention" "SECONDS" (value defaultCache)
         "Number of seconds to cache inventory results for."
-    <*> pathOption "cache" (value "" <> short 'c')
-        "Path to the inventory file cache."
     <*> switchOption "force" False
         "Force update of any previously cached results."
     <*> argsOption str (action "file")
         "Pass through arugments to ansible."
 
 instance Options Ansible where
-    discover _ Common{..} a@Ansible{..} = do
-        c <- inventoryPath cCache aCache aEnv
-        return $! a { aCache = c }
-
     validate Ansible{..} =
         check aArgs "Pass ansible options through using the -- delimiter.\n\
                     \Usage: khan ansible [KHAN OPTIONS] -- [ANSIBLE OPTIONS]."
@@ -75,7 +68,6 @@ instance Naming Ansible where
 
 data Inventory = Inventory
     { iEnv    :: !Text
-    , iCache  :: !FilePath
     , iSilent :: !Bool
     , iList   :: !Bool
     , iHost   :: Maybe Text
@@ -84,8 +76,6 @@ data Inventory = Inventory
 inventoryParser :: Parser Inventory
 inventoryParser = Inventory
     <$> envOption
-    <*> pathOption "cache" (value "" <> short 'c')
-        "Path to the output inventory file cache."
     <*> switchOption "silent" False
         "Don't output inventory results to stdout."
     <*> switchOption "list" True
@@ -93,10 +83,7 @@ inventoryParser = Inventory
     <*> optional (textOption "host" mempty
         "Host.")
 
-instance Options Inventory where
-    discover _ Common{..} i@Inventory{..} = do
-        c <- inventoryPath cCache iCache iEnv
-        return $! i { iCache = c }
+instance Options Inventory
 
 commands :: Mod CommandFields Command
 commands = mconcat
@@ -110,27 +97,32 @@ commands = mconcat
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
-    key <- maybe (Key.path cBucket a cCerts) return aKey
+    k <- maybe (Key.path cBucket a cCerts) return aKey
+    i <- inventoryPath cCache aEnv
 
-    whenM ((|| aForce) <$> exceeds) $ do
+    let bin    = Text.unpack $ fromMaybe "ansible" aBin
+        script = Path.encodeString $ i <.> "sh"
+        inv    = Path.encodeString i
+
+    whenM ((|| aForce) <$> exceeds inv) $ do
         log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]
-        inventory c $ Inventory aEnv aCache True True Nothing
+        inventory c $ Inventory aEnv True True Nothing
 
     debug "Writing inventory script to {}" [script]
     liftIO . LText.writeFile script $
-        Format.format "#!/usr/bin/env bash\nset -e\nexec cat {}\n" [inv]
+        Format.format "#!/usr/bin/env bash\nset -e\nexec cat {}\n" [i]
 
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    let xs = args key
+    let xs = args k script
 
     log "{} {}" [bin, unwords xs]
     liftIO $ Posix.executeFile bin True xs Nothing
   where
-    args key = aArgs ++ foldr' add []
-        [ ("-i", script)
-        , ("--private-key", Path.encodeString key)
+    args k s = aArgs ++ foldr' add []
+        [ ("-i", s)
+        , ("--private-key", Path.encodeString k)
         ]
 
     add (k, v) xs =
@@ -138,19 +130,15 @@ ansible c@Common{..} a@Ansible{..} = do
             then xs
             else k : v : xs
 
-    exceeds = liftIO $ do
-        p <- doesFileExist inv
+    exceeds i = liftIO $ do
+        p <- doesFileExist i
         if not p
             then return True
             else do
-                s  <- Posix.getFileStatus inv
+                s  <- Posix.getFileStatus i
                 ts <- getPOSIXTime
                 return $
                     ts - Posix.modificationTimeHiRes s > fromIntegral aRetain
-
-    bin    = Text.unpack $ fromMaybe "ansible" aBin
-    script = Path.encodeString $ aCache <.> "sh"
-    inv    = Path.encodeString aCache
 
 playbook :: Common -> Ansible -> AWS ()
 playbook c a@Ansible{..} = do
@@ -167,18 +155,17 @@ playbook c a@Ansible{..} = do
                      , Text.unpack aEnv
                      , " khan_key="
                      , Text.unpack $ aEnv <> "-khan"
-                     -- , " khan_key_path="
-                     -- ,
                      ]
             ]
         }
 
 inventory :: Common -> Inventory -> AWS ()
-inventory _ Inventory{..} = do
+inventory Common{..} Inventory{..} = do
     j <- Aeson.encodePretty . JS <$> maybe list (const $ return Map.empty) iHost
+    i <- inventoryPath cCache iEnv
 
-    debug "Writing inventory to {}" [iCache]
-    liftIO $ LBS.writeFile (Path.encodeString iCache) (j <> "\n")
+    debug "Writing inventory to {}" [i]
+    liftIO $ LBS.writeFile (Path.encodeString i) (j <> "\n")
 
     debug_ "Writing inventory to stdout"
     unless iSilent . liftIO $ LBS.putStrLn j

@@ -18,27 +18,10 @@ import qualified Data.Text                    as Text
 import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Prelude
-import           Network.AWS                  (AWS, AWSError, Region)
+import           Network.AWS                  (Region)
 import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
 import qualified Text.Read                    as Read
-
-data Common = Common
-    { cDebug  :: !Bool
-    , cSilent :: !Bool
-    , cRegion :: !Region
-    , cBucket :: !Text
-    , cCerts  :: !FilePath
-    , cCache  :: !FilePath
-    , cConfig :: !FilePath
-    } deriving (Show)
-
-class Options a where
-    discover :: Bool -> Common -> a -> AWS a
-    validate :: MonadIO m => a -> EitherT AWSError m ()
-
-    discover _ _ = return
-    validate     = void . return
 
 class Invalid a where
     invalid :: a -> Bool

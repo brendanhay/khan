@@ -14,7 +14,8 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Options
-    ( Command (..)
+    ( Options (..)
+    , Command (..)
     , Common  (..)
 
     , commonParser
@@ -56,6 +57,23 @@ import           Options.Applicative       as Export hiding (command, info)
 import qualified Options.Applicative       as Options
 import qualified Shelly                    as Shell
 
+data Common = Common
+    { cDebug  :: !Bool
+    , cSilent :: !Bool
+    , cRegion :: !Region
+    , cBucket :: !Text
+    , cCerts  :: !FilePath
+    , cCache  :: !FilePath
+    , cConfig :: !FilePath
+    } deriving (Show)
+
+class Options a where
+    discover :: Bool -> Common -> a -> AWS a
+    validate :: MonadIO m => a -> EitherT AWSError m ()
+
+    discover _ _ = return
+    validate     = void . return
+
 data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
 
@@ -72,13 +90,13 @@ commonParser env = Common
         (textOption "cert-bucket" (value "")
         "Bucket to retrieve/store certificates.")
     <*> lookupEnv "KHAN_CERTS" Path.decodeString
-        (pathOption "certs" (value "")
+        (pathOption "certs" (value "certs")
         "Path to certificates.")
     <*> lookupEnv "KHAN_CACHE" Path.decodeString
-        (pathOption "cache" (value "")
+        (pathOption "cache" (value "cache")
         "Path to cache.")
     <*> lookupEnv "KHAN_CONFIG" Path.decodeString
-        (pathOption "config" (value "")
+        (pathOption "config" (value "config")
         "Path to configuration files.")
   where
     lookupReg :: String -> Parser Region -> Parser Region

@@ -86,33 +86,33 @@ commonParser env = Common
     <*> lookupReg "KHAN_REGION"
         (readOption "region" "REGION" (short 'R')
         "Region to operate in.")
-    <*> lookupEnv "KHAN_BUCKET" Text.pack
-        (textOption "cert-bucket" (value "")
+    <*> lookupEnv "KHAN_RKEYS" "" Text.pack
+         (textOption "remote-keys" (value "")
         "Bucket to retrieve/store certificates.")
-    <*> lookupEnv "KHAN_CERTS" Path.decodeString
-        (pathOption "certs" (value "certs")
+    <*> lookupEnv "KHAN_LKEYS" "/etc/ssl/khan" Path.decodeString
+        (pathOption "local-keys" (value "")
         "Path to certificates.")
-    <*> lookupEnv "KHAN_CACHE" Path.decodeString
-        (pathOption "cache" (value "cache")
+    <*> lookupEnv "KHAN_CACHE" "/var/cache/khan" Path.decodeString
+        (pathOption "cache" (value "")
         "Path to cache.")
-    <*> lookupEnv "KHAN_CONFIG" Path.decodeString
-        (pathOption "config" (value "config")
+    <*> lookupEnv "KHAN_CONFIG" "/etc/khan" Path.decodeString
+        (pathOption "config" (value "")
         "Path to configuration files.")
   where
     lookupReg :: String -> Parser Region -> Parser Region
     lookupReg k =
-        fmap (fromMaybe NorthVirginia) . lookupEnv k readMay . optional
+        fmap (fromMaybe NorthVirginia) . lookupEnv k Nothing readMay . optional
 
-    lookupEnv :: Invalid a => String -> (String -> a) -> Parser a -> Parser a
-    lookupEnv k f = fmap g
+    lookupEnv :: Invalid a => String -> a -> (String -> a) -> Parser a -> Parser a
+    lookupEnv k d f = fmap g
       where
         g v | valid v   = v
-            | otherwise = fromMaybe v . fmap f $ k `lookup` env
+            | otherwise = fromMaybe d . fmap f $ k `lookup` env
 
 instance Options Common where
     validate Common{..} = do
-       check cBucket     "--cert-bucket or KHAN_BUCKET must be specified."
-       checkPath cCerts  " specified by --certs or KHAN_CERTS must exist."
+       check cBucket     "--rkeys or KHAN_RKEYS must be specified."
+       checkPath cCerts  " specified by --lkeys or KHAN_LKEYS must exist."
        checkPath cCache  " specified by --cache or KHAN_CACHE must exist."
        checkPath cConfig " specified by --config or KHAN_CONFIG must exist."
 

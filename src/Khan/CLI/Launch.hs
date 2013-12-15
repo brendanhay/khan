@@ -83,10 +83,9 @@ commands = mconcat
 
 launch :: Common -> Launch -> AWS ()
 launch Common{..} l@Launch{..} = do
-    reg <- getRegion
-    a   <- async . AMI.find . (:[]) $ maybe (Filter "name" [imageName])
+    a <- async . AMI.find . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
-    i   <- async $ Profile.find l
+    i <- async $ Profile.find l
 
     ami <- wait a
     log "Using Image {}" [ami]
@@ -102,7 +101,7 @@ launch Common{..} l@Launch{..} = do
     wait_ g <* log "Found Role Group {}" [groupName]
 
     az  <- shuffle lZones
-    ms1 <- Instance.run l ami lType (AZ reg az) lNum lNum lOptimised
+    ms1 <- Instance.run l ami lType (AZ cRegion az) lNum lNum lOptimised
 
     let ids = map riitInstanceId ms1
 

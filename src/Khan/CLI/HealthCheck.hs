@@ -46,7 +46,7 @@ checkParser = Check
 instance Options Check
 
 commands :: Mod CommandFields Command
-commands = group "healthcheck" "Manage DNS Health Checks." $ mconcat
+commands = group "check" "Manage DNS Health Checks." $ mconcat
     [ command "update" update checkParser
         "long long long description."
     ]

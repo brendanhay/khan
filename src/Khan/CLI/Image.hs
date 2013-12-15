@@ -68,13 +68,12 @@ commands = group "image" "Create AMIs." $ mconcat
 
 build :: Common -> AMI -> AWS ()
 build c@Common{..} a@AMI{..} = return ()
-
-
--- Takes a bash script, region, az etc
--- Does the keypair/secgroup dance
--- Launch instance
--- Runs the bash script with $1 == instance id
--- Create image
--- Wait for imate
--- Tag image
--- Terminate instance
+    
+    -- Takes a bash script, region, az etc
+    -- Does the keypair/secgroup dance
+    -- Launch instance
+    -- Runs the bash script with $1 == instance id
+    -- Create image
+    -- Wait for imate
+    -- Tag image
+    -- Terminate instance

@@ -14,26 +14,15 @@
 
 module Khan.CLI.Image (commands) where
 
-import           Control.Monad              (mplus)
-import qualified Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.HashMap.Strict        as Map
-import           Data.Maybe
-import qualified Data.Set                   as Set
-import qualified Data.Text                  as Text
-import qualified Data.Text.Format           as Format
-import qualified Data.Text.Lazy.IO          as LText
-import           Data.Time.Clock.POSIX
-import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal
-import           Khan.Internal.Ansible
-import qualified Khan.Model.Instance        as Instance
-import qualified Khan.Model.Key             as Key
+import qualified Khan.Model.Image         as AMI
+import qualified Khan.Model.Instance      as Instance
+import qualified Khan.Model.Key           as Key
+import qualified Khan.Model.Profile       as Profile
+import qualified Khan.Model.SecurityGroup as Security
 import           Khan.Prelude
-import           Network.AWS.EC2            hiding (Failed)
-import           System.Directory
-import qualified System.Posix.Files         as Posix
-import qualified System.Posix.Process       as Posix
+import           Network.AWS
+import           Network.AWS.EC2
 
 data AMI = AMI
     { aScript   :: !FilePath
@@ -58,7 +47,7 @@ instance Options AMI where
         checkPath aScript " specified by --script must exist."
 
 instance Naming AMI where
-    names AMI{..} = unversioned "base" "ami"
+    names AMI{..} = unversioned "builder" "ami"
 
 commands :: Mod CommandFields Command
 commands = group "image" "Create AMIs." $ mconcat
@@ -67,13 +56,33 @@ commands = group "image" "Create AMIs." $ mconcat
     ]
 
 build :: Common -> AMI -> AWS ()
-build c@Common{..} a@AMI{..} = return ()
-    
-    -- Takes a bash script, region, az etc
-    -- Does the keypair/secgroup dance
-    -- Launch instance
-    -- Runs the bash script with $1 == instance id
-    -- Create image
-    -- Wait for imate
-    -- Tag image
-    -- Terminate instance
+build Common{..} d@AMI{..} = do
+    log "Looking for Images matching {}" [aImage]
+    a <- async . AMI.find . (:[]) $ Filter "image-id" [aImage]
+
+    log "Looking for IAM Profiles matching {}" [profileName]
+    i <- async $ Profile.find d
+
+    ami <- wait a
+    log "Found Image {}" [ami]
+
+    wait_ i <* log "Found IAM Profile {}" [profileName]
+
+    k <- async $ Key.create cBucket d cCerts
+    s <- async $ Security.update (sshGroup envName) sshRules
+
+    wait_ k <* log "Found KeyPair {}" [keyName]
+    wait_ s <* log "Found SSH Group {}" [sshGroup envName]
+
+    az <- shuffle "bc"
+    r  <- Instance.run d ami aType (AZ cRegion az) 1 1 False
+
+    let ids = map riitInstanceId r
+
+    Instance.wait ids
+
+    log "Running {}" [aScript]
+
+    send_ $ TerminateInstances ids
+  where
+    Names{..} = names d

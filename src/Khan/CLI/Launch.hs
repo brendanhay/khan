@@ -83,8 +83,11 @@ commands = mconcat
 
 launch :: Common -> Launch -> AWS ()
 launch Common{..} l@Launch{..} = do
+    log "Looking for Images matching {}" [fromMaybe imageName lImage]
     a <- async . AMI.find . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
+
+    log "Looking for IAM Profiles matching {}" [profileName]
     i <- async $ Profile.find l
 
     ami <- wait a
@@ -93,17 +96,17 @@ launch Common{..} l@Launch{..} = do
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create cBucket l cCerts
-    s <- async $ Security.update (sshGroup lEnv) sshRules
+    s <- async $ Security.update (sshGroup envName) sshRules
     g <- async $ Security.create l
 
     wait_ k <* log "Found KeyPair {}" [keyName]
-    wait_ s <* log "Found SSH Group {}" [sshGroup lEnv]
+    wait_ s <* log "Found SSH Group {}" [sshGroup envName]
     wait_ g <* log "Found Role Group {}" [groupName]
 
-    az  <- shuffle lZones
-    ms1 <- Instance.run l ami lType (AZ cRegion az) lNum lNum lOptimised
+    az <- shuffle lZones
+    r  <- Instance.run l ami lType (AZ cRegion az) lNum lNum lOptimised
 
-    let ids = map riitInstanceId ms1
+    let ids = map riitInstanceId r
 
     Instance.tag l lDomain ids
     Instance.wait ids

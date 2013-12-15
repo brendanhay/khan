@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- Module      : Khan.CLI.Ephemeral
+-- Module      : Khan.CLI.AutoScaling
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -12,8 +12,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Ephemeral (commands) where
-
+module Khan.CLI.AutoScaling (commands) where
 
 import           Control.Concurrent          (threadDelay)
 import           Data.Version
@@ -137,7 +136,7 @@ instance Naming Cluster where
     names Cluster{..} = versioned cRole cEnv cVersion
 
 commands :: Mod CommandFields Command
-commands = group "autoscale" "Ephemeral shit." $ mconcat
+commands = group "autoscaling" "Ephemeral shit." $ mconcat
     [ command "deploy" deploy deployParser
         "Deploy a versioned cluster."
     , command "scale" scale scaleParser

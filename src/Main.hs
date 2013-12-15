@@ -16,22 +16,22 @@
 
 module Main (main) where
 
-import qualified Khan.CLI.Ansible           as Ansible
-import qualified Khan.CLI.Artifact          as Artifact
-import qualified Khan.CLI.Check             as Check
-import qualified Khan.CLI.DNS               as DNS
-import qualified Khan.CLI.Ephemeral         as Ephemeral
-import qualified Khan.CLI.Group             as Group
-import qualified Khan.CLI.Host              as Host
-import qualified Khan.CLI.Persistent        as Persistent
-import qualified Khan.CLI.Profile           as Profile
-import qualified Khan.CLI.Routing           as Routing
-import qualified Khan.CLI.SSH               as SSH
-
 import           Control.Error
 import           Control.Monad
 import qualified Data.ByteString.Char8      as BS
 import           Data.Text.Format           (Shown(..))
+import qualified Khan.CLI.Ansible           as Ansible
+import qualified Khan.CLI.Artifact          as Artifact
+import qualified Khan.CLI.AutoScaling       as AutoScaling
+import qualified Khan.CLI.DNS               as DNS
+import qualified Khan.CLI.Group             as Group
+import qualified Khan.CLI.HealthCheck       as HealthCheck
+import qualified Khan.CLI.Host              as Host
+import qualified Khan.CLI.Image             as Image
+import qualified Khan.CLI.Launch            as Launch
+import qualified Khan.CLI.Profile           as Profile
+import qualified Khan.CLI.Routing           as Routing
+import qualified Khan.CLI.SSH               as SSH
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
@@ -44,17 +44,18 @@ programParser :: [(String, String)] -> Parser (Common, Command)
 programParser env = runA $ proc () -> do
     opt <- asA (commonParser env) -< ()
     cmd <- (asA . hsubparser)
-         ( Ansible.commands
-        <> Artifact.commands
-        <> Check.commands
-        <> DNS.commands
-        <> Ephemeral.commands
-        <> Group.commands
-        <> Host.commands
-        <> Persistent.commands
+         ( AutoScaling.commands
+        <> Launch.commands
+        <> Image.commands
         <> Profile.commands
+        <> Group.commands
+        <> HealthCheck.commands
+        <> DNS.commands
+        <> Artifact.commands
+        <> Host.commands
         <> Routing.commands
         <> SSH.commands
+        <> Ansible.commands
          ) -< ()
     A helper -< (opt, cmd)
 

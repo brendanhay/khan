@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- Module      : Khan.CLI.Persistent
+-- Module      : Khan.CLI.Launch
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -12,7 +12,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Persistent (commands) where
+module Khan.CLI.Launch (commands) where
 
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ

@@ -14,6 +14,7 @@
 
 module Khan.CLI.Image (commands) where
 
+import Control.Concurrent (threadDelay)
 import           Data.Aeson
 import           Data.Aeson               as Aeson
 import qualified Data.Text                as Text
@@ -75,20 +76,20 @@ commands = group "image" "Create AMIs." $ mconcat
 
 build :: Common -> AMI -> AWS ()
 build c@Common{..} d@AMI{..} = do
-    log "Checking if Image {} exists..." [imageName]
+    log "Checking if target Image {} exists..." [imageName]
     as <- Image.findAll [] [Filter "name" [imageName]]
 
     unless (null as) $
         throwAWS "Image {} already exists, exiting..." [imageName]
 
-    log "Looking for Images matching {}" [aImage]
+    log "Looking for base Images matching {}" [aImage]
     a <- async $ Image.find [aImage] []
 
     log "Looking for IAM Profiles matching {}" [profileName]
     i <- async $ Profile.find d
 
     ami <- diritImageId <$> wait a
-    log "Found Image {}" [ami]
+    log "Found base Image {}" [ami]
 
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
@@ -102,6 +103,7 @@ build c@Common{..} d@AMI{..} = do
     mr  <- listToMaybe . map riitInstanceId <$>
         Instance.run d ami aType (AZ cRegion az) 1 1 False
     iid <- noteAWS "Failed to launch any Instances using Image {}" [ami] mr
+    log "Launched Instance {}" [iid]
 
     Instance.wait [iid]
 
@@ -113,17 +115,24 @@ build c@Common{..} d@AMI{..} = do
 
         let js = encode $ Output n cRegion dns
 
-        p <- shell . Shell.errExit False $ do
-            log "Running {}" [aScript]
+        liftIO $ threadDelay $ 1000000 * 30
+
+        log "Running {}" [aScript]
+        liftEitherT . sh . Shell.silently $ do
+            mapM_ (uncurry Shell.setenv)
+                [ ("KHAN_REGION", Text.pack $ show cRegion)
+                , ("KHAN_ENV",    "ami")
+                , ("KHAN_DNS",    dns)
+                ]
+
             Shell.runHandles "bash"
                 [Shell.toTextIgnore aScript, LText.toStrict $ LText.decodeUtf8 js]
                 [Shell.OutHandle Shell.Inherit]
                 (\_ _ _ -> return ())
-            (== 0) <$> Shell.lastExitCode
-        _ <- Image.create iid imageName []
-        return p
 
-    if (not (either (const False) id e) && aPreserve)
+        void $ Image.create iid imageName []
+
+    if (isLeft e && aPreserve)
         then log "Error creating Image, preserving base Instance {}" [iid]
         else do
             log_ "Terminating base instance"

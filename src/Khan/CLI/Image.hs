@@ -14,8 +14,9 @@
 
 module Khan.CLI.Image (commands) where
 
+import           Data.Version
 import           Khan.Internal
-import qualified Khan.Model.Image         as AMI
+import qualified Khan.Model.Image         as Image
 import qualified Khan.Model.Instance      as Instance
 import qualified Khan.Model.Key           as Key
 import qualified Khan.Model.Profile       as Profile
@@ -23,9 +24,12 @@ import qualified Khan.Model.SecurityGroup as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
+import qualified Shelly                   as Shell
 
 data AMI = AMI
-    { aScript   :: !FilePath
+    { aRole     :: !Text
+    , aVersion  :: Maybe Version
+    , aScript   :: !FilePath
     , aImage    :: !Text
     , aType     :: !InstanceType
     , aPreserve :: !Bool
@@ -33,9 +37,11 @@ data AMI = AMI
 
 amiParser :: Parser AMI
 amiParser = AMI
-    <$> pathOption "script" (short 's' <> action "file")
+    <$> roleOption
+    <*> optional versionOption
+    <*> pathOption "script" (short 's' <> action "file")
         "Script to pass the image-id as $1 to."
-    <*> textOption "image" (short 'i')
+    <*> textOption "base" (short 'b')
         "Id of the base image/ami."
     <*> readOption "type" "TYPE" (value M1_Small)
         "Instance's type."
@@ -43,11 +49,18 @@ amiParser = AMI
         "Don't terminate the base instance on error."
 
 instance Options AMI where
-    validate AMI{..} = do
+    validate AMI{..} =
         checkPath aScript " specified by --script must exist."
 
 instance Naming AMI where
-    names AMI{..} = unversioned "builder" "ami"
+    names AMI{..} = v
+        { profileName = "ami-builder"
+        , groupName   = sshGroup "ami"
+        }
+      where
+        v = maybe (unversioned aRole "ami")
+                  (versioned aRole "ami")
+                  aVersion
 
 commands :: Mod CommandFields Command
 commands = group "image" "Create AMIs." $ mconcat
@@ -56,33 +69,48 @@ commands = group "image" "Create AMIs." $ mconcat
     ]
 
 build :: Common -> AMI -> AWS ()
-build Common{..} d@AMI{..} = do
+build c@Common{..} d@AMI{..} = do
     log "Looking for Images matching {}" [aImage]
-    a <- async . AMI.find . (:[]) $ Filter "image-id" [aImage]
+    a <- async $ Image.find [aImage] []
 
     log "Looking for IAM Profiles matching {}" [profileName]
     i <- async $ Profile.find d
 
-    ami <- wait a
+    ami <- diritImageId <$> wait a
     log "Found Image {}" [ami]
 
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create cBucket d cCerts
-    s <- async $ Security.update (sshGroup envName) sshRules
+    g <- async $ Security.create d
 
     wait_ k <* log "Found KeyPair {}" [keyName]
-    wait_ s <* log "Found SSH Group {}" [sshGroup envName]
+    wait_ g <* log "Found Role Group {}" [groupName]
 
-    az <- shuffle "bc"
-    r  <- Instance.run d ami aType (AZ cRegion az) 1 1 False
+    az  <- shuffle "bc"
+    mr  <- listToMaybe . map riitInstanceId <$>
+        Instance.run d ami aType (AZ cRegion az) 1 1 False
+    iid <- noteAWS "Failed to launch any Instances using Image {}" [ami] mr
 
-    let ids = map riitInstanceId r
+    Instance.wait [iid]
 
-    Instance.wait ids
+    e <- contextAWS c $ do
+        p <- shell . Shell.errExit False $ do
+            log "Running {}" [aScript]
+            Shell.runHandles "bash"
+                [Shell.toTextIgnore aScript, iid]
+                [Shell.OutHandle Shell.Inherit]
+                (\_ _ _ -> return ())
+            (== 0) <$> Shell.lastExitCode
+        _ <- Image.create iid imageName []
+        return p
 
-    log "Running {}" [aScript]
+    if (not (either (const False) id e) && aPreserve)
+        then log "Error creating Image, preserving base Instance {}" [iid]
+        else do
+            log_ "Terminating base instance"
+            send_ $ TerminateInstances [iid]
 
-    send_ $ TerminateInstances ids
+    const () <$> hoistError e
   where
     Names{..} = names d

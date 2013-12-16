@@ -70,13 +70,12 @@ run (names -> Names{..}) image typ az min max opt =
 tag :: Naming a => a -> Text -> [Text] -> AWS ()
 tag (names -> n) dom ids = do
     log_ "Tagging instances..."
-    void . send
-         . CreateTags ids
-         . map (uncurry ResourceTagSetItemType)
-         $ defaultTags n dom
+    send_ . CreateTags ids
+          . map (uncurry ResourceTagSetItemType)
+          $ defaultTags n dom
 
 wait :: [Text] -> AWS ()
-wait []  = log_ "All instances running"
+wait []  = log_ "All instances running."
 wait ids = do
     xs <- findAll ids []
     let (ps, rs) = join (***) (map riitInstanceId) $ pending xs

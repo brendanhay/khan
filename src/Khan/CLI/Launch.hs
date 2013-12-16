@@ -16,7 +16,7 @@ module Khan.CLI.Launch (commands) where
 
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
 import qualified Khan.Model.Profile          as Profile
@@ -84,13 +84,13 @@ commands = mconcat
 launch :: Common -> Launch -> AWS ()
 launch Common{..} l@Launch{..} = do
     log "Looking for Images matching {}" [fromMaybe imageName lImage]
-    a <- async . AMI.find . (:[]) $ maybe (Filter "name" [imageName])
+    a <- async . Image.find [] . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
 
     log "Looking for IAM Profiles matching {}" [profileName]
     i <- async $ Profile.find l
 
-    ami <- wait a
+    ami <- diritImageId <$> wait a
     log "Using Image {}" [ami]
 
     wait_ i <* log "Found IAM Profile {}" [profileName]

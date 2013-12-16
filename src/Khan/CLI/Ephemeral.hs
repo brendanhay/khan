@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- Module      : Khan.CLI.Cluster
+-- Module      : Khan.CLI.Ephemeral
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -12,13 +12,13 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Cluster (commands) where
+module Khan.CLI.Ephemeral (commands) where
 
 import           Control.Concurrent          (threadDelay)
 import           Data.Version
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as Image
+import qualified Khan.Model.Image            as AMI
 import qualified Khan.Model.Key              as Key
 import qualified Khan.Model.LaunchConfig     as Config
 import qualified Khan.Model.Profile          as Profile
@@ -136,7 +136,7 @@ instance Naming Cluster where
     names Cluster{..} = versioned cRole cEnv cVersion
 
 commands :: Mod CommandFields Command
-commands = group "cluster" "Auto Scaling Groups." $ mconcat
+commands = group "ephemeral" "Auto Scaling Groups." $ mconcat
     [ command "deploy" deploy deployParser
         "Deploy a versioned cluster."
     , command "scale" scale scaleParser
@@ -163,17 +163,19 @@ deploy c@Common{..} d@Deploy{..} = do
     p <- async $ Profile.find d
     s <- async $ Security.update (sshGroup dEnv) sshRules
     g <- async $ Security.create d
-    a <- async $ Image.find [] [Filter "name" [imageName]]
+    a <- async $ AMI.find [Filter "name" [imageName]]
 
     wait_ k
     wait_ p <* log "Found IAM Profile {}" [profileName]
     wait_ s <* log "Found SSH Group {}" [sshGroup dEnv]
     wait_ g <* log "Found App Group {}" [groupName]
 
-    ami <- diritImageId <$> wait a
+    ami <- wait a
     log "Found AMI {} named {}" [ami, imageName]
 
-    let zones = map (AZ cRegion) dZones
+    reg <- getRegion
+
+    let zones = map (AZ reg) dZones
 
     Config.create d ami dType
     ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax

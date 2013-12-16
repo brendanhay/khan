@@ -24,7 +24,7 @@ import           Network.AWS.IAM
 import qualified Shelly          as Shell
 
 find :: Naming a => a -> AWS Role
-find = fmap (grrRole . grrGetRoleResult) . send . GetRole . groupName . names
+find = fmap (grrRole . grrGetRoleResult) . send . GetRole . profileName . names
 
 update :: Naming a => a -> FilePath -> FilePath -> AWS ()
 update (names -> Names{..}) ppath tpath = do

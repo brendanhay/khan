@@ -37,7 +37,7 @@ data Version = Version
     , versionPatch   :: !Int
     , versionRelease :: Maybe Text
     , versionMeta    :: Maybe Text
-    } deriving (Eq, Read, Show, Ord)
+    } deriving (Eq, Read, Show)
 
 instance Ord Version where
     a `compare` b = branch a `compare` branch b

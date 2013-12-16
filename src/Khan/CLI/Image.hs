@@ -85,7 +85,7 @@ build c@Common{..} d@AMI{..} = do
     log "Looking for base Images matching {}" [aImage]
     a <- async $ Image.find [aImage] []
 
-    log "Looking for IAM Profiles matching {}" [profileName]
+    log "Looking for IAM Profile matching {}" [profileName]
     i <- async $ Profile.find d
 
     ami <- diritImageId <$> wait a
@@ -115,7 +115,11 @@ build c@Common{..} d@AMI{..} = do
 
         let js = encode $ Output n cRegion dns
 
-        liftIO $ threadDelay $ 1000000 * 30
+        -- FIXME: poll for ssh connectivity
+        -- ssh -q -o “BatchMode=yes” user@host “echo 2>&1″
+
+        log "Waiting 20 seconds for SSH on {}" [iid]
+        liftIO $ threadDelay $ 1000000 * 20
 
         log "Running {}" [aScript]
         liftEitherT . sh . Shell.silently $ do

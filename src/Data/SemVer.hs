@@ -37,12 +37,7 @@ data Version = Version
     , versionPatch   :: !Int
     , versionRelease :: Maybe Text
     , versionMeta    :: Maybe Text
-    } deriving (Eq, Read, Show)
-
-instance Ord Version where
-    a `compare` b = branch a `compare` branch b
-      where
-        branch Version{..} = [versionMajor, versionMinor, versionPatch]
+    } deriving (Eq, Read, Show, Ord)
 
 bumpMajor :: Version -> Version
 bumpMajor v = v { versionMajor = versionMajor v + 1 }

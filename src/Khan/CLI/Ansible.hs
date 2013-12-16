@@ -88,11 +88,11 @@ instance Options Inventory
 commands :: Mod CommandFields Command
 commands = mconcat
     [ command "ansible" ansible ansibleParser
-        "Ansible."
+        "Ansible Command."
     , command "playbook" playbook ansibleParser
         "Ansible Playbook."
     , command "inventory" inventory inventoryParser
-        "Output ansible compatible inventory."
+        "Output Ansible compatible inventory."
     ]
 
 ansible :: Common -> Ansible -> AWS ()

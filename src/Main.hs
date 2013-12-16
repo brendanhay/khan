@@ -1,4 +1,3 @@
-{-# LANGUAGE Arrows            #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
@@ -16,47 +15,46 @@
 
 module Main (main) where
 
-import qualified Khan.CLI.Ansible           as Ansible
-import qualified Khan.CLI.Artifact          as Artifact
-import qualified Khan.CLI.Check             as Check
-import qualified Khan.CLI.DNS               as DNS
-import qualified Khan.CLI.Ephemeral         as Ephemeral
-import qualified Khan.CLI.Group             as Group
-import qualified Khan.CLI.Host              as Host
-import qualified Khan.CLI.Persistent        as Persistent
-import qualified Khan.CLI.Profile           as Profile
-import qualified Khan.CLI.Routing           as Routing
-import qualified Khan.CLI.SSH               as SSH
-
 import           Control.Error
 import           Control.Monad
-import qualified Data.ByteString.Char8      as BS
-import           Data.Text.Format           (Shown(..))
+import qualified Data.ByteString.Char8    as BS
+import           Data.Text.Format         (Shown(..))
+import qualified Khan.CLI.Ansible         as Ansible
+import qualified Khan.CLI.Artifact        as Artifact
+import qualified Khan.CLI.Cluster         as Cluster
+import qualified Khan.CLI.DNS             as DNS
+import qualified Khan.CLI.Group           as Group
+import qualified Khan.CLI.HealthCheck     as HealthCheck
+import qualified Khan.CLI.Host            as Host
+import qualified Khan.CLI.Image           as Image
+import qualified Khan.CLI.Launch          as Launch
+import qualified Khan.CLI.Profile         as Profile
+import qualified Khan.CLI.Routing         as Routing
+import qualified Khan.CLI.SSH             as SSH
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2.Metadata
 import           Options.Applicative
-import           Options.Applicative.Arrows
 import           System.Environment
 
 programParser :: [(String, String)] -> Parser (Common, Command)
-programParser env = runA $ proc () -> do
-    opt <- asA (commonParser env) -< ()
-    cmd <- (asA . hsubparser)
-         ( Ansible.commands
-        <> Artifact.commands
-        <> Check.commands
-        <> DNS.commands
-        <> Ephemeral.commands
-        <> Group.commands
-        <> Host.commands
-        <> Persistent.commands
+programParser env = (,)
+    <$> commonParser env
+    <*> hsubparser
+         ( Cluster.commands
+        <> Launch.commands
+        <> Image.commands
         <> Profile.commands
+        <> Group.commands
+        <> HealthCheck.commands
+        <> DNS.commands
+        <> Artifact.commands
+        <> Host.commands
         <> Routing.commands
         <> SSH.commands
-         ) -< ()
-    A helper -< (opt, cmd)
+        <> Ansible.commands
+         )
 
 main :: IO ()
 main = do
@@ -73,8 +71,7 @@ main = do
         c'@Common{..} <- regionalise c p
         validate c'
         rs <- contextAWS c' $ do
-            r <- getRegion
-            debug "Running in region {}..." [Shown r]
+            debug "Running in region {}..." [Shown cRegion]
             y <- discover p c' x
             liftEitherT $ validate y
             f c' y

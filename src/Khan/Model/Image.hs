@@ -13,19 +13,46 @@
 
 module Khan.Model.Image
     ( find
+    , findAll
+    , create
     ) where
 
-import qualified Data.Text       as Text
-import           Khan.Prelude    hiding (find, min, max)
-import           Network.AWS.EC2 hiding (Instance)
+import Control.Arrow      ((***))
+import Control.Concurrent (threadDelay)
+import Control.Monad
+import Data.List          (partition)
+import Khan.Internal
+import Khan.Prelude       hiding (find, min, max)
+import Network.AWS.EC2    hiding (Instance, wait)
 
-find :: [Filter] -> AWS Text
-find fs = do
-    log "Finding Images matching: {}" [options]
-    rs  <- fmap (listToMaybe . djImagesSet) . send $ DescribeImages [] [] [] fs
-    ami <- fmap diritImageId . hoistError $
-        note "Failed to find any matching Images" rs
-    log "Found Image {} matching {}" [ami, options]
-    return ami
+find :: [Text] -> [Filter] -> AWS DescribeImagesResponseItemType
+find ids fs = findAll ids fs >>=
+    hoistError . note "Failed to find any matching Images" . listToMaybe
+
+findAll :: [Text] -> [Filter] -> AWS [DescribeImagesResponseItemType]
+findAll ids = fmap djImagesSet . send . DescribeImages [] ids []
+
+create :: Text -> Text -> [BlockDeviceMappingItemType] -> AWS Text
+create i n bs = do
+    log "Creating Image {} from {}" [n, i]
+    rid <- cjImageId <$> send (CreateImage i n Nothing Nothing bs)
+    log "Waiting for Image {} creation..." [rid]
+    wait [rid]
+    log "Tagging Image {}" [rid]
+    send_ $ CreateTags [rid] [ResourceTagSetItemType "Name" n]
+    return rid
+
+wait :: [Text] -> AWS ()
+wait []  = log_ "All Images available."
+wait ids = do
+    xs <- findAll ids []
+    let (ps, rs) = join (***) (map diritImageId) $ pending xs
+    unless (null rs) $
+        log "Images marked as available: {}" [rs]
+    unless (null ps) $ do
+        log "Images still pending: {}" [ps]
+        log_ "Waiting..."
+        liftIO . threadDelay $ 1000000 * 30
+    wait ps
   where
-    options = Text.intercalate " | " $ map (Text.pack . show) fs
+    pending = partition (("available" /=) . diritImageState)

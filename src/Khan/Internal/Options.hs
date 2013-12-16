@@ -107,7 +107,7 @@ commonParser env = Common
     lookupEnv k d f = fmap g
       where
         g v | valid v   = v
-            | otherwise = fromMaybe d . fmap f $ k `lookup` env
+            | otherwise = maybe d f $ k `lookup` env
 
 instance Options Common where
     validate Common{..} = do

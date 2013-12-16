@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- Module      : Khan.CLI.Persistent
+-- Module      : Khan.CLI.Launch
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -12,11 +12,11 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Persistent (commands) where
+module Khan.CLI.Launch (commands) where
 
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as AMI
+import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
 import qualified Khan.Model.Profile          as Profile
@@ -83,28 +83,30 @@ commands = mconcat
 
 launch :: Common -> Launch -> AWS ()
 launch Common{..} l@Launch{..} = do
-    reg <- getRegion
-    a   <- async . AMI.find . (:[]) $ maybe (Filter "name" [imageName])
+    log "Looking for Images matching {}" [fromMaybe imageName lImage]
+    a <- async . Image.find [] . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
-    i   <- async $ Profile.find l
 
-    ami <- wait a
+    log "Looking for IAM Profiles matching {}" [profileName]
+    i <- async $ Profile.find l
+
+    ami <- diritImageId <$> wait a
     log "Using Image {}" [ami]
 
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create cBucket l cCerts
-    s <- async $ Security.update (sshGroup lEnv) sshRules
+    s <- async $ Security.update (sshGroup envName) sshRules
     g <- async $ Security.create l
 
     wait_ k <* log "Found KeyPair {}" [keyName]
-    wait_ s <* log "Found SSH Group {}" [sshGroup lEnv]
+    wait_ s <* log "Found SSH Group {}" [sshGroup envName]
     wait_ g <* log "Found Role Group {}" [groupName]
 
-    az  <- shuffle lZones
-    ms1 <- Instance.run l ami lType (AZ reg az) lNum lNum lOptimised
+    az <- shuffle lZones
+    r  <- Instance.run l ami lType (AZ cRegion az) lNum lNum lOptimised
 
-    let ids = map riitInstanceId ms1
+    let ids = map riitInstanceId r
 
     Instance.tag l lDomain ids
     Instance.wait ids

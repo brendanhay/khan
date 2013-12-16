@@ -16,58 +16,11 @@
 module Khan.Internal.Parsing where
 
 import           Data.Attoparsec.Text
-import           Data.Char                    (isDigit)
-import           Data.List                    (sort)
-import qualified Data.Text                    as Text
+import           Data.List            (sort)
+import qualified Data.Text            as Text
 import           Data.Tuple
-import           Data.Version
-import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS.EC2
-import qualified Text.ParserCombinators.ReadP as ReadP
-
-showDNS :: DNS -> Text -> Text
-showDNS DNS{..} dom = Text.concat
-    [ dnsRole
-    , maybe "" (`Text.snoc` '-') $ safeVersion <$> dnsVer
-    , Text.pack $ show dnsOrd
-    , "."
-    , dnsEnv
-    , "."
-    , dnsReg
-    , "."
-    , dom
-    ]
-
-parseDNS :: Text -> Either String DNS
-parseDNS = parseOnly parser
-  where
-    parser = DNS
-        <$> takeTill isDigit
-        <*> option Nothing (Just <$> parseSafeVersion <* char '-')
-        <*> (decimal <* char '.')
-        <*> (takeTill (== '.') <* char '.')
-        <*> (takeTill (== '.') <* char '.')
-
-parseSafeVersionM :: Text -> Maybe Version
-parseSafeVersionM = hush . parseOnly parseSafeVersion
-
-parseSafeVersion :: Parser Version
-parseSafeVersion = do
-    ma <- decimal <* char 'm'
-    mi <- decimal <* char 'p'
-    p  <- decimal
-    return $! Version [ma, mi, p] []
-
-eitherVersion :: String -> Either String Version
-eitherVersion s = maybe (Left $ "Failed to parse version: " ++ s) (Right . fst)
-    . listToMaybe
-    . reverse
-    . ReadP.readP_to_S parseVersion
-    $ map f s
-  where
-    f '+' = '-'
-    f  c  = c
 
 showRules :: Foldable f => f IpPermissionType -> Text
 showRules = Text.intercalate ", " . map rule . toList

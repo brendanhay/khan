@@ -25,7 +25,6 @@ import qualified Khan.CLI.Cluster         as Cluster
 import qualified Khan.CLI.DNS             as DNS
 import qualified Khan.CLI.Group           as Group
 import qualified Khan.CLI.HealthCheck     as HealthCheck
-import qualified Khan.CLI.Host            as Host
 import qualified Khan.CLI.Image           as Image
 import qualified Khan.CLI.Launch          as Launch
 import qualified Khan.CLI.Profile         as Profile
@@ -50,7 +49,6 @@ programParser env = (,)
         <> HealthCheck.commands
         <> DNS.commands
         <> Artifact.commands
-        <> Host.commands
         <> Routing.commands
         <> SSH.commands
         <> Ansible.commands

@@ -14,8 +14,8 @@
 
 module Khan.Internal.Types where
 
+import           Data.SemVer
 import qualified Data.Text                    as Text
-import           Data.Version
 import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Prelude
 import           Network.AWS                  (Region)
@@ -92,23 +92,17 @@ createNames role env ver = Names
     , groupName   = nameEnv
     , imageName   = Text.concat [role, maybe "" (Text.cons '_') safeVer]
     , appName     = Text.concat [role, fromMaybe "" safeVer, ".", env]
-    , versionName = safeVer
+    , versionName = showVersion <$> ver
     }
   where
     nameEnv = Text.concat [env, "-", role]
     safeVer = safeVersion <$> ver
 
--- FIXME: correctly add build number suffix
-
 safeVersion :: Version -> Text
-safeVersion ver = Text.pack $
-    case ver of
-        (Version (ma:mi:p:_) b) ->
-            concat [show ma, "m", show mi, "p", show p, "b", filter f $ concat b]
-        _ -> showVersion ver
+safeVersion = Text.map f . showVersion
   where
-    f '+' = False
-    f  _  = True
+    f '+' = '/'
+    f  c  = c
 
 unversioned :: Text -> Text -> Names
 unversioned role env = createNames role env Nothing

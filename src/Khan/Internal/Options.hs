@@ -46,10 +46,9 @@ module Khan.Internal.Options
     ) where
 
 import qualified Data.Text                 as Text
-import           Data.Version
+import           Data.SemVer
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.IO
-import           Khan.Internal.Parsing
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
@@ -189,8 +188,10 @@ envOption = textOption "env" (value defaultEnv <> short 'e')
     "Environment of the application."
 
 versionOption :: Parser Version
-versionOption = customOption "version" "MAJ.MIN.PATCH+BUILD" eitherVersion mempty
+versionOption = customOption "version" typ (parseVersion . Text.pack) mempty
     "Version of the application."
+  where
+    typ = "MAJ.MIN.PATCH[-RELEASE][+BUILD]"
 
 keyOption :: Parser (Maybe FilePath)
 keyOption = optional $ pathOption "key" (short 'i')

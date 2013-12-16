@@ -39,6 +39,15 @@ data Version = Version
     , versionMeta    :: Maybe Text
     } deriving (Eq, Read, Show, Ord)
 
+instance Ord Version where
+    a `compare` b = branch a `compare` branch b
+      where
+        branch Version{..} =
+            ( [versionMajor, versionMinor, versionPatch]
+            , versionRelease
+            , versionMeta
+            )
+
 bumpMajor :: Version -> Version
 bumpMajor v = v { versionMajor = versionMajor v + 1 }
 

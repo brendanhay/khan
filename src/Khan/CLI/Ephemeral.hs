@@ -15,7 +15,7 @@
 module Khan.CLI.Ephemeral (commands) where
 
 import           Control.Concurrent          (threadDelay)
-import           Data.Version
+import           Data.SemVer
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as AMI

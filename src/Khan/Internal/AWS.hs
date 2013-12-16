@@ -18,13 +18,13 @@ module Khan.Internal.AWS where
 
 import           Control.Monad.Error
 import qualified Data.HashMap.Strict     as Map
+import           Data.SemVer
 import qualified Data.Text               as Text
 import qualified Data.Text.Encoding      as Text
 import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy          as LText
 import           Khan.Internal.Options
-import           Khan.Internal.Parsing
 import           Khan.Internal.Types
 import           Khan.Prelude            hiding (min, max)
 import           Network.AWS
@@ -87,7 +87,7 @@ lookupTags (Map.fromList -> ts) = Tags
     <$> require roleTag ts
     <*> require envTag ts
     <*> require domainTag ts
-    <*> pure (join $ parseSafeVersionM <$> Map.lookup versionTag ts)
+    <*> pure (join $ (hush . parseVersion) <$> Map.lookup versionTag ts)
   where
     require k m = hoistError . note (message k m) $ Map.lookup k m
 

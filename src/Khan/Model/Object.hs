@@ -22,6 +22,7 @@ import           Control.Arrow
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
 import qualified Data.Conduit.List         as Conduit
+import           Data.SemVer
 import qualified Data.Text                 as Text
 import           Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as Path
@@ -67,4 +68,4 @@ latest b p f = do
     start = GetBucket b (Delimiter '/') (Text.stripPrefix "/" p) 250 Nothing
 
     con = map (Just . second ver . join (,) . bcKey) . gbrContents
-    ver = hush . eitherVersion . Text.unpack
+    ver = hush . parseVersion

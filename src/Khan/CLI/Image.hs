@@ -14,7 +14,12 @@
 
 module Khan.CLI.Image (commands) where
 
-import           Data.Version
+import           Data.Aeson
+import           Data.Aeson               as Aeson
+import qualified Data.Text                as Text
+import qualified Data.Text.Lazy           as LText
+import qualified Data.Text.Lazy.Encoding  as LText
+import           Data.SemVer
 import           Khan.Internal
 import qualified Khan.Model.Image         as Image
 import qualified Khan.Model.Instance      as Instance
@@ -101,10 +106,17 @@ build c@Common{..} d@AMI{..} = do
     Instance.wait [iid]
 
     e <- contextAWS c $ do
+        log "Finding public DNS for {}" [iid]
+        mdns <- join . listToMaybe . map riitDnsName <$>
+            Instance.findAll [iid] []
+        dns  <- noteAWS "Failed to retrieve DNS for {}" [iid] mdns
+
+        let js = encode $ Output n cRegion dns
+
         p <- shell . Shell.errExit False $ do
             log "Running {}" [aScript]
             Shell.runHandles "bash"
-                [Shell.toTextIgnore aScript, iid]
+                [Shell.toTextIgnore aScript, LText.toStrict $ LText.decodeUtf8 js]
                 [Shell.OutHandle Shell.Inherit]
                 (\_ _ _ -> return ())
             (== 0) <$> Shell.lastExitCode
@@ -119,4 +131,29 @@ build c@Common{..} d@AMI{..} = do
 
     const () <$> hoistError e
   where
-    Names{..} = names d
+    n@Names{..} = names d
+
+data Output = Output
+    { oNames  :: !Names
+    , oRegion :: !Region
+    , oDNS    :: !Text
+    }
+
+instance ToJSON Output where
+    toJSON Output{..} = object
+        [ ("khan_region",        pack . Text.pack $ show oRegion)
+        , ("khan_region_abbrev", pack $ abbreviate oRegion)
+        , ("khan_env",           pack envName)
+        , ("khan_key",           pack keyName)
+        , ("khan_role",          pack roleName)
+        , ("khan_profile",       pack profileName)
+        , ("khan_group",         pack groupName)
+        , ("khan_image",         pack imageName)
+        , ("khan_app",           pack appName)
+        , ("khan_version",       toJSON versionName)
+        , ("khan_dns",           pack oDNS)
+        ]
+      where
+        Names{..} = oNames
+
+        pack = Aeson.String

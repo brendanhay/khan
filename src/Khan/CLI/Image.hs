@@ -70,6 +70,12 @@ commands = group "image" "Create AMIs." $ mconcat
 
 build :: Common -> AMI -> AWS ()
 build c@Common{..} d@AMI{..} = do
+    log "Checking if Image {} exists..." [imageName]
+    as <- Image.findAll [] [Filter "name" [imageName]]
+
+    unless (null as) $
+        throwAWS "Image {} already exists, exiting..." [imageName]
+
     log "Looking for Images matching {}" [aImage]
     a <- async $ Image.find [aImage] []
 

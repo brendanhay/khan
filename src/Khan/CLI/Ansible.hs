@@ -15,7 +15,6 @@
 
 module Khan.CLI.Ansible (commands) where
 
-
 import           Control.Concurrent         (threadDelay)
 import           Control.Monad              (mplus)
 import           Data.Aeson                 as Aeson
@@ -27,8 +26,6 @@ import           Data.SemVer
 import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
 import qualified Data.Text.Format           as Format
-import qualified Data.Text.Lazy             as LText
-import qualified Data.Text.Lazy.Encoding    as LText
 import qualified Data.Text.Lazy.IO          as LText
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
@@ -42,7 +39,6 @@ import qualified Khan.Model.SecurityGroup   as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed)
-import qualified Shelly                     as Shell
 import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
@@ -99,7 +95,7 @@ instance Options Inventory
 data AMI = AMI
     { aRole     :: !Text
     , aVersion  :: Maybe Version
-    , aScript   :: !FilePath
+    , aPlaybook :: !FilePath
     , aImage    :: !Text
     , aType     :: !InstanceType
     , aPreserve :: !Bool
@@ -109,8 +105,8 @@ amiParser :: Parser AMI
 amiParser = AMI
     <$> roleOption
     <*> optional versionOption
-    <*> pathOption "script" (short 's' <> action "file")
-        "Script to pass the image-id as $1 to."
+    <*> pathOption "playbook" (short 'p' <> value "")
+        "Path to the playbook to run on the base instance."
     <*> textOption "base" (short 'b')
         "Id of the base image/ami."
     <*> readOption "type" "TYPE" (value M1_Small)
@@ -119,18 +115,17 @@ amiParser = AMI
         "Don't terminate the base instance on error."
 
 instance Options AMI where
-    validate AMI{..} =
-        checkPath aScript " specified by --script must exist."
+    discover _ _ a@AMI{..} = return $! a
+        { aPlaybook = defaultPath aPlaybook $ Path.fromText "image.yml"
+        }
 
 instance Naming AMI where
-    names AMI{..} = v
+    names AMI{..} = ver
         { profileName = "ami-builder"
         , groupName   = sshGroup "ami"
         }
       where
-        v = maybe (unversioned aRole "ami")
-                  (versioned aRole "ami")
-                  aVersion
+        ver = maybe (unversioned aRole "ami") (versioned aRole "ami") aVersion
 
 commands :: Mod CommandFields Command
 commands = mconcat
@@ -190,23 +185,21 @@ ansible c@Common{..} a@Ansible{..} = do
                     ts - Posix.modificationTimeHiRes s > fromIntegral aRetain
 
 playbook :: Common -> Ansible -> AWS ()
-playbook c a@Ansible{..} = do
-    reg <- getRegion
-    ansible c $ a
-        { aBin  = mplus aBin (Just "ansible-playbook")
-        , aArgs = aArgs ++
-            [ "--extra-vars"
-            , concat [ "khan_region="
-                     , show reg
-                     , " khan_region_abbrev="
-                     , Text.unpack $ abbreviate reg
-                     , " khan_env="
-                     , Text.unpack aEnv
-                     , " khan_key="
-                     , Text.unpack $ aEnv <> "-khan"
-                     ]
-            ]
-        }
+playbook c@Common{..} a@Ansible{..} = ansible c $ a
+    { aBin  = mplus aBin (Just "ansible-playbook")
+    , aArgs = aArgs ++
+        [ "--extra-vars"
+        , concat [ "khan_region="
+                 , show cRegion
+                 , " khan_region_abbrev="
+                 , Text.unpack $ abbreviate cRegion
+                 , " khan_env="
+                 , Text.unpack aEnv
+                 , " khan_key="
+                 , Text.unpack $ aEnv <> "-khan"
+                 ]
+        ]
+    }
 
 inventory :: Common -> Inventory -> AWS ()
 inventory Common{..} Inventory{..} = do
@@ -225,15 +218,14 @@ inventory Common{..} Inventory{..} = do
     hosts m RunningInstancesItemType{..} = case riitDnsName of
         Nothing   -> return m
         Just fqdn -> do
-            reg      <- getRegion
             Tags{..} <- lookupTags $ map tag riitTagSet
 
             let n@Names{..} = createNames tagRole tagEnv tagVersion
-                host     = Host fqdn tagDomain n reg
+                host     = Host fqdn tagDomain n cRegion
                 update k = Map.insertWith (<>) k (Set.singleton host)
 
             return $! foldl' (flip update) m
-                [roleName, envName, Text.pack $ show reg, "khan", tagDomain]
+                [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]
 
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
@@ -276,7 +268,7 @@ image c@Common{..} d@AMI{..} = do
             Instance.findAll [iid] []
         dns  <- noteAWS "Failed to retrieve DNS for {}" [iid] mdns
 
-        let js = encode $ ImageInput n cRegion dns
+        let js = LBS.unpack . encode $ ImageInput n cRegion dns
 
         -- FIXME: poll for ssh connectivity
         -- ssh -q -o “BatchMode=yes” user@host “echo 2>&1″
@@ -284,18 +276,12 @@ image c@Common{..} d@AMI{..} = do
         log "Waiting 20 seconds for SSH on {}" [iid]
         liftIO $ threadDelay $ 1000000 * 20
 
-        log "Running {}" [aScript]
-        liftEitherT . sh . Shell.silently $ do
-            mapM_ (uncurry Shell.setenv)
-                [ ("KHAN_REGION", Text.pack $ show cRegion)
-                , ("KHAN_ENV",    "ami")
-                , ("KHAN_DNS",    dns)
-                ]
-
-            Shell.runHandles "bash"
-                [Shell.toTextIgnore aScript, LText.toStrict $ LText.decodeUtf8 js]
-                [Shell.OutHandle Shell.Inherit]
-                (\_ _ _ -> return ())
+        log "Running Playbook {}" [aPlaybook]
+        playbook c . Ansible "ami" Nothing Nothing 36000 False $
+            [ "-i", Text.unpack $ dns <> ",localhost,"
+            , "-e", js
+            , Path.encodeString aPlaybook
+            ]
 
         void $ Image.create iid imageName []
 

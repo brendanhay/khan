@@ -44,7 +44,7 @@ instance Options Role where
     discover _ Common{..} r@Role{..} = do
         let p = defaultPath rPolicy (cConfig </> Path.fromText "policy.json")
             t = defaultPath rTrust  (cConfig </> Path.fromText "trust.json")
-        return $! r { rPolicy = p, rTrust  = t }
+        return $! r { rPolicy = p, rTrust = t }
 
     validate Role{..} = do
         checkPath rPolicy " specified by --policy must exist."

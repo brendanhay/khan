@@ -136,23 +136,32 @@ instance ToJSON (Inv (Set Host)) where
 
 instance ToJSON (Inv Host) where
     toJSON x = case x of
-        (Meta _) -> object vars
-        (JS   _) -> pack hvFQDN
+        (JS   _) -> String hvFQDN
+        (Meta _) -> object $
+            ("khan_domain", String hvDomain) : variables hvRegion hvNames
       where
-        Host{..}  = unwrap x
-        Names{..} = hvNames
+        Host{..} = unwrap x
 
-        pack = Aeson.String
+data ImageInput = ImageInput
+    { iNames  :: !Names
+    , iRegion :: !Region
+    , iDNS    :: !Text
+    }
 
-        vars = [ ("khan_region",        pack . Text.pack $ show hvRegion)
-               , ("khan_region_abbrev", pack $ abbreviate hvRegion)
-               , ("khan_domain",        pack hvDomain)
-               , ("khan_env",           pack envName)
-               , ("khan_key",           pack keyName)
-               , ("khan_role",          pack roleName)
-               , ("khan_profile",       pack profileName)
-               , ("khan_group",         pack groupName)
-               , ("khan_image",         pack imageName)
-               , ("khan_app",           pack appName)
-               , ("khan_version",       toJSON versionName)
-               ]
+instance ToJSON ImageInput where
+    toJSON ImageInput{..} =
+        object $ ("khan_dns", String iDNS) : variables iRegion iNames
+
+variables :: Region -> Names -> [(Text, Value)]
+variables reg Names{..} =
+    [ ("khan_region",        String . Text.pack $ show reg)
+    , ("khan_region_abbrev", String $ abbreviate reg)
+    , ("khan_env",           String envName)
+    , ("khan_key",           String keyName)
+    , ("khan_role",          String roleName)
+    , ("khan_profile",       String profileName)
+    , ("khan_group",         String groupName)
+    , ("khan_image",         String imageName)
+    , ("khan_app",           String appName)
+    , ("khan_version",       toJSON versionName)
+    ]

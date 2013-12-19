@@ -25,7 +25,6 @@ import qualified Khan.CLI.Cluster         as Cluster
 import qualified Khan.CLI.DNS             as DNS
 import qualified Khan.CLI.Group           as Group
 import qualified Khan.CLI.HealthCheck     as HealthCheck
-import qualified Khan.CLI.Image           as Image
 import qualified Khan.CLI.Launch          as Launch
 import qualified Khan.CLI.Profile         as Profile
 import qualified Khan.CLI.Routing         as Routing
@@ -43,7 +42,6 @@ programParser env = (,)
     <*> hsubparser
          ( Cluster.commands
         <> Launch.commands
-        <> Image.commands
         <> Profile.commands
         <> Group.commands
         <> HealthCheck.commands

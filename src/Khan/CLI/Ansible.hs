@@ -39,6 +39,7 @@ import qualified Khan.Model.SecurityGroup   as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
+import qualified Shelly                     as Shell
 import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
@@ -186,7 +187,7 @@ ansible c@Common{..} a@Ansible{..} = do
 
 playbook :: Common -> Ansible -> AWS ()
 playbook c@Common{..} a@Ansible{..} = ansible c $ a
-    { aBin  = mplus aBin (Just "ansible-playbook")
+    { aBin  = aBin `mplus` Just "ansible-playbook"
     , aArgs = aArgs ++
         [ "--extra-vars"
         , concat [ "khan_region="
@@ -231,6 +232,9 @@ inventory Common{..} Inventory{..} = do
 
 image :: Common -> Image -> AWS ()
 image c@Common{..} d@Image{..} = do
+    shell (Shell.which "ansible-playbook") >>=
+        void . noteAWS "Command {} doesn't exist." ["ansible-playbook" :: Text]
+
     log "Checking if target Image {} exists..." [imageName]
     as <- Image.findAll [] [Filter "name" [imageName]]
 

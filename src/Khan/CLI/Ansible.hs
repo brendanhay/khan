@@ -38,7 +38,7 @@ import qualified Khan.Model.Profile         as Profile
 import qualified Khan.Model.SecurityGroup   as Security
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2            hiding (Failed)
+import           Network.AWS.EC2            hiding (Failed, Image)
 import           System.Directory
 import qualified System.Posix.Files         as Posix
 import qualified System.Posix.Process       as Posix
@@ -92,7 +92,7 @@ inventoryParser = Inventory
 
 instance Options Inventory
 
-data AMI = AMI
+data Image = Image
     { aRole     :: !Text
     , aVersion  :: Maybe Version
     , aPlaybook :: !FilePath
@@ -101,8 +101,8 @@ data AMI = AMI
     , aPreserve :: !Bool
     }
 
-amiParser :: Parser AMI
-amiParser = AMI
+imageParser :: Parser Image
+imageParser = Image
     <$> roleOption
     <*> optional versionOption
     <*> pathOption "playbook" (short 'p' <> value "")
@@ -114,13 +114,13 @@ amiParser = AMI
     <*> switchOption "preserve" False
         "Don't terminate the base instance on error."
 
-instance Options AMI where
-    discover _ _ a@AMI{..} = return $! a
+instance Options Image where
+    discover _ _ a@Image{..} = return $! a
         { aPlaybook = defaultPath aPlaybook $ Path.fromText "image.yml"
         }
 
-instance Naming AMI where
-    names AMI{..} = ver
+instance Naming Image where
+    names Image{..} = ver
         { profileName = "ami-builder"
         , groupName   = sshGroup "ami"
         }
@@ -135,8 +135,8 @@ commands = mconcat
         "Ansible Playbook."
     , command "inventory" inventory inventoryParser
         "Output Ansible compatible inventory."
-    , command "image" image amiParser
-        "Create AMI."
+    , command "image" image imageParser
+        "Create Image."
     ]
 
 ansible :: Common -> Ansible -> AWS ()
@@ -229,8 +229,8 @@ inventory Common{..} Inventory{..} = do
 
     tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
-image :: Common -> AMI -> AWS ()
-image c@Common{..} d@AMI{..} = do
+image :: Common -> Image -> AWS ()
+image c@Common{..} d@Image{..} = do
     log "Checking if target Image {} exists..." [imageName]
     as <- Image.findAll [] [Filter "name" [imageName]]
 

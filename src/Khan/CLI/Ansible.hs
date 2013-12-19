@@ -42,7 +42,6 @@ import           Network.AWS.EC2            hiding (Failed, Image)
 import qualified Shelly                     as Shell
 import           System.Directory
 import qualified System.Posix.Files         as Posix
-import qualified System.Posix.Process       as Posix
 
 data Ansible = Ansible
     { aEnv    :: !Text
@@ -145,7 +144,7 @@ ansible c@Common{..} a@Ansible{..} = do
     k <- maybe (Key.path cBucket a cCerts) return aKey
     i <- inventoryPath cCache aEnv
 
-    let bin    = Text.unpack $ fromMaybe "ansible" aBin
+    let bin    = Path.fromText $ fromMaybe "ansible" aBin
         script = Path.encodeString $ i <.> "sh"
         inv    = Path.encodeString i
 
@@ -162,16 +161,19 @@ ansible c@Common{..} a@Ansible{..} = do
 
     let xs = args k script
 
-    log "{} {}" [bin, unwords xs]
-    liftIO $ Posix.executeFile bin True xs Nothing
+    log "{} {}" [Shell.toTextIgnore bin, Text.unwords xs]
+    liftEitherT . sh . Shell.silently $
+        Shell.runHandles bin xs [Shell.OutHandle Shell.Inherit] (\_ _ _ -> return ())
   where
-    args k s = aArgs ++ foldr' add []
-        [ ("-i", s)
-        , ("--private-key", Path.encodeString k)
+    args k s = argv ++ foldr' add []
+        [ ("-i", Text.pack s)
+        , ("--private-key", Shell.toTextIgnore k)
         ]
 
+    argv = map Text.pack aArgs
+
     add (k, v) xs =
-        if k `elem` aArgs
+        if k `elem` argv
             then xs
             else k : v : xs
 

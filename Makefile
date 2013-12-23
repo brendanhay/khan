@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 FLAGS := -j --disable-documentation --disable-library-coverage
 BIN   := dist/build/khan/khan
-DEPS  := vendor/amazonka vendor/ed-e
+DEPS  := vendor/amazonka vendor/ede
 
 .PHONY: test lint doc
 
@@ -31,7 +31,7 @@ doc:
 
 add-sources: cabal.sandbox.config $(DEPS)
 	cabal sandbox add-source vendor/amazonka
-	cabal sandbox add-source vendor/ed-e
+	cabal sandbox add-source vendor/ede
 
 cabal.sandbox.config:
 	cabal sandbox init

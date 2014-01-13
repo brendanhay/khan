@@ -28,9 +28,9 @@ import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Instance         as Instance
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2            hiding (Instance, ec2)
-import           Network.AWS.EC2.Metadata   as Meta
-import qualified Text.EDE                   as EDE
+import           Network.AWS.EC2             hiding (Instance, ec2)
+import           Network.AWS.EC2.Metadata    as Meta
+import qualified Text.EDE                    as EDE
 
 data Routes = Routes
     { rEnv      :: !Text
@@ -92,8 +92,8 @@ routes Common{..} r@Routes{..} = do
         zs = EDE.fromPairs ["roles" .= ys]
 
 --    liftIO . LBS.putStrLn $ Aeson.encodePretty zs
-    liftIO . either print (LText.putStrLn . EDE.toLazyText) $
-        EDE.eitherParse f >>= EDE.eitherRender zs
+    liftIO . either print LText.putStrLn $
+        EDE.eitherParse f >>= (`EDE.eitherRender` zs)
 
 filters :: Region -> Routes -> [Filter]
 filters reg Routes{..} = catMaybes

@@ -35,7 +35,7 @@ executable khan
     ghc-options:       -Wall -rtsopts -threaded -O2
 
     build-depends:
-        aeson
+        aeson                >= 0.6 && < 0.7
       , aeson-pretty
       , amazonka
       , async
@@ -57,7 +57,7 @@ executable khan
       , random
       , semigroups
       , shelly
-      , system-filepath
+      , system-filepath      >= 0.4.9
       , text
       , text-format
       , time

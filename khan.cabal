@@ -1,5 +1,5 @@
 name:                  khan
-version:               0.1.0
+version:               0.1.1
 synopsis:              Opinionated Provisioning
 homepage:              http://github.com/brendanhay/khan
 license:               OtherLicense
@@ -35,17 +35,17 @@ executable khan
     ghc-options:       -Wall -rtsopts -threaded -O2
 
     build-depends:
-        aeson                >= 0.6 && < 0.7
+        aeson           >= 0.7
       , aeson-pretty
-      , amazonka
+      , amazonka        >= 0.1.1
       , async
       , attoparsec
-      , base                 >= 4.6 && < 5
+      , base            >= 4.6 && < 5
       , bytestring
       , conduit
       , containers
       , directory
-      , ede
+      , ede             >= 0.1.1
       , errors
       , hslogger
       , http-conduit
@@ -57,8 +57,9 @@ executable khan
       , random
       , semigroups
       , shelly
-      , system-filepath      >= 0.4.9
       , text
+      , system-filepath >= 0.4.9
+      , text            >= 1.0
       , text-format
       , time
       , transformers

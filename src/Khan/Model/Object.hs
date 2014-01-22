@@ -65,7 +65,8 @@ latest b p f = do
           (\(k, _) -> download b k f)
           mk
   where
-    start = GetBucket b (Delimiter '/') (Text.stripPrefix "/" p) 250 Nothing
+    start  = GetBucket b (Delimiter '/') (Just prefix) 250 Nothing
+    prefix = fromMaybe p $ Text.stripPrefix "/" p
 
     con = map (Just . second ver . join (,) . bcKey) . gbrContents
     ver = hush . parseVersion

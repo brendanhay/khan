@@ -86,10 +86,10 @@ commonParser env = Common
         (readOption "region" "REGION" (short 'R')
         "Region to operate in.")
     <*> lookupEnv "KHAN_RKEYS" "" Text.pack
-         (textOption "remote-keys" (value "")
+         (textOption "remote-keys" (value "" <> short 'K')
         "Bucket to retrieve/store certificates.")
     <*> lookupEnv "KHAN_LKEYS" "/etc/ssl/khan" Path.decodeString
-        (pathOption "local-keys" (value "")
+        (pathOption "local-keys" (value "" <> short 'L')
         "Path to certificates.")
     <*> lookupEnv "KHAN_CACHE" "/var/cache/khan" Path.decodeString
         (pathOption "cache" (value "")
@@ -110,8 +110,8 @@ commonParser env = Common
 
 instance Options Common where
     validate Common{..} = do
-       check cBucket     "--rkeys or KHAN_RKEYS must be specified."
-       checkPath cCerts  " specified by --lkeys or KHAN_LKEYS must exist."
+       check cBucket     "--remove-keys or KHAN_RKEYS must be specified."
+       checkPath cCerts  " specified by --local-keys or KHAN_LKEYS must exist."
        checkPath cCache  " specified by --cache or KHAN_CACHE must exist."
        checkPath cConfig " specified by --config or KHAN_CONFIG must exist."
 

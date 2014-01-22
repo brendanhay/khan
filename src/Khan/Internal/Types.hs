@@ -52,7 +52,7 @@ instance Invalid FilePath where
 
 instance Invalid a => Invalid (Maybe a) where
     invalid (Just x) = invalid x
-    invalid Nothing  = False
+    invalid Nothing  = True
 
 instance Invalid Region where
     invalid _ = False

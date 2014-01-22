@@ -3,6 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
+{-# LANGUAGE ScopedTypeVariables   #-}
+
 -- Module      : Khan.Internal.Options
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
@@ -56,6 +58,8 @@ import           Options.Applicative       as Export hiding (command, info)
 import qualified Options.Applicative       as Options
 import qualified Shelly                    as Shell
 
+import           Prelude                   (error)
+
 data Common = Common
     { cDebug  :: !Bool
     , cSilent :: !Bool
@@ -100,9 +104,15 @@ commonParser env = Common
   where
     lookupReg :: String -> Parser Region -> Parser Region
     lookupReg k =
-        fmap (fromMaybe NorthVirginia) . lookupEnv k Nothing readMay . optional
+        fmap (fromMaybe (error "--region or KHAN_REGION must be specified."))
+             . lookupEnv k Nothing readMay . optional
 
-    lookupEnv :: Invalid a => String -> a -> (String -> a) -> Parser a -> Parser a
+    lookupEnv :: Invalid a
+              => String
+              -> a
+              -> (String -> a)
+              -> Parser a
+              -> Parser a
     lookupEnv k d f = fmap g
       where
         g v | valid v   = v

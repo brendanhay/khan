@@ -120,7 +120,7 @@ commonParser env = Common
 
 instance Options Common where
     validate Common{..} = do
-       check cBucket     "--remove-keys or KHAN_RKEYS must be specified."
+       check cBucket     "--remote-keys or KHAN_RKEYS must be specified."
        checkPath cCerts  " specified by --local-keys or KHAN_LKEYS must exist."
        checkPath cCache  " specified by --cache or KHAN_CACHE must exist."
        checkPath cConfig " specified by --config or KHAN_CONFIG must exist."

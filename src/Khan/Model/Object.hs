@@ -19,6 +19,7 @@ module Khan.Model.Object
     ) where
 
 import           Control.Arrow
+import           Data.Char                 (isDigit)
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
 import qualified Data.Conduit.List         as Conduit
@@ -59,8 +60,8 @@ latest :: Text -> Text -> FilePath -> AWS Bool
 latest b p f = do
     log "Paginating bucket '{}' contents" [b]
     mk <- paginate start
-        $= Conduit.concatMap con
-        $$ Conduit.fold max Nothing
+        $= Conduit.concatMap contents
+        $$ Conduit.fold max' Nothing
     maybe (throwAWS "No semantically versioned keys in bucket '{}'" [b])
           (\(k, _) -> download b k f)
           mk
@@ -68,5 +69,10 @@ latest b p f = do
     start  = GetBucket b (Delimiter '/') (Just prefix) 250 Nothing
     prefix = fromMaybe p $ Text.stripPrefix "/" p
 
-    con = map (Just . second ver . join (,) . bcKey) . gbrContents
-    ver = hush . parseVersion
+    contents = map (Just . second version . join (,) . bcKey) . gbrContents
+    version  = hush . parseVersion . Text.dropWhile (not . isDigit)
+
+    max' (Just x) (Just y)
+        | snd y > snd x = Just y
+        | otherwise     = Just x
+    max' _ y = y

@@ -255,7 +255,7 @@ image c@Common{..} d@Image{..} = do
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create cBucket d cCerts
-    g <- async $ Security.create d
+    g <- async $ Security.update d sshRules
 
     wait_ k <* log "Found KeyPair {}" [keyName]
     wait_ g <* log "Found Role Group {}" [groupName]

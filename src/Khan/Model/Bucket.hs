@@ -15,10 +15,15 @@
 
 module Khan.Model.Bucket
     ( download
+    , prune
     ) where
 
+import           Control.Arrow
+import           Data.Char                 (isDigit)
 import           Data.Conduit
 import qualified Data.Conduit.List         as Conduit
+import qualified Data.List                 as List
+import           Data.SemVer
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
@@ -58,3 +63,26 @@ download n b p dir = do
             Just x | length xs < (n - 1) -> chunked (x : xs)
             Just x                       -> yield (x : xs) >> chunked []
             Nothing                      -> void $ yield xs
+
+prune :: Int -> Text -> Maybe Text -> Text -> AWS Bool
+prune c b p a = do
+    log "Pruning artifact '{}' from bucket '{}/{}'" [a, b, fromMaybe "" p]
+    mk <- paginate start
+        $= Conduit.concatMap (split . filter match . gbrContents)
+        $$ Conduit.consume
+    or <$> (mapM (Object.delete b . fst) . drop c $ sortSnd mk)
+  where
+    start = GetBucket b (Delimiter '/') (prefix p) 250 Nothing
+
+    prefix (Just x) = Just . fromMaybe x $ Text.stripPrefix "/" x
+    prefix Nothing  = Nothing
+
+    match Contents{..}
+        | bcStorageClass == Glacier = False
+        | isArtifact bcKey          = True
+        | otherwise                 = False
+    isArtifact = Text.isPrefixOf $ Text.append (fromMaybe "" p) (Text.snoc a '_')
+
+    split   = filter (isJust . snd) . map (second version . join (,) . bcKey)
+    version = hush . parseVersion . Text.dropWhile (not . isDigit)
+    sortSnd = List.sortBy (\(_, x) (_, y) -> compare y x)

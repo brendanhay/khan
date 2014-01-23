@@ -16,6 +16,7 @@ module Khan.Model.Object
     ( download
     , upload
     , latest
+    , delete
     ) where
 
 import           Control.Arrow
@@ -76,3 +77,9 @@ latest b p f = do
         | snd y > snd x = Just y
         | otherwise     = Just x
     max' _ y = y
+
+delete :: Text -> Text -> AWS Bool
+delete b k = do
+    log "Deleting '{}/{}'" [b, k]
+    send_ $ DeleteObject b (safeKey k) []
+    return True

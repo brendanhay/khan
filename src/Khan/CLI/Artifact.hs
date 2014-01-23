@@ -69,6 +69,28 @@ bucketParser = Bucket
 
 instance Options Bucket
 
+data Prune = Prune
+    { pBucket   :: !Text
+    , pPrefix   :: Maybe Text
+    , pArtifact :: !Text
+    , pCopies   :: !Int
+    , pAnsible  :: !Bool
+    } deriving (Show)
+
+pruneParser :: Parser Prune
+pruneParser = Prune
+    <$> textOption "bucket" (short 'b')
+        "Bucket."
+    <*> optional (textOption "prefix" (short 'p')
+        "Prefix.")
+    <*> textOption "artifact" (short 'a')
+        "Artifact to prune."
+    <*> readOption "copies" "INT" (short 'c' <> value 5)
+        "Number of copies to retain."
+    <*> ansibleOption
+
+instance Options Prune
+
 commands :: Mod CommandFields Command
 commands = group "artifact" "Manage S3 Artifacts." $ mconcat
     [ command "upload" (object Object.upload) objectParser
@@ -79,6 +101,8 @@ commands = group "artifact" "Manage S3 Artifacts." $ mconcat
         "Download the latest semantically versioned object to disk."
     , command "sync" sync bucketParser
         "Synchronize a bucket to disk."
+    , command "prune" prune pruneParser
+        "Prune old artifacts from the bucket."
     ]
 
 object :: (Text -> Text -> FilePath -> AWS Bool) -> Common -> Object -> AWS ()
@@ -94,3 +118,10 @@ sync c Bucket{..}
     | otherwise = void f
   where
     f = Bucket.download bN bBucket bPrefix bDir
+
+prune :: Common -> Prune -> AWS ()
+prune c Prune{..}
+    | pAnsible  = capture c "bucket {}/{} {}" [pBucket, fromMaybe "" pPrefix, pArtifact] f
+    | otherwise = void f
+  where
+    f = Bucket.prune pCopies pBucket pPrefix pArtifact

@@ -23,6 +23,7 @@ import           Data.Conduit
 import qualified Data.Conduit.List         as Conduit
 import           Data.Function             (on)
 import qualified Data.List                 as List
+import           Data.Ord
 import           Data.SemVer
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
@@ -87,4 +88,4 @@ prune c b p a = do
     split   = filter (isJust . snd) . map (second version . join (,) . bcKey)
     version = hush . parseFileName . Path.fromText
 
-    sortSnd = List.sortBy (compare `on` snd)
+    sortSnd = List.sortBy (compare `on` (Down . snd))

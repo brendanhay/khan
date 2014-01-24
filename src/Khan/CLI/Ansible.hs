@@ -283,11 +283,11 @@ image c@Common{..} d@Image{..} = do
         liftIO $ threadDelay $ 1000000 * 20
 
         log "Running Playbook {}" [aPlaybook]
-        playbook c . Ansible "ami" Nothing Nothing 36000 False $
+        playbook c $ Ansible "ami" Nothing Nothing 36000 False $
             [ "-i", Text.unpack $ dns <> ",localhost,"
             , "-e", js
             , Path.encodeString aPlaybook
-            ]
+            ] ++ if cDebug then ["-vvvv"] else []
 
         void $ Image.create iid imageName []
 

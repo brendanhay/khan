@@ -99,6 +99,7 @@ data Image = Image
     , aImage    :: !Text
     , aType     :: !InstanceType
     , aPreserve :: !Bool
+    , aNDevices :: !Integer
     }
 
 imageParser :: Parser Image
@@ -113,11 +114,16 @@ imageParser = Image
         "Instance's type."
     <*> switchOption "preserve" False
         "Don't terminate the base instance on error."
+    <*> integerOption "block-devices" (value 8)
+        "Number of ephemeral devices to register the ami with."
 
 instance Options Image where
     discover _ _ a@Image{..} = return $! a
         { aPlaybook = defaultPath aPlaybook $ Path.fromText "image.yml"
         }
+
+    validate Image{..} =
+        check (aNDevices > 24) "--block-devices should be less than 24"
 
 instance Naming Image where
     names Image{..} = ver
@@ -289,7 +295,7 @@ image c@Common{..} d@Image{..} = do
             , Path.encodeString aPlaybook
             ]
 
-        void $ Image.create iid imageName []
+        void $ Image.create iid imageName (blockDevices aNDevices)
 
     if (isLeft e && aPreserve)
         then log "Error creating Image, preserving base Instance {}" [iid]
@@ -300,3 +306,12 @@ image c@Common{..} d@Image{..} = do
     const () <$> hoistError e
   where
     n@Names{..} = names d
+
+    blockDevices i = zipWith mkBlockDevice ['b' .. 'z'] [0 .. i - 1]
+
+    mkBlockDevice dev virt = BlockDeviceMappingItemType
+        { bdmitDeviceName  = "/dev/sd" `Text.snoc` dev
+        , bdmitVirtualName = Just $ Text.pack $ "ephemeral" <> show virt
+        , bdmitEbs         = Nothing
+        , bdmitNoDevice    = Nothing
+        }

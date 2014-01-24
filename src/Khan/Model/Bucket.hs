@@ -19,9 +19,9 @@ module Khan.Model.Bucket
     ) where
 
 import           Control.Arrow
-import           Data.Char                 (isDigit)
 import           Data.Conduit
 import qualified Data.Conduit.List         as Conduit
+import           Data.Function             (on)
 import qualified Data.List                 as List
 import           Data.SemVer
 import qualified Data.Text                 as Text
@@ -81,8 +81,10 @@ prune c b p a = do
         | bcStorageClass == Glacier = False
         | isArtifact bcKey          = True
         | otherwise                 = False
-    isArtifact = Text.isPrefixOf $ Text.append (fromMaybe "" p) (Text.snoc a '_')
+
+    isArtifact = Text.isPrefixOf $ fromMaybe "" p <> (a `Text.snoc` '_')
 
     split   = filter (isJust . snd) . map (second version . join (,) . bcKey)
-    version = hush . parseVersion . Text.dropWhile (not . isDigit)
-    sortSnd = List.sortBy (\(_, x) (_, y) -> compare y x)
+    version = hush . parseFileName . Path.fromText
+
+    sortSnd = List.sortBy (compare `on` snd)

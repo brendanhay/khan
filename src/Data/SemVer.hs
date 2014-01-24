@@ -20,15 +20,22 @@ module Data.SemVer
     , newVersion
     , showVersion
     , parseVersion
+
+    , parseFileName
     ) where
 
 import           Control.Applicative
+import           Control.Error
+import           Control.Monad
 import           Data.Attoparsec.Text
+import           Data.Char                  (isDigit)
 import           Data.Monoid
 import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
 import qualified Data.Text.Lazy             as LText
 import qualified Data.Text.Lazy.Builder     as Build
 import qualified Data.Text.Lazy.Builder.Int as Build
+import qualified Filesystem.Path.CurrentOS  as Path
 import           Prelude                    hiding (takeWhile)
 
 data Version = Version
@@ -75,10 +82,24 @@ showVersion Version{..} = LText.toStrict . Build.toLazyText $ mconcat
 
 parseVersion :: Text -> Either String Version
 parseVersion = parseOnly version
+
+parseFileName :: Path.FilePath -> Either String Version
+parseFileName = f . Path.toText . Path.filename
   where
-    version = Version
-        <$> (decimal <* char '.')
-        <*> (decimal <* char '.')
-        <*> decimal
-        <*> optional (try (char '-') *> takeWhile (/= '+'))
-        <*> optional (try (char '+') *> takeText)
+    f (Left  e) = Left $ Text.unpack e
+    f (Right x) = parseOnly (manyTill anyChar (try end) >> version) x
+
+    end = do
+        void . satisfy $ inClass "- /_"
+        p <- isDigit <$> peekChar'
+        if p
+            then return ()
+            else fail ""
+
+version :: Parser Version
+version = Version
+    <$> (decimal <* char '.')
+    <*> (decimal <* char '.')
+    <*> decimal
+    <*> optional (try (char '-') *> takeWhile (/= '+'))
+    <*> optional (try (char '+') *> takeWhile (/= '.'))

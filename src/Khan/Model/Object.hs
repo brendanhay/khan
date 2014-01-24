@@ -20,7 +20,6 @@ module Khan.Model.Object
     ) where
 
 import           Control.Arrow
-import           Data.Char                 (isDigit)
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
 import qualified Data.Conduit.List         as Conduit
@@ -71,7 +70,7 @@ latest b p f = do
     prefix = fromMaybe p $ Text.stripPrefix "/" p
 
     contents = map (Just . second version . join (,) . bcKey) . gbrContents
-    version  = hush . parseVersion . Text.dropWhile (not . isDigit)
+    version  = hush . parseFileName . Path.fromText
 
     max' (Just x) (Just y)
         | snd y > snd x = Just y

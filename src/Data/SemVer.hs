@@ -92,9 +92,7 @@ parseFileName = f . Path.toText . Path.filename
     end = do
         void . satisfy $ inClass "- /_"
         p <- isDigit <$> peekChar'
-        if p
-            then return ()
-            else fail ""
+        unless p $ fail ""
 
 version :: Parser Version
 version = Version

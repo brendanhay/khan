@@ -287,7 +287,7 @@ image c@Common{..} d@Image{..} = do
             [ "-i", Text.unpack $ dns <> ",localhost,"
             , "-e", js
             , Path.encodeString aPlaybook
-            ] ++ if cDebug then ["-vvvv"] else []
+            ]
 
         void $ Image.create iid imageName []
 

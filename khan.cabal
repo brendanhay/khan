@@ -45,7 +45,7 @@ executable khan
       , conduit
       , containers
       , directory
-      , ede             >= 0.1.1
+      , ede             >= 0.1.3
       , errors
       , hslogger
       , http-conduit

@@ -1,6 +1,9 @@
+{-# LANGUAGE ExtendedDefaultRules       #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 -- Module      : Khan.CLI.Profile
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -25,6 +28,8 @@ import qualified Khan.Model.Profile         as Profile
 import           Khan.Prelude
 import           Network.AWS.IAM            hiding (Role)
 import           Network.HTTP.Types         (urlDecode)
+
+default (Text)
 
 data Role = Role
     { rRole   :: !Text

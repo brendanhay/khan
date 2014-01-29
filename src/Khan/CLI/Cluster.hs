@@ -167,18 +167,19 @@ deploy c@Common{..} d@Deploy{..} = do
 
     wait_ k
     wait_ p <* log "Found IAM Profile {}" [profileName]
-    wait_ s <* log "Found SSH Group {}" [sshGroup dEnv]
-    wait_ g <* log "Found App Group {}" [groupName]
+    wait_ s <* log "Found SSH Group {}"   [sshGroup dEnv]
+    wait_ g <* log "Found App Group {}"   [groupName]
 
     ami <- diritImageId <$> wait a
     log "Found AMI {} named {}" [ami, imageName]
 
-    let zones = map (AZ cRegion) dZones
-
     Config.create d ami dType
+
     ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax
   where
     Names{..} = names d
+
+    zones = map (AZ cRegion) dZones
 
 scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax

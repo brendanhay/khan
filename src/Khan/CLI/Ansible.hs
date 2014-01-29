@@ -93,13 +93,13 @@ inventoryParser = Inventory
 instance Options Inventory
 
 data Image = Image
-    { aRole     :: !Text
-    , aVersion  :: Maybe Version
-    , aPlaybook :: !FilePath
-    , aImage    :: !Text
-    , aType     :: !InstanceType
-    , aPreserve :: !Bool
-    , aNDevices :: !Integer
+    { iRole     :: !Text
+    , iVersion  :: Maybe Version
+    , iPlaybook :: !FilePath
+    , iImage    :: !Text
+    , iType     :: !InstanceType
+    , iPreserve :: !Bool
+    , iNDevices :: !Integer
     }
 
 imageParser :: Parser Image
@@ -119,11 +119,11 @@ imageParser = Image
 
 instance Options Image where
     discover _ _ a@Image{..} = return $! a
-        { aPlaybook = defaultPath aPlaybook $ Path.fromText "image.yml"
+        { iPlaybook = defaultPath iPlaybook $ Path.fromText "image.yml"
         }
 
     validate Image{..} =
-        check (aNDevices > 24) "--block-devices should be less than 24"
+        check (iNDevices > 24) "--block-devices should be less than 24"
 
 instance Naming Image where
     names Image{..} = ver
@@ -131,7 +131,9 @@ instance Naming Image where
         , groupName   = sshGroup "ami"
         }
       where
-        ver = maybe (unversioned aRole "ami") (versioned aRole "ami") aVersion
+        ver = maybe (unversioned iRole "ami")
+                    (versioned iRole "ami")
+                    iVersion
 
 commands :: Mod CommandFields Command
 commands = mconcat
@@ -249,8 +251,8 @@ image c@Common{..} d@Image{..} = do
     unless (null as) $
         throwAWS "Image {} already exists, exiting..." [imageName]
 
-    log "Looking for base Images matching {}" [aImage]
-    a <- async $ Image.find [aImage] []
+    log "Looking for base Images matching {}" [iImage]
+    a <- async $ Image.find [iImage] []
 
     log "Looking for IAM Profile matching {}" [profileName]
     i <- async $ Profile.find d
@@ -268,7 +270,7 @@ image c@Common{..} d@Image{..} = do
 
     az  <- shuffle "bc"
     mr  <- listToMaybe . map riitInstanceId <$>
-        Instance.run d ami aType (AZ cRegion az) 1 1 False
+        Instance.run d ami iType (AZ cRegion az) 1 1 False
     iid <- noteAWS "Failed to launch any Instances using Image {}" [ami] mr
     log "Launched Instance {}" [iid]
 
@@ -286,18 +288,18 @@ image c@Common{..} d@Image{..} = do
         -- ssh -q -o “BatchMode=yes” user@host “echo 2>&1″
 
         log "Waiting 20 seconds for SSH on {}" [iid]
-        liftIO $ threadDelay $ 1000000 * 20
+        liftIO . threadDelay $ 1000000 * 20
 
-        log "Running Playbook {}" [aPlaybook]
+        log "Running Playbook {}" [iPlaybook]
         playbook c $ Ansible "ami" Nothing Nothing 36000 False $
             [ "-i", Text.unpack $ dns <> ",localhost,"
             , "-e", js
-            , Path.encodeString aPlaybook
+            , Path.encodeString iPlaybook
             ]
 
-        void $ Image.create iid imageName (blockDevices aNDevices)
+        void $ Image.create iid imageName (blockDevices iNDevices)
 
-    if (isLeft e && aPreserve)
+    if (isLeft e && iPreserve)
         then log "Error creating Image, preserving base Instance {}" [iid]
         else do
             log_ "Terminating base instance"

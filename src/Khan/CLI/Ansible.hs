@@ -100,6 +100,7 @@ data Image = Image
     , iType     :: !InstanceType
     , iPreserve :: !Bool
     , iNDevices :: !Integer
+    , iArgs     :: [String]
     }
 
 imageParser :: Parser Image
@@ -116,6 +117,8 @@ imageParser = Image
         "Don't terminate the base instance on error."
     <*> integerOption "block-devices" (value 8)
         "Number of ephemeral devices to register the ami with."
+    <*> argsOption str (action "file")
+        "Pass through arugments to ansible."
 
 instance Options Image where
     discover _ _ a@Image{..} = return $! a
@@ -291,7 +294,7 @@ image c@Common{..} d@Image{..} = do
         liftIO . threadDelay $ 1000000 * 20
 
         log "Running Playbook {}" [iPlaybook]
-        playbook c $ Ansible "ami" Nothing Nothing 36000 False $
+        playbook c $ Ansible "ami" Nothing Nothing 36000 False $ iArgs ++
             [ "-i", Text.unpack $ dns <> ",localhost,"
             , "-e", js
             , Path.encodeString iPlaybook

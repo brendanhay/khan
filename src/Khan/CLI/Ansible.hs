@@ -302,7 +302,7 @@ image c@Common{..} d@Image{..} = do
 
         void $ Image.create iid imageName (blockDevices iNDevices)
 
-    if (isLeft e && iPreserve)
+    if isLeft e && iPreserve
         then log "Error creating Image, preserving base Instance {}" [iid]
         else do
             log_ "Terminating base instance"

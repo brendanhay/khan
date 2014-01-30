@@ -38,6 +38,8 @@ module Khan.Internal.Options
     , envOption
     , versionOption
     , keyOption
+    , trustOption
+    , policyOption
     , ansibleOption
 
     , check
@@ -207,8 +209,17 @@ keyOption :: Parser (Maybe FilePath)
 keyOption = optional $ pathOption "key" (short 'i')
     "Path to the private key to use."
 
+trustOption :: Parser FilePath
+trustOption = pathOption "trust"  (value "")
+    "Trust relationship file."
+
+policyOption :: Parser FilePath
+policyOption = pathOption "policy" (value "")
+    "Role policy file."
+
 ansibleOption :: Parser Bool
-ansibleOption = switchOption "ansible" False "Ansible module compatible output."
+ansibleOption = switchOption "ansible" False
+    "Ansible module compatible output."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

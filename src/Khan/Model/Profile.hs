@@ -1,7 +1,10 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE ExtendedDefaultRules       #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ViewPatterns               #-}
+
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 -- Module      : Khan.Model.Profile
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -14,32 +17,58 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.Profile
-    ( find
+    ( Policy (..)
+    , policy
+    , find
     , update
     ) where
 
+import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
-import           Khan.Prelude    hiding (find)
+import           Khan.Prelude              hiding (find)
 import           Network.AWS.IAM
-import qualified Shelly          as Shell
+import qualified Shelly                    as Shell
+
+default (Text)
+
+data Policy = Policy
+    { pTrustPath  :: !FilePath
+    , pPolicyPath :: !FilePath
+    }
+
+policy :: Naming a
+       => a
+       -> FilePath -- ^ Config directory
+       -> FilePath -- ^ Trust file path
+       -> FilePath -- ^ Policy file path
+       -> Policy
+policy (names -> Names{..}) root t p = Policy
+    { pTrustPath  = defaultPath t tpath
+    , pPolicyPath = defaultPath p ppath
+    }
+  where
+    tpath = root </> Path.fromText "trust.json"
+    ppath = root </> "policies" </> Path.fromText policyName <.> "json"
 
 find :: Naming a => a -> AWS Role
 find = fmap (grrRole . grrGetRoleResult) . send . GetRole . profileName . names
 
-update :: Naming a => a -> FilePath -> FilePath -> AWS ()
-update (names -> Names{..}) ppath tpath = do
-    (policy, trust) <- shell $ (,)
-        <$> Shell.readfile ppath
-        <*> Shell.readfile tpath
+update :: Naming a => a -> FilePath -> FilePath -> AWS Role
+update (names -> n@Names{..}) tpath ppath = do
+    (t, p) <- shell $ (,)
+        <$> Shell.readfile tpath
+        <*> Shell.readfile ppath
 
     i <- sendAsync $ CreateInstanceProfile profileName Nothing
-    r <- sendAsync $ CreateRole trust Nothing profileName
+    r <- sendAsync $ CreateRole t Nothing profileName
 
     wait i >>= verifyIAM "EntityAlreadyExists"
     wait r >>= verifyIAM "EntityAlreadyExists"
 
-    a <- sendAsync $ AddRoleToInstanceProfile profileName profileName
-    p <- sendAsync $ PutRolePolicy policy profileName profileName
+    ar <- sendAsync $ AddRoleToInstanceProfile profileName profileName
+    pr <- sendAsync $ PutRolePolicy p profileName profileName
 
-    wait a >>= verifyIAM "LimitExceeded"
-    waitAsync_ p <* log "Updated policy for Role {}" [profileName]
+    wait ar >>= verifyIAM "LimitExceeded"
+    waitAsync_ pr <* log "Updated policy for Role {}" [profileName]
+
+    find n

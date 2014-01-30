@@ -81,6 +81,7 @@ data Names = Names
     , imageName   :: !Text
     , appName     :: !Text
     , versionName :: Maybe Text
+    , policyName  :: !Text
     } deriving (Eq, Ord, Show)
 
 createNames :: Text -> Text -> Maybe Version -> Names
@@ -93,6 +94,7 @@ createNames role env ver = Names
     , imageName   = Text.concat [role, maybe "" (Text.cons '_') safeVer]
     , appName     = Text.concat [role, fromMaybe "" safeVer, ".", env]
     , versionName = showVersion <$> ver
+    , policyName  = role
     }
   where
     nameEnv = Text.concat [env, "-", role]
@@ -117,7 +119,7 @@ instance Naming Names where
     names = id
 
 instance Naming Text where
-    names t = Names t t t t t t t Nothing
+    names t = Names t t t t t t t Nothing t
 
 data RoutingPolicy
     = Failover

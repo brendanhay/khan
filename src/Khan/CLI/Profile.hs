@@ -1,6 +1,9 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ExtendedDefaultRules       #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 -- Module      : Khan.CLI.Profile
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -26,29 +29,37 @@ import           Khan.Prelude
 import           Network.AWS.IAM            hiding (Role)
 import           Network.HTTP.Types         (urlDecode)
 
+default (Text)
+
 data Role = Role
     { rRole   :: !Text
     , rEnv    :: !Text
-    , rPolicy :: !FilePath
     , rTrust  :: !FilePath
+    , rPolicy :: !FilePath
     } deriving (Show)
 
 roleParser :: Parser Role
 roleParser = Role
     <$> roleOption
     <*> envOption
-    <*> pathOption "policy" (value "") "Role policy file."
     <*> pathOption "trust"  (value "") "Trust relationship file."
+    <*> pathOption "policy" (value "") "Role policy file."
 
 instance Options Role where
-    discover _ Common{..} r@Role{..} = do
-        let p = defaultPath rPolicy (cConfig </> Path.fromText "policy.json")
-            t = defaultPath rTrust  (cConfig </> Path.fromText "trust.json")
-        return $! r { rPolicy = p, rTrust = t }
+    discover _ Common{..} r@Role{..} = return $! r
+        { rTrust  = defaultPath rTrust  trust
+        , rPolicy = defaultPath rPolicy policy
+        }
+      where
+        trust  = cConfig </> Path.fromText "trust.json"
+        policy = cConfig
+            </> "policies"
+            </> Path.fromText (policyName $ names r)
+            <.> "json"
 
     validate Role{..} = do
-        checkPath rPolicy " specified by --policy must exist."
         checkPath rTrust  " specified by --trust must exist."
+        checkPath rPolicy " specified by --policy must exist."
 
 instance Naming Role where
     names Role{..} = unversioned rRole rEnv

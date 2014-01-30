@@ -65,14 +65,18 @@ instance Invalid Region where
 
 class ToEnv a where
     toEnv     :: a -> HashMap Text Text
-    renderEnv :: a -> Build.Builder
+    renderEnv :: Bool -> a -> Build.Builder
 
-    renderEnv = Map.foldrWithKey key mempty . toEnv
+    renderEnv multi = Map.foldrWithKey (key suffix) mempty . toEnv
       where
-        key k v = mappend
+        suffix | multi     = Build.singleton '\n'
+               | otherwise = mempty
+
+        key suf k v = mappend
              (Build.fromText (Text.toUpper $ EDE.underscore k)
            <> Build.singleton '='
-           <> Build.fromText v)
+           <> Build.fromText v
+           <> suf)
 
 instance ToEnv (Text, Text) where
     toEnv = Map.fromList . (:[])
@@ -92,7 +96,7 @@ instance ToEnv Tags where
         [ ("ROLE",    tagRole)
         , ("ENV",     tagEnv)
         , ("DOMAIN",  tagDomain)
-        ] ++ maybe [] (:[]) (("VERSION",) . showVersion <$> tagVersion)
+        ] ++ maybeToList (("VERSION",) . showVersion <$> tagVersion)
 
 data DNS = DNS
     { dnsRole :: !Text

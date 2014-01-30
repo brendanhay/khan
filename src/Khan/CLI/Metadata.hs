@@ -14,27 +14,27 @@ module Khan.CLI.Metadata (commands) where
 -- Portability : non-portable (GHC extensions)
 
 import qualified Data.Aeson               as Aeson
-import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Lazy     as LBS
-import           Data.HashMap.Strict      (HashMap)
 import qualified Data.HashMap.Strict      as Map
-import           Data.Text                (Text)
 import qualified Data.Text                as Text
 import qualified Data.Text.Lazy.Builder   as Build
 import qualified Data.Text.Lazy.IO        as LText
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2.Metadata (Dynamic(..), Meta(..), toPath)
+import           Network.AWS.EC2.Metadata (Dynamic(..), toPath)
 import qualified Network.AWS.EC2.Metadata as Meta
 
 data Describe = Describe
-    { dEnv :: !Text
+    { dEnv       :: !Text
+    , dMultiLine :: !Bool
     }
 
 describeParser :: Parser Describe
 describeParser = Describe
     <$> envOption
+    <*> switchOption "multiline" False
+        "Write each output KEY=VALUE on a separate line."
 
 instance Options Describe where
     discover False _ _ =
@@ -52,10 +52,11 @@ describe _ Describe{..} = do
     iid <- instanceId doc
     ts  <- findRequiredTags iid
 
-    liftIO . LText.putStrLn
-           . Build.toLazyText
-           . renderEnv
-           $ toEnv ts <> doc
+    liftIO
+        . LText.putStrLn
+        . Build.toLazyText
+        . renderEnv dMultiLine
+        $ toEnv ts <> doc
   where
     decode = noteError "Unable to decode: "
         . Aeson.decode

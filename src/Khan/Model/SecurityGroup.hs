@@ -67,16 +67,16 @@ update (names -> n@Names{..}) (sort -> rules) = create n >>= f
 
         unless (null auth) $ do
             log "Authorizing {} on {}..." [showRules auth, groupName]
-            send_ $ AuthorizeSecurityGroupIngress (Just gid) Nothing auth
+            sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing auth)
+                >>= verifyEC2 "InvalidPermission.Duplicate"
 
         log "Security Group {} updated." [groupName]
         return $ any (not . null) [rev, auth]
 
-delete :: Naming a => a -> AWS Bool
-delete (names -> n@Names{..}) = find n >>= maybe (return False) f
-  where
-    f = const $ do
+delete :: Naming a  => a -> AWS Bool
+delete (names -> n@Names{..}) = find n >>= maybe (return False)
+    (const $ do
         log "Deleting Security Group {}..." [groupName]
         send_ $ DeleteSecurityGroup (Just groupName) Nothing
         log_ "Security Group deleted."
-        return True
+        return True)

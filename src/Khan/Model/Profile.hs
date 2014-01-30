@@ -43,21 +43,21 @@ policy :: Naming a
        -> FilePath -- ^ Policy file path
        -> Policy
 policy (names -> Names{..}) root t p = Policy
-    { pTrustPath  = defaultPath t trust
-    , pPolicyPath = defaultPath p policy
+    { pTrustPath  = defaultPath t tpath
+    , pPolicyPath = defaultPath p ppath
     }
   where
-    trust  = root </> Path.fromText "trust.json"
-    policy = root </> "policies" </> Path.fromText policyName <.> "json"
+    tpath = root </> Path.fromText "trust.json"
+    ppath = root </> "policies" </> Path.fromText policyName <.> "json"
 
 find :: Naming a => a -> AWS Role
 find = fmap (grrRole . grrGetRoleResult) . send . GetRole . profileName . names
 
 update :: Naming a => a -> FilePath -> FilePath -> AWS Role
-update (names -> n@Names{..}) ppath tpath = do
-    (p, t) <- shell $ (,)
-        <$> Shell.readfile ppath
-        <*> Shell.readfile tpath
+update (names -> n@Names{..}) tpath ppath = do
+    (t, p) <- shell $ (,)
+        <$> Shell.readfile tpath
+        <*> Shell.readfile ppath
 
     i <- sendAsync $ CreateInstanceProfile profileName Nothing
     r <- sendAsync $ CreateRole t Nothing profileName
@@ -65,10 +65,10 @@ update (names -> n@Names{..}) ppath tpath = do
     wait i >>= verifyIAM "EntityAlreadyExists"
     wait r >>= verifyIAM "EntityAlreadyExists"
 
-    a <- sendAsync $ AddRoleToInstanceProfile profileName profileName
-    p <- sendAsync $ PutRolePolicy p profileName profileName
+    ar <- sendAsync $ AddRoleToInstanceProfile profileName profileName
+    pr <- sendAsync $ PutRolePolicy p profileName profileName
 
-    wait a >>= verifyIAM "LimitExceeded"
-    waitAsync_ p <* log "Updated policy for Role {}" [profileName]
+    wait ar >>= verifyIAM "LimitExceeded"
+    waitAsync_ pr <* log "Updated policy for Role {}" [profileName]
 
     find n

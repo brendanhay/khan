@@ -53,14 +53,14 @@ routesParser = Routes
         "Path to the ED-E HAProxy configuration template."
 
 instance Options Routes where
-    discover ec2 Common{..} r@Routes{..} = do
+    discover p Common{..} r@Routes{..} = do
         zs <- AZ.getSuffixes rZones
         debug "Using Availability Zones '{}'" [zs]
-        if not ec2
+        if not p
             then return $! r { rZones = zs, rTemplate = f }
             else do
                 iid <- liftEitherT $
-                    Text.decodeUtf8 <$> Meta.metadata Meta.InstanceId
+                    Text.decodeUtf8 <$> Meta.meta Meta.InstanceId
                 Tags{..} <- findRequiredTags iid
                 return $! r
                     { rDomain   = Just tagDomain

@@ -21,6 +21,7 @@ module Khan.Model.SecurityGroup
     , delete
     ) where
 
+import Control.Monad
 import Data.List       (sort)
 import Khan.Internal
 import Khan.Prelude    hiding (find, min, max)
@@ -50,28 +51,34 @@ create (names -> n@Names{..}) = find n >>= maybe f return
 -- which doesn't inspect the inner UserIdGroupPairs, this could potentially cause
 -- a brief netsplit.
 update :: Naming a => a -> [IpPermissionType] -> AWS Bool
-update (names -> n@Names{..}) (sort -> rules) = create n >>= f
+update (names -> n@Names{..}) (sort -> rules) = do
+    grp <- create n
+
+    let gid         = sgitGroupId grp
+        fs          = map (UserIdGroupPair Nothing Nothing . uigGroupName)
+        gs          = map (\p -> p { iptGroups = fs $ iptGroups p })
+        ps          = sort . gs $ sgitIpPermissions grp
+        (auth, rev) = diff rules ps
+
+    log "Updating Security Group {}..." [groupName]
+
+    liftM2 (||) (revoke gid rev) (authorise gid auth)
+        <* log "Security Group {} updated." [groupName]
   where
-    f grp = do
-        log "Updating Security Group {}..." [groupName]
+    revoke gid xs
+        | null xs   = return False
+        | otherwise = do
+            log "Revoking {} on {}..." [showRules xs, groupName]
+            send_ $ RevokeSecurityGroupIngress (Just gid) Nothing xs
+            return True
 
-        let gid         = sgitGroupId grp
-            fs          = map (UserIdGroupPair Nothing Nothing . uigGroupName)
-            gs          = map (\p -> p { iptGroups = fs $ iptGroups p })
-            ps          = sort . gs $ sgitIpPermissions grp
-            (auth, rev) = diff rules ps
-
-        unless (null rev) $ do
-            log "Revoking {} on {}..." [showRules rev, groupName]
-            send_ $ RevokeSecurityGroupIngress (Just gid) Nothing rev
-
-        unless (null auth) $ do
-            log "Authorizing {} on {}..." [showRules auth, groupName]
-            sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing auth)
-                >>= verifyEC2 "InvalidPermission.Duplicate"
-
-        log "Security Group {} updated." [groupName]
-        return $ any (not . null) [rev, auth]
+    authorise gid xs
+        | null xs   = return False
+        | otherwise = do
+            log "Authorising {} on {}..." [showRules xs, groupName]
+            es <- sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing xs)
+            verifyEC2 "InvalidPermission.Duplicate" es
+            return $ isRight es
 
 delete :: Naming a  => a -> AWS Bool
 delete (names -> n@Names{..}) = find n >>= maybe (return False)

@@ -21,13 +21,15 @@ import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Key              as Key
 import qualified Khan.Model.LaunchConfig     as Config
+import           Khan.Model.Profile          (Policy(..))
 import qualified Khan.Model.Profile          as Profile
 import qualified Khan.Model.ScalingGroup     as ASG
 import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.AutoScaling hiding (Filter)
+import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
+
 
 data Deploy = Deploy
     { dRole     :: !Text
@@ -41,9 +43,10 @@ data Deploy = Deploy
     , dDesired  :: !Integer
     , dCooldown :: !Integer
     , dType     :: !InstanceType
+    , dTrust    :: !FilePath
+    , dPolicy   :: !FilePath
     }
 
--- FIXME: Add port(s) option, and apply to tags
 deployParser :: Parser Deploy
 deployParser = Deploy
     <$> roleOption
@@ -65,12 +68,20 @@ deployParser = Deploy
         "Seconds between scaling activities."
     <*> readOption "instance" "TYPE" (value M1_Medium)
         "Type of instance to provision."
+    <*> trustOption
+    <*> policyOption
 
 instance Options Deploy where
-    discover _ _ d@Deploy{..} = do
+    discover _ Common{..} d@Deploy{..} = do
         zs <- AZ.getSuffixes dZones
         debug "Using Availability Zones '{}'" [zs]
-        return $! d { dZones = zs }
+        return $! d
+            { dZones  = zs
+            , dTrust  = pTrustPath
+            , dPolicy = pPolicyPath
+            }
+      where
+        Policy{..} = Profile.policy d cConfig dTrust dPolicy
 
     validate Deploy{..} = do
         check dZones "--zones must be specified."
@@ -78,6 +89,9 @@ instance Options Deploy where
         check (dMax < dMin)     "--max must be greater than or equal to --max."
         check (dDesired < dMin) "--desired must be greater than or equal to --min."
         check (dDesired > dMax) "--desired must be less than or equal to --max."
+
+        checkPath dTrust  " specified by --trust must exist."
+        checkPath dPolicy " specified by --policy must exist."
 
 instance Naming Deploy where
     names Deploy{..} = versioned dRole dEnv dVersion
@@ -160,7 +174,7 @@ deploy c@Common{..} d@Deploy{..} = do
         throwAWS "Auto Scaling Group {} already exists." [appName]
 
     k <- async $ Key.create cBucket d cCerts
-    p <- async $ Profile.find d
+    p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
     s <- async $ Security.update (sshGroup dEnv) sshRules
     g <- async $ Security.create d
     a <- async $ Image.find [] [Filter "name" [imageName]]

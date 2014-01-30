@@ -22,8 +22,8 @@ import qualified Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Text                  as Text
 import qualified Data.Text.Encoding         as Text
-import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal
+import           Khan.Model.Profile         (Policy(..))
 import qualified Khan.Model.Profile         as Profile
 import           Khan.Prelude
 import           Network.AWS.IAM            hiding (Role)
@@ -42,20 +42,16 @@ roleParser :: Parser Role
 roleParser = Role
     <$> roleOption
     <*> envOption
-    <*> pathOption "trust"  (value "") "Trust relationship file."
-    <*> pathOption "policy" (value "") "Role policy file."
+    <*> trustOption
+    <*> policyOption
 
 instance Options Role where
     discover _ Common{..} r@Role{..} = return $! r
-        { rTrust  = defaultPath rTrust  trust
-        , rPolicy = defaultPath rPolicy policy
+        { rTrust  = pTrustPath
+        , rPolicy = pPolicyPath
         }
       where
-        trust  = cConfig </> Path.fromText "trust.json"
-        policy = cConfig
-            </> "policies"
-            </> Path.fromText (policyName $ names r)
-            <.> "json"
+        Policy{..} = Profile.policy r cConfig rTrust rPolicy
 
     validate Role{..} = do
         checkPath rTrust  " specified by --trust must exist."
@@ -85,12 +81,12 @@ info _ r = do
             . LBS.toStrict
             . maybe "" Aeson.encodePretty
             . join
-            . fmap policy
+            . fmap dec
             $ rAssumeRolePolicyDocument p)
         ]
   where
-    policy :: Text -> Maybe Object
-    policy = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
+    dec :: Text -> Maybe Object
+    dec = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
 
 update :: Common -> Role -> AWS ()
-update _ r = Profile.update r (rPolicy r) (rTrust r)
+update _ r = void $ Profile.update r (rPolicy r) (rTrust r)

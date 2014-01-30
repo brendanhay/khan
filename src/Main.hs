@@ -26,6 +26,7 @@ import qualified Khan.CLI.DNS             as DNS
 import qualified Khan.CLI.Group           as Group
 import qualified Khan.CLI.HealthCheck     as HealthCheck
 import qualified Khan.CLI.Launch          as Launch
+import qualified Khan.CLI.Metadata        as Metadata
 import qualified Khan.CLI.Profile         as Profile
 import qualified Khan.CLI.Routing         as Routing
 import qualified Khan.CLI.SSH             as SSH
@@ -50,6 +51,7 @@ programParser env = (,)
         <> Routing.commands
         <> SSH.commands
         <> Ansible.commands
+        <> Metadata.commands
          )
 
 main :: IO ()
@@ -63,7 +65,7 @@ main = do
 
     run (c, Command f x) = do
         unless (cSilent c) enableLogging
-        p <- isEC2
+        p <- ec2
         c'@Common{..} <- regionalise c p
         validate c'
         rs <- contextAWS c' $ do
@@ -74,7 +76,7 @@ main = do
         hoistEither rs
 
     regionalise c False = return c
-    regionalise c True  = do
-        az <- BS.unpack . BS.init <$> metadata AvailabilityZone
-        r  <- fmapLT Err $ tryRead ("Failed to read region from: " ++ az) az
+    regionalise c True  = fmapLT Err $ do
+        az <- BS.unpack . BS.init <$> meta AvailabilityZone
+        r  <- tryRead ("Failed to read region from: " ++ az) az
         return $! c { cRegion = r }

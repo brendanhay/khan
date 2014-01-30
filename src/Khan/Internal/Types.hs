@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 
 -- Module      : Khan.Internal.Types
@@ -14,11 +16,15 @@
 
 module Khan.Internal.Types where
 
+import           Data.HashMap.Strict          (HashMap)
+import qualified Data.HashMap.Strict          as Map
 import           Data.SemVer
 import qualified Data.Text                    as Text
+import qualified Data.Text.Lazy.Builder       as Build
 import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Prelude
 import           Network.AWS                  (Region)
+import qualified Text.EDE.Filters             as EDE
 import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
 import qualified Text.Read                    as Read
@@ -57,12 +63,40 @@ instance Invalid a => Invalid (Maybe a) where
 instance Invalid Region where
     invalid _ = False
 
+class ToEnv a where
+    toEnv     :: a -> HashMap Text Text
+    renderEnv :: Bool -> a -> Build.Builder
+
+    renderEnv multi = Map.foldrWithKey (key suffix) mempty . toEnv
+      where
+        suffix | multi     = Build.singleton '\n'
+               | otherwise = mempty
+
+        key suf k v = mappend
+             (Build.fromText (Text.toUpper $ EDE.underscore k)
+           <> Build.singleton '='
+           <> Build.fromText v
+           <> suf)
+
+instance ToEnv (Text, Text) where
+    toEnv = Map.fromList . (:[])
+
+instance ToEnv (HashMap Text Text) where
+    toEnv = id
+
 data Tags = Tags
     { tagRole    :: !Text
     , tagEnv     :: !Text
     , tagDomain  :: !Text
     , tagVersion :: Maybe Version
     } deriving (Eq, Ord, Show)
+
+instance ToEnv Tags where
+    toEnv Tags{..} = Map.fromList $
+        [ ("ROLE",    tagRole)
+        , ("ENV",     tagEnv)
+        , ("DOMAIN",  tagDomain)
+        ] ++ maybeToList (("VERSION",) . showVersion <$> tagVersion)
 
 data DNS = DNS
     { dnsRole :: !Text

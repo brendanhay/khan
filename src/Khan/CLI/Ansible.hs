@@ -15,33 +15,34 @@
 
 module Khan.CLI.Ansible (commands) where
 
-import           Control.Concurrent         (threadDelay)
-import           Control.Monad              (mplus)
-import           Data.Aeson                 as Aeson
-import qualified Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.HashMap.Strict        as Map
+import           Control.Concurrent          (threadDelay)
+import           Control.Monad               (mplus)
+import           Data.Aeson                  as Aeson
+import qualified Data.Aeson.Encode.Pretty    as Aeson
+import qualified Data.ByteString.Lazy.Char8  as LBS
+import qualified Data.HashMap.Strict         as Map
 import           Data.Maybe
 import           Data.SemVer
-import qualified Data.Set                   as Set
-import qualified Data.Text                  as Text
-import qualified Data.Text.Format           as Format
-import qualified Data.Text.Lazy.IO          as LText
+import qualified Data.Set                    as Set
+import qualified Data.Text                   as Text
+import qualified Data.Text.Format            as Format
+import qualified Data.Text.Lazy.IO           as LText
 import           Data.Time.Clock.POSIX
-import qualified Filesystem.Path.CurrentOS  as Path
+import qualified Filesystem.Path.CurrentOS   as Path
 import           Khan.Internal
 import           Khan.Internal.Ansible
-import qualified Khan.Model.Image           as Image
-import qualified Khan.Model.Instance        as Instance
-import qualified Khan.Model.Key             as Key
-import qualified Khan.Model.Profile         as Profile
-import qualified Khan.Model.SecurityGroup   as Security
+import qualified Khan.Model.AvailabilityZone as AZ
+import qualified Khan.Model.Image            as Image
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2            hiding (Failed, Image)
-import qualified Shelly                     as Shell
+import           Network.AWS.EC2             hiding (Failed, Image)
+import qualified Shelly                      as Shell
 import           System.Directory
-import qualified System.Posix.Files         as Posix
+import qualified System.Posix.Files          as Posix
 
 data Ansible = Ansible
     { aEnv    :: !Text
@@ -101,6 +102,7 @@ data Image = Image
     , iPreserve :: !Bool
     , iNDevices :: !Integer
     , iArgs     :: [String]
+    , iZones    :: !String
     }
 
 imageParser :: Parser Image
@@ -119,6 +121,8 @@ imageParser = Image
         "Number of ephemeral devices to register the ami with."
     <*> argsOption str (action "file")
         "Pass through arugments to ansible."
+    <*> stringOption "zones" (value "")
+         "Availability zones suffixes to provision into (psuedo-random)."
 
 instance Options Image where
     discover _ _ a@Image{..} = return $! a
@@ -267,13 +271,19 @@ image c@Common{..} d@Image{..} = do
 
     k <- async $ Key.create cBucket d cCerts
     g <- async $ Security.update d sshRules
+    z <- async $ AZ.getSuffixes iZones
 
     wait_ k <* log "Found KeyPair {}" [keyName]
     wait_ g <* log "Found Role Group {}" [groupName]
 
-    az  <- shuffle "bc"
-    mr  <- listToMaybe . map riitInstanceId <$>
-        Instance.run d ami iType (AZ cRegion az) 1 1 False
+    az <- wait z >>= shuffle
+
+    let zone = AZ cRegion az
+
+    log "Using AvailabilityZone {}" [Format.Shown zone]
+    mr <- listToMaybe . map riitInstanceId <$>
+        Instance.run d ami iType zone 1 1 False
+
     iid <- noteAWS "Failed to launch any Instances using Image {}" [ami] mr
     log "Launched Instance {}" [iid]
 

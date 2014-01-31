@@ -28,16 +28,18 @@ import           Khan.Prelude              hiding (min, max)
 import           Network.AWS.EC2           hiding (Instance)
 import qualified Shelly                    as Shell
 
-create :: Naming a => Text -> a -> FilePath -> AWS ()
-create b (names -> n@Names{..}) dir =
-    sendCatch (CreateKeyPair keyName) >>= either exist write
+create :: Naming a => Text -> a -> FilePath -> AWS FilePath
+create b (names -> n@Names{..}) dir = do
+    f <- filePath n dir
+    e <- sendCatch $ CreateKeyPair keyName
+    either exist (write f) e
+    return f
   where
     exist e = do
         verifyEC2 "InvalidKeyPair.Duplicate" (Left e)
         log "Key Pair {} exists, not updating." [keyName]
 
-    write k = do
-        f <- path' n dir
+    write f k = do
         shell $ do
              p <- Shell.test_e f
              when p $ do
@@ -51,12 +53,12 @@ create b (names -> n@Names{..}) dir =
 
 path :: Naming a => Text -> a -> FilePath -> AWS FilePath
 path b (names -> n@Names{..}) dir = do
-    f <- path' n dir
+    f <- filePath n dir
     void $ Object.download b (Text.pack . Path.encodeString $ Path.filename f) f
     shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
     return f
 
-path' :: Names -> FilePath -> AWS FilePath
-path' Names{..} dir = do
+filePath :: Names -> FilePath -> AWS FilePath
+filePath Names{..} dir = do
     r <- Text.pack . show <$> getRegion
     return $ dir </> Shell.fromText (Text.concat [r, "_", keyName, ".pem"])

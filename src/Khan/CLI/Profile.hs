@@ -89,4 +89,4 @@ info _ r = do
     dec = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
 
 update :: Common -> Role -> AWS ()
-update _ r = void $ Profile.update r (rPolicy r) (rTrust r)
+update _ r = void $ Profile.update r (rTrust r) (rPolicy r)

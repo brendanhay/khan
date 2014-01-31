@@ -26,6 +26,13 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
 
+-- FIXME:
+-- Block Device Mappings
+-- Monitoring
+-- Disable Api Termination
+-- Instance Shutdown Behavior
+-- Client Token
+-- Network Interfaces
 data Launch = Launch
     { lRole      :: !Text
     , lEnv       :: !Text
@@ -60,13 +67,6 @@ launchParser = Launch
          "Availability zones suffixes to provision into (psuedo-random)."
     <*> trustOption
     <*> policyOption
-
-    -- Block Device Mappings
-    -- Monitoring
-    -- Disable Api Termination
-    -- Instance Shutdown Behavior
-    -- Client Token
-    -- Network Interfaces
 
 instance Options Launch where
     discover _ Common{..} l@Launch{..} = do

@@ -30,7 +30,6 @@ import           Network.AWS
 import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
 
-
 data Deploy = Deploy
     { dRole     :: !Text
     , dEnv      :: !Text

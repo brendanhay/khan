@@ -23,11 +23,12 @@ module Khan.Model.Profile
     , update
     ) where
 
+import           Data.Aeson
+import qualified Data.Text.Lazy            as LText
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import           Khan.Prelude              hiding (find)
 import           Network.AWS.IAM
-import qualified Shelly                    as Shell
 
 default (Text)
 
@@ -39,36 +40,38 @@ data Policy = Policy
 policy :: Naming a
        => a
        -> FilePath -- ^ Config directory
-       -> FilePath -- ^ Trust file path
-       -> FilePath -- ^ Policy file path
+       -> FilePath -- ^ Trust template path
+       -> FilePath -- ^ Policy template path
        -> Policy
 policy (names -> Names{..}) root t p = Policy
     { pTrustPath  = defaultPath t tpath
     , pPolicyPath = defaultPath p ppath
     }
   where
-    tpath = root </> Path.fromText "trust.json"
-    ppath = root </> "policies" </> Path.fromText policyName <.> "json"
+    tpath = root </> Path.fromText "trust.ede"
+    ppath = root </> "policies" </> Path.fromText roleName <.> "ede"
 
 find :: Naming a => a -> AWS Role
 find = fmap (grrRole . grrGetRoleResult) . send . GetRole . profileName . names
 
 update :: Naming a => a -> FilePath -> FilePath -> AWS Role
 update (names -> n@Names{..}) tpath ppath = do
-    (t, p) <- shell $ (,)
-        <$> Shell.readfile tpath
-        <*> Shell.readfile ppath
+    (t, p) <- (,)
+        <$> renderTemplate o tpath
+        <*> renderTemplate o ppath
 
     i <- sendAsync $ CreateInstanceProfile profileName Nothing
-    r <- sendAsync $ CreateRole t Nothing profileName
+    r <- sendAsync $ CreateRole (LText.toStrict t) Nothing profileName
 
     wait i >>= verifyIAM "EntityAlreadyExists"
     wait r >>= verifyIAM "EntityAlreadyExists"
 
     ar <- sendAsync $ AddRoleToInstanceProfile profileName profileName
-    pr <- sendAsync $ PutRolePolicy p profileName profileName
+    pr <- sendAsync $ PutRolePolicy (LText.toStrict p) profileName profileName
 
     wait ar >>= verifyIAM "LimitExceeded"
     waitAsync_ pr <* log "Updated policy for Role {}" [profileName]
 
     find n
+  where
+    Object o = toJSON n

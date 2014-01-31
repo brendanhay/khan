@@ -25,12 +25,14 @@ import qualified Data.Conduit.Binary       as Conduit
 import qualified Data.Conduit.List         as Conduit
 import           Data.SemVer
 import qualified Data.Text                 as Text
+import qualified Data.Text.Encoding        as Text
 import           Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS.S3
 import           Network.HTTP.Conduit
+import           Network.HTTP.Types        (urlEncode)
 import           System.Directory
 
 download :: Text -> Text -> FilePath -> AWS Bool
@@ -82,3 +84,10 @@ delete b k = do
     log "Deleting '{}/{}'" [b, k]
     send_ $ DeleteObject b (safeKey k) []
     return True
+
+safeKey :: Text -> Text
+safeKey x = Text.decodeUtf8
+    . urlEncode True
+    . Text.encodeUtf8
+    . fromMaybe x
+    $ Text.stripPrefix "/" x

@@ -14,46 +14,73 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Internal.AWS where
+module Khan.Internal.AWS
+    (
+    -- * EC2 Metadata
+      Meta(..)
+    , meta
+
+    -- * Encapsulate/rerun an AWS context
+    , contextAWS
+
+    -- * SSH
+    , sshGroup
+    , sshRules
+
+    -- * Tags
+    -- ** Constants
+    , envTag
+    , roleTag
+    , domainTag
+    , nameTag
+    , versionTag
+    , weightTag
+
+    -- ** Operations
+    , defaultTags
+    , findRequiredTags
+    , lookupTags
+    , lookupVersionTag
+    , lookupWeightTag
+
+    -- * Region
+    , abbreviate
+
+    -- * Errors
+    , throwAWS
+    , noteAWS
+
+    -- * Asserts
+    , verifyAS
+    , verifyEC2
+    , verifyIAM
+    ) where
 
 import           Control.Monad.Error
-import qualified Data.Attoparsec.Text    as AText
-import           Data.HashMap.Strict     (HashMap)
-import qualified Data.HashMap.Strict     as Map
+import qualified Data.Attoparsec.Text     as AText
+import           Data.HashMap.Strict      (HashMap)
+import qualified Data.HashMap.Strict      as Map
 import           Data.SemVer
-import qualified Data.Text               as Text
-import qualified Data.Text.Encoding      as Text
-import           Data.Text.Format        (Format, format)
+import qualified Data.Text                as Text
+import qualified Data.Text.Encoding       as Text
+import           Data.Text.Format         (Format, format)
 import           Data.Text.Format.Params
-import qualified Data.Text.Lazy          as LText
+import qualified Data.Text.Lazy           as LText
 import           Khan.Internal.Options
 import           Khan.Internal.Types
-import           Khan.Prelude            hiding (min, max)
+import           Khan.Prelude             hiding (min, max)
 import           Network.AWS
-import           Network.AWS.AutoScaling hiding (DescribeTags)
-import           Network.AWS.EC2         as EC2
+import           Network.AWS.AutoScaling  hiding (DescribeTags)
+import           Network.AWS.EC2          as EC2
+import           Network.AWS.EC2.Metadata (Meta(..))
+import qualified Network.AWS.EC2.Metadata as Meta
 import           Network.AWS.IAM
-import           Network.HTTP.Types
+
+meta :: (Functor m, MonadIO m) => Meta -> EitherT String m Text
+meta = fmap Text.decodeUtf8 . Meta.meta
 
 contextAWS :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
 contextAWS Common{..} = liftIO . runAWS AuthDiscover cDebug . within cRegion
-
-assertAWS :: (MonadError AWSError m, MonadIO m, Params ps)
-          => Format
-          -> ps
-          -> m Bool
-          -> m ()
-assertAWS f ps act = unlessM act $ throwAWS f ps
-
-throwAWS :: (Params a, MonadError AWSError m) => Format -> a -> m b
-throwAWS f = throwError . Err . LText.unpack . format f
-
-noteAWS :: (Params ps, MonadError AWSError m)
-        => Format
-        -> ps
-        -> Maybe a
-        -> m a
-noteAWS f ps = hoistError . note (Err . LText.unpack $ format f ps)
 
 sshGroup :: Text -> Text
 sshGroup = (<> "-ssh")
@@ -115,6 +142,26 @@ lookupWeightTag = fromMaybe 0
     . fmap (hush . AText.parseOnly AText.decimal)
     . Map.lookup weightTag
 
+abbreviate :: Region -> Text
+abbreviate NorthVirginia   = "va"
+abbreviate NorthCalifornia = "ca"
+abbreviate Oregon          = "or"
+abbreviate Ireland         = "ie"
+abbreviate Singapore       = "sg"
+abbreviate Tokyo           = "tyo"
+abbreviate Sydney          = "syd"
+abbreviate SaoPaulo        = "sao"
+
+throwAWS :: (Params a, MonadError AWSError m) => Format -> a -> m b
+throwAWS f = throwError . Err . LText.unpack . format f
+
+noteAWS :: (Params ps, MonadError AWSError m)
+        => Format
+        -> ps
+        -> Maybe a
+        -> m a
+noteAWS f ps = hoistError . note (Err . LText.unpack $ format f ps)
+
 verifyAS :: Text -> Either AutoScalingErrorResponse a -> AWS ()
 verifyAS  = (`verify` (aseCode . aserError))
 
@@ -134,20 +181,3 @@ verify k f = g
     g (Right _) = return ()
     g (Left  x) | k == f x  = return ()
                 | otherwise = throwError $ toError x
-
-abbreviate :: Region -> Text
-abbreviate NorthVirginia   = "va"
-abbreviate NorthCalifornia = "ca"
-abbreviate Oregon          = "or"
-abbreviate Ireland         = "ie"
-abbreviate Singapore       = "sg"
-abbreviate Tokyo           = "tyo"
-abbreviate Sydney          = "syd"
-abbreviate SaoPaulo        = "sao"
-
-safeKey :: Text -> Text
-safeKey x = Text.decodeUtf8
-    . urlEncode True
-    . Text.encodeUtf8
-    . fromMaybe x
-    $ Text.stripPrefix "/" x

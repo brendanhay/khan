@@ -17,7 +17,7 @@ module Main (main) where
 
 import           Control.Error
 import           Control.Monad
-import qualified Data.ByteString.Char8    as BS
+import qualified Data.Text                as Text
 import           Data.Text.Format         (Shown(..))
 import qualified Khan.CLI.Ansible         as Ansible
 import qualified Khan.CLI.Artifact        as Artifact
@@ -33,7 +33,7 @@ import qualified Khan.CLI.SSH             as SSH
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2.Metadata
+import           Network.AWS.EC2.Metadata (ec2)
 import           Options.Applicative
 import           System.Environment
 
@@ -77,6 +77,6 @@ main = do
 
     regionalise c False = return c
     regionalise c True  = fmapLT Err $ do
-        az <- BS.unpack . BS.init <$> meta AvailabilityZone
+        az <- Text.unpack <$> meta AvailabilityZone
         r  <- tryRead ("Failed to read region from: " ++ az) az
         return $! c { cRegion = r }

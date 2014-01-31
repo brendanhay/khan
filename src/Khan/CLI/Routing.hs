@@ -20,7 +20,6 @@ import           Data.Aeson
 import qualified Data.HashMap.Strict         as Map
 import           Data.String
 import qualified Data.Text                   as Text
-import qualified Data.Text.Encoding          as Text
 import qualified Data.Text.Lazy.IO           as LText
 import qualified Filesystem.Path.CurrentOS   as Path
 import           Khan.Internal
@@ -29,7 +28,6 @@ import qualified Khan.Model.Instance         as Instance
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2             hiding (Instance, ec2)
-import           Network.AWS.EC2.Metadata    as Meta
 import qualified Text.EDE                    as EDE
 
 data Routes = Routes
@@ -62,8 +60,7 @@ instance Options Routes where
         if not p
             then return $! r { rZones = zs, rTemplate = f }
             else do
-                iid <- liftEitherT $
-                    Text.decodeUtf8 <$> Meta.meta Meta.InstanceId
+                iid      <- liftEitherT $ meta InstanceId
                 Tags{..} <- findRequiredTags iid
                 return $! r
                     { rDomain   = Just tagDomain

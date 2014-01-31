@@ -19,7 +19,6 @@ import           Khan.Internal.Ansible
 import qualified Khan.Model.SecurityGroup as Security
 import           Khan.Prelude
 import           Network.AWS.EC2
-import           Text.Show.Pretty
 
 data Group = Group
     { gRole    :: !Text
@@ -52,7 +51,7 @@ commands = group "group" "Long description." $ mconcat
     ]
 
 info :: Common -> Group -> AWS ()
-info _ g = Security.find g >>= liftIO . maybe (return ()) (putStrLn . ppShow)
+info _ g = Security.find g >>= liftIO . maybe (return ()) print
 
 update :: Common -> Group -> AWS ()
 update c g@Group{..}

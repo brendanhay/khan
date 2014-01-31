@@ -42,7 +42,6 @@ executable khan
       , directory
       , ede             >= 0.1.3
       , errors
-      , hslogger
       , http-conduit
       , http-types
       , mtl

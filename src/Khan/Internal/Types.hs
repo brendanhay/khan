@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -16,12 +17,16 @@
 
 module Khan.Internal.Types where
 
+import           Data.Aeson
+import           Data.Aeson.Types             (Options(..), defaultOptions)
 import           Data.HashMap.Strict          (HashMap)
 import qualified Data.HashMap.Strict          as Map
 import           Data.SemVer
 import qualified Data.Text                    as Text
 import qualified Data.Text.Lazy.Builder       as Build
 import qualified Filesystem.Path.CurrentOS    as Path
+import           GHC.Generics                 (Generic)
+import           Khan.Internal.Text
 import           Khan.Prelude
 import           Network.AWS                  (Region)
 import qualified Text.EDE.Filters             as EDE
@@ -116,7 +121,13 @@ data Names = Names
     , appName     :: !Text
     , versionName :: Maybe Text
     , policyName  :: !Text
-    } deriving (Eq, Ord, Show)
+    } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON Names where
+    toJSON = genericToJSON $ defaultOptions
+        { fieldLabelModifier =
+            Text.unpack . (`mappend` "_name") . tstrip "Name" . Text.pack
+        }
 
 createNames :: Text -> Text -> Maybe Version -> Names
 createNames role env ver = Names

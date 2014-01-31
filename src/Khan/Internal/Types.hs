@@ -128,7 +128,7 @@ createNames role env ver = Names
     , imageName   = Text.concat [role, maybe "" (Text.cons '_') safeVer]
     , appName     = Text.concat [role, fromMaybe "" safeVer, ".", env]
     , versionName = showVersion <$> ver
-    , policyName  = role
+    , policyName  = nameEnv
     }
   where
     nameEnv = Text.concat [env, "-", role]

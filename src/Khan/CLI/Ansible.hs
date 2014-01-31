@@ -276,13 +276,11 @@ image c@Common{..} d@Image{..} = do
     wait_ k <* log "Found KeyPair {}" [keyName]
     wait_ g <* log "Found Role Group {}" [groupName]
 
-    az <- wait z >>= shuffle
+    az <- fmap (AZ cRegion) $ wait z >>= shuffle
 
-    let zone = AZ cRegion az
-
-    log "Using AvailabilityZone {}" [Format.Shown zone]
+    log "Using AvailabilityZone {}" [Format.Shown az]
     mr <- listToMaybe . map riitInstanceId <$>
-        Instance.run d ami iType zone 1 1 False
+        Instance.run d ami iType az 1 1 False
 
     iid <- noteAWS "Failed to launch any Instances using Image {}" [ami] mr
     log "Launched Instance {}" [iid]

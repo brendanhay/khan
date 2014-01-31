@@ -16,17 +16,15 @@ module Khan.CLI.SSH (commands) where
 
 import           Control.Arrow
 import qualified Data.Text                 as Text
-import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import qualified Khan.Model.Instance       as Instance
 import qualified Khan.Model.Key            as Key
+import qualified Khan.Model.SSH            as SSH
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           System.IO                 hiding (FilePath)
-import qualified System.Posix.Process      as Posix
 
--- FIXME: Add scp
-
+-- FIXME: Add scp/sftp
 data SSH = SSH
     { sRole :: !Text
     , sEnv  :: !Text
@@ -40,7 +38,7 @@ sshParser = SSH
     <$> roleOption
     <*> envOption
     <*> keyOption
-    <*> textOption "user" (value "ubuntu" <> short 'u') "SSH User."
+    <*> userOption
     <*> argsOption str mempty "Pass through arugments to ssh."
 
 instance Options SSH
@@ -59,24 +57,20 @@ ssh Common{..} s@SSH{..} = do
         [ Filter ("tag:" <> envTag)  [sEnv]
         , Filter ("tag:" <> roleTag) [sRole]
         ]
-    case dns of
-        []  -> log_ "No hosts found, exiting..."
-        [x] -> liftIO $ exec x key
-        _   -> do
-            let cs = map (first show) $ zip ([1..] :: [Int]) dns
-            mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
-            x <- liftIO choose
-            a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
-            liftIO $ exec a key
+    go key dns
   where
-    exec addr key = do
-        let xs = [ "-i" ++ Path.encodeString key
-                 , Text.unpack $ Text.concat [sUser, "@", addr]
-                 ] ++ sArgs
-        log "ssh {}" [unwords xs]
-        Posix.executeFile "ssh" True xs Nothing
+    go _   []  = log_ "No hosts found, exiting..."
+    go key [x] = SSH.exec x sUser key sArgs
+    go key dns = do
+        mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
+        x <- choose
+        a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
+        SSH.exec a sUser key sArgs
+      where
+        cs = map (first show) $ zip ([1..] :: [Int]) dns
 
-    choose = do
+    choose = liftIO $ do
         hSetBuffering stdout NoBuffering
         putStr "Select the host to connect to: "
         getLine
+

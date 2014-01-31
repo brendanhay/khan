@@ -19,6 +19,7 @@ import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
+import           Khan.Model.Profile          (Policy(..))
 import qualified Khan.Model.Profile          as Profile
 import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
@@ -35,6 +36,8 @@ data Launch = Launch
     , lType      :: !InstanceType
     , lOptimised :: !Bool
     , lZones     :: !String
+    , lTrust     :: !FilePath
+    , lPolicy    :: !FilePath
     }
 
 launchParser :: Parser Launch
@@ -55,6 +58,8 @@ launchParser = Launch
         "EBS optimisation."
     <*> stringOption "zones" (value "")
          "Availability zones suffixes to provision into (psuedo-random)."
+    <*> trustOption
+    <*> policyOption
 
     -- Block Device Mappings
     -- Monitoring
@@ -64,13 +69,22 @@ launchParser = Launch
     -- Network Interfaces
 
 instance Options Launch where
-    discover _ _ l@Launch{..} = do
+    discover _ Common{..} l@Launch{..} = do
         zs <- AZ.getSuffixes lZones
         debug "Using Availability Zones '{}'" [zs]
-        return $! l { lZones = zs }
+        return $! l
+            { lZones  = zs
+            , lTrust  = pTrustPath
+            , lPolicy = pPolicyPath
+            }
+      where
+        Policy{..} = Profile.policy l cConfig lTrust lPolicy
 
-    validate Launch{..} =
+    validate Launch{..} = do
         check lZones "--zones must be specified."
+
+        checkPath lTrust  " specified by --trust must exist."
+        checkPath lPolicy " specified by --policy must exist."
 
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
@@ -88,12 +102,12 @@ launch Common{..} l@Launch{..} = do
         (Filter "image-id" . (:[])) lImage
 
     log "Looking for IAM Profiles matching {}" [profileName]
-    i <- async $ Profile.find l
+    p <- async $ Profile.find l <|> Profile.update l lTrust lPolicy
 
     ami <- diritImageId <$> wait a
     log "Using Image {}" [ami]
 
-    wait_ i <* log "Found IAM Profile {}" [profileName]
+    wait_ p <* log "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create cBucket l cCerts
     s <- async $ Security.update (sshGroup envName) sshRules

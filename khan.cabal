@@ -6,7 +6,7 @@ license:               OtherLicense
 license-file:          LICENSE
 author:                Brendan Hay
 maintainer:            Brendan Hay <brendan.g.hay@gmail.com>
-copyright:             Copyright (c) 2013 Brendan Hay
+copyright:             Copyright (c) 2013-2014 Brendan Hay
 stability:             Experimental
 category:              AWS, Cloud, Infrastructure
 build-type:            Simple
@@ -33,7 +33,6 @@ executable khan
         aeson           >= 0.7
       , aeson-pretty
       , amazonka        >= 0.1.3
-      , async
       , attoparsec
       , base            >= 4.6 && < 5
       , bytestring
@@ -48,11 +47,9 @@ executable khan
       , mtl
       , optparse-applicative
       , prelude-prime
-      , pretty-show
       , random
       , semigroups
       , shelly
-      , text
       , system-filepath >= 0.4.9
       , text            >= 1.0
       , text-format

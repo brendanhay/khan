@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.Internal.IO
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -25,22 +26,30 @@ module Khan.Internal.IO
     -- * Psuedo Randomisation
     , shuffle
 
+    -- * Templates
+    , renderTemplate
+
     -- Re-exported
     , Sh
     , (</>)
     , (<.>)
     ) where
 
+import           Data.Aeson                (Object)
 import           Data.String
 import qualified Data.Text                 as Text
+import qualified Data.Text.Lazy            as LText
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
+import           Network.AWS               (AWS, liftEitherT, hoistError)
 import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                    as Shell
 import           System.Directory
 import           System.Random             (randomRIO)
+import           Text.EDE                  (Template)
+import qualified Text.EDE                  as EDE
 
 sh :: MonadIO m => Sh a -> EitherT String m a
 sh = fmapLT show . syncIO . shell
@@ -75,3 +84,8 @@ writeFile file mode contents = shell $ do
 
 shuffle :: MonadIO m => [a] -> m a
 shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)
+
+renderTemplate :: Object -> FilePath -> AWS LText.Text
+renderTemplate o (Path.encodeString -> f) = liftEitherT $ do
+    et <- sync $ EDE.eitherParseFile f
+    hoistEither . join $ (`EDE.eitherRender` o) <$> et

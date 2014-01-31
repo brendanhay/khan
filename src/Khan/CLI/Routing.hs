@@ -83,17 +83,14 @@ commands = command "routes" routes routesParser
 
 routes :: Common -> Routes -> AWS ()
 routes Common{..} r@Routes{..} = do
-    reg <- getRegion
-    is  <- Instance.findAll [] $ filters reg r
-    f   <- liftIO . LText.readFile $ Path.encodeString rTemplate
+    reg  <- getRegion
+    is   <- Instance.findAll [] $ filters reg r
 
     let xs = map mkInstance $ filter (isJust . riitDnsName) is
         ys = Map.fromListWith (<>) [(k, [v]) | (k, v) <- xs]
         zs = EDE.fromPairs ["roles" .= ys]
 
---    liftIO . LBS.putStrLn $ Aeson.encodePretty zs
-    liftIO . either print LText.putStrLn $
-        EDE.eitherParse f >>= (`EDE.eitherRender` zs)
+    renderTemplate zs rTemplate >>= liftIO . LText.putStrLn
 
 filters :: Region -> Routes -> [Filter]
 filters reg Routes{..} = catMaybes

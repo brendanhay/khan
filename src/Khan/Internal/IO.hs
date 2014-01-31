@@ -43,12 +43,11 @@ import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
-import           Network.AWS               (AWS, liftEitherT, hoistError)
+import           Network.AWS               (AWS, liftEitherT)
 import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                    as Shell
 import           System.Directory
 import           System.Random             (randomRIO)
-import           Text.EDE                  (Template)
 import qualified Text.EDE                  as EDE
 
 sh :: MonadIO m => Sh a -> EitherT String m a

@@ -35,7 +35,7 @@ checkParser = Check
         "Name of the hosted zone to associated the health check with."
     <*> textOption "address" mempty
         "IP Address of the endpoint to perform health checks on."
-    <*> integerOption "port" (value 80)
+    <*> integralOption "port" (value 80)
         "Port of the endpoint to perform health checks on."
     <*> readOption "protocol" "PROTO" (value HTTP)
         "Protocol to communicate with the endpoint."

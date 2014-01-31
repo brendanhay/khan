@@ -15,9 +15,9 @@
 
 module Khan.CLI.Routing (commands) where
 
-import           Control.Arrow               ((&&&))
+import           Control.Arrow               ((&&&), (***))
 import           Data.Aeson
-import qualified Data.Map                    as Map
+import qualified Data.HashMap.Strict         as Map
 import           Data.String
 import qualified Data.Text                   as Text
 import qualified Data.Text.Encoding          as Text
@@ -37,6 +37,7 @@ data Routes = Routes
     , rDomain   :: Maybe Text
     , rRoles    :: [Text]
     , rZones    :: !String
+    , rWeight   :: !Int
     , rTemplate :: !FilePath
     }
 
@@ -49,6 +50,8 @@ routesParser = Routes
         "Role to restrict to.")
     <*> stringOption "zones" (value "")
         "Availability zones suffixes restriction."
+    <*> integralOption "min-weight" (value 1)
+        "Minimum weight restriction."
     <*> pathOption "template" (action "file" <> value "" <> short 't')
         "Path to the ED-E HAProxy configuration template."
 
@@ -84,7 +87,7 @@ commands = command "routes" routes routesParser
 routes :: Common -> Routes -> AWS ()
 routes Common{..} Routes{..} = do
     reg <- getRegion
-    is  <- Instance.findAll [] $ filters reg
+    is  <- filter include <$> Instance.findAll [] (filters reg)
 
     let xs = map mk $ filter (isJust . riitDnsName) is
         ys = Map.fromListWith (<>) [(k, [v]) | (k, v) <- xs]
@@ -92,6 +95,12 @@ routes Common{..} Routes{..} = do
 
     renderTemplate zs rTemplate >>= liftIO . LText.putStrLn
   where
+    include = (>= rWeight)
+        . lookupWeightTag
+        . Map.fromList
+        . map ((rtsitKey *** rtsitValue) . join (,))
+        . riitTagSet
+
     filters reg = catMaybes
         [ Just . Filter "availability-zone" $ zones reg
         , Just $ Filter ("tag:" <> envTag) [rEnv]

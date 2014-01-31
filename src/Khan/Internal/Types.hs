@@ -94,6 +94,7 @@ data Tags = Tags
     , tagEnv     :: !Text
     , tagDomain  :: !Text
     , tagVersion :: Maybe Version
+    , tagWeight  :: !Int
     } deriving (Eq, Ord, Show)
 
 instance ToEnv Tags where
@@ -101,6 +102,7 @@ instance ToEnv Tags where
         [ ("ROLE",    tagRole)
         , ("ENV",     tagEnv)
         , ("DOMAIN",  tagDomain)
+        , ("WEIGHT",  Text.pack $ show tagWeight)
         ] ++ maybeToList (("VERSION",) . showVersion <$> tagVersion)
 
 data DNS = DNS

@@ -55,15 +55,15 @@ deployParser = Deploy
     <*> versionOption
     <*> stringOption "zones" (value "")
          "Availability zones suffixes to provision into."
-    <*> integerOption "grace" (value 20)
+    <*> integralOption "grace" (value 20)
         "Seconds until healthchecks are activated."
-    <*> integerOption "min" (value 1)
+    <*> integralOption "min" (value 1)
         "Minimum number of instances."
-    <*> integerOption "max" (value 1)
+    <*> integralOption "max" (value 1)
         "Maximum number of instances."
-    <*> integerOption "desired" (value 1)
+    <*> integralOption "desired" (value 1)
         "Desired number of instances."
-    <*> integerOption "cooldown" (value 60)
+    <*> integralOption "cooldown" (value 60)
         "Seconds between scaling activities."
     <*> readOption "instance" "TYPE" (value M1_Medium)
         "Type of instance to provision."
@@ -111,15 +111,15 @@ scaleParser = Scale
     <$> roleOption
     <*> envOption
     <*> versionOption
-    <*> optional (integerOption "grace" mempty
+    <*> optional (integralOption "grace" mempty
         "Seconds until healthchecks are activated.")
-    <*> optional (integerOption "min" mempty
+    <*> optional (integralOption "min" mempty
         "Minimum number of instances.")
-    <*> optional (integerOption "max" mempty
+    <*> optional (integralOption "max" mempty
         "Maximum number of instances.")
-    <*> optional (integerOption "desired" mempty
+    <*> optional (integralOption "desired" mempty
         "Desired number of instances.")
-    <*> optional (integerOption "cooldown" mempty
+    <*> optional (integralOption "cooldown" mempty
         "Seconds between scaling activities.")
 
 instance Options Scale where

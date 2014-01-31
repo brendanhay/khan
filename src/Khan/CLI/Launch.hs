@@ -55,7 +55,7 @@ launchParser = Launch
         "Instance's DNS domain."
     <*> optional (textOption "image" (value "")
         "Id of the image/ami.")
-    <*> integerOption "num" (short 'n' <> value 1)
+    <*> integralOption "num" (short 'n' <> value 1)
         "Number of instances to launch."
     <*> many (textOption "group" mempty
         "Security groups. (discovered)")

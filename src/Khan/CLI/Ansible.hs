@@ -115,7 +115,7 @@ imageParser = Image
         "Instance's type."
     <*> switchOption "preserve" False
         "Don't terminate the base instance on error."
-    <*> integerOption "block-devices" (value 8)
+    <*> integralOption "block-devices" (value 8)
         "Number of ephemeral devices to register the ami with."
     <*> argsOption str (action "file")
         "Pass through arugments to ansible."

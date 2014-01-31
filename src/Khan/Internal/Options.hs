@@ -30,7 +30,7 @@ module Khan.Internal.Options
     , textOption
     , pathOption
     , stringOption
-    , integerOption
+    , integralOption
     , customOption
     , argsOption
 
@@ -49,8 +49,9 @@ module Khan.Internal.Options
     , module Export
     ) where
 
-import qualified Data.Text                 as Text
+import qualified Data.Attoparsec.Text      as AText
 import           Data.SemVer
+import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.IO
 import           Khan.Internal.Types
@@ -168,11 +169,13 @@ stringOption :: String
 stringOption key m desc = strOption $ mconcat
     [long key, metavar "STR", help desc, m, showDefault]
 
-integerOption :: String
-              -> Mod OptionFields Integer
-              -> String
-              -> Parser Integer
-integerOption key = readOption key "INT"
+integralOption :: (Show a, Integral a)
+               => String
+               -> Mod OptionFields a
+               -> String
+               -> Parser a
+integralOption key = customOption key "INT"
+    (AText.parseOnly AText.decimal . Text.pack)
 
 customOption :: Show a
              => String

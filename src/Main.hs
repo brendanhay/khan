@@ -24,7 +24,6 @@ import qualified Khan.CLI.Artifact        as Artifact
 import qualified Khan.CLI.Cluster         as Cluster
 import qualified Khan.CLI.DNS             as DNS
 import qualified Khan.CLI.Group           as Group
-import qualified Khan.CLI.HealthCheck     as HealthCheck
 import qualified Khan.CLI.Image           as Image
 import qualified Khan.CLI.Launch          as Launch
 import qualified Khan.CLI.Metadata        as Metadata

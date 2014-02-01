@@ -71,6 +71,7 @@ lookup (Map.fromList -> ts) = Tags
     <$> require role ts
     <*> require env ts
     <*> require domain ts
+    <*> pure (Map.lookup name ts)
     <*> pure (lookupVersion ts)
     <*> pure (lookupWeight ts)
   where

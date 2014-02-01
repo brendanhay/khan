@@ -93,6 +93,7 @@ data Tags = Tags
     { tagRole    :: !Text
     , tagEnv     :: !Text
     , tagDomain  :: !Text
+    , tagName    :: Maybe Text
     , tagVersion :: Maybe Version
     , tagWeight  :: !Int
     } deriving (Eq, Ord, Show)
@@ -101,9 +102,9 @@ instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
         [ ("ROLE",    tagRole)
         , ("ENV",     tagEnv)
-        , ("DOMAIN",  tagDomain)
         , ("WEIGHT",  Text.pack $ show tagWeight)
         ] ++ maybeToList (("VERSION",) . showVersion <$> tagVersion)
+          ++ maybeToList (("NAME",) <$> tagName)
 
 data DNS = DNS
     { dnsRole :: !Text

@@ -122,7 +122,7 @@ image c@Common{..} d@Image{..} = do
 
     wait_ g <* log "Found Role Group {}" [groupName]
 
-    az  <- fmap (AZ cRegion) $ wait z >>= shuffle
+    az  <- fmap (AZ cRegion) $ wait z >>= randomSelect
     key <- wait k <* log "Found KeyPair {}" [keyName]
 
     log "Using AvailabilityZone {}" [Format.Shown az]

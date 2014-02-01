@@ -41,6 +41,7 @@ module Khan.Internal.Options
     , trustOption
     , policyOption
     , ansibleOption
+    , userOption
 
     , check
     , checkIO
@@ -223,6 +224,10 @@ policyOption = pathOption "policy" (value "")
 ansibleOption :: Parser Bool
 ansibleOption = switchOption "ansible" False
     "Ansible module compatible output."
+
+userOption :: Parser Text
+userOption = textOption "user" (value defaultUser <> short 'u')
+    "SSH User."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

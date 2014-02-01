@@ -13,16 +13,18 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.CLI.Ansible (commands) where
+module Khan.CLI.Ansible
+    ( commands
 
-import           Control.Concurrent         (threadDelay)
+    -- * Convenience exports for the Image CLI
+    , Ansible (..)
+    , playbook
+    ) where
+
 import           Control.Monad              (mplus)
-import           Data.Aeson                 as Aeson
 import qualified Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.HashMap.Strict        as Map
-import           Data.Maybe
-import           Data.SemVer
 import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
 import qualified Data.Text.Format           as Format
@@ -31,17 +33,33 @@ import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal
 import           Khan.Internal.Ansible
-import qualified Khan.Model.Image           as Image
 import qualified Khan.Model.Instance        as Instance
 import qualified Khan.Model.Key             as Key
-import qualified Khan.Model.Profile         as Profile
-import qualified Khan.Model.SecurityGroup   as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
 import qualified Shelly                     as Shell
 import           System.Directory
 import qualified System.Posix.Files         as Posix
+
+data Inventory = Inventory
+    { iEnv    :: !Text
+    , iSilent :: !Bool
+    , iList   :: !Bool
+    , iHost   :: Maybe Text
+    }
+
+inventoryParser :: Parser Inventory
+inventoryParser = Inventory
+    <$> envOption
+    <*> switchOption "silent" False
+        "Don't output inventory results to stdout."
+    <*> switchOption "list" True
+        "List."
+    <*> optional (textOption "host" mempty
+        "Host.")
+
+instance Options Inventory
 
 data Ansible = Ansible
     { aEnv    :: !Text
@@ -73,71 +91,6 @@ instance Options Ansible where
 instance Naming Ansible where
     names Ansible{..} = unversioned "base" aEnv
 
-data Inventory = Inventory
-    { iEnv    :: !Text
-    , iSilent :: !Bool
-    , iList   :: !Bool
-    , iHost   :: Maybe Text
-    }
-
-inventoryParser :: Parser Inventory
-inventoryParser = Inventory
-    <$> envOption
-    <*> switchOption "silent" False
-        "Don't output inventory results to stdout."
-    <*> switchOption "list" True
-        "List."
-    <*> optional (textOption "host" mempty
-        "Host.")
-
-instance Options Inventory
-
-data Image = Image
-    { iRole     :: !Text
-    , iVersion  :: Maybe Version
-    , iPlaybook :: !FilePath
-    , iImage    :: !Text
-    , iType     :: !InstanceType
-    , iPreserve :: !Bool
-    , iNDevices :: !Integer
-    , iArgs     :: [String]
-    }
-
-imageParser :: Parser Image
-imageParser = Image
-    <$> roleOption
-    <*> optional versionOption
-    <*> pathOption "playbook" (short 'p' <> value "")
-        "Path to the playbook to run on the base instance."
-    <*> textOption "base" (short 'b')
-        "Id of the base image/ami."
-    <*> readOption "type" "TYPE" (value M1_Small)
-        "Instance's type."
-    <*> switchOption "preserve" False
-        "Don't terminate the base instance on error."
-    <*> integralOption "block-devices" (value 8)
-        "Number of ephemeral devices to register the ami with."
-    <*> argsOption str (action "file")
-        "Pass through arugments to ansible."
-
-instance Options Image where
-    discover _ _ a@Image{..} = return $! a
-        { iPlaybook = defaultPath iPlaybook $ Path.fromText "image.yml"
-        }
-
-    validate Image{..} =
-        check (iNDevices > 24) "--block-devices should be less than 24"
-
-instance Naming Image where
-    names Image{..} = ver
-        { profileName = "ami-builder"
-        , groupName   = sshGroup "ami"
-        }
-      where
-        ver = maybe (unversioned iRole "ami")
-                    (versioned iRole "ami")
-                    iVersion
-
 commands :: Mod CommandFields Command
 commands = mconcat
     [ command "ansible" ansible ansibleParser
@@ -146,9 +99,52 @@ commands = mconcat
         "Ansible Playbook."
     , command "inventory" inventory inventoryParser
         "Output Ansible compatible inventory."
-    , command "image" image imageParser
-        "Create Image."
     ]
+
+inventory :: Common -> Inventory -> AWS ()
+inventory Common{..} Inventory{..} = do
+    j <- Aeson.encodePretty . JS <$> maybe list (const $ return Map.empty) iHost
+    i <- inventoryPath cCache iEnv
+
+    debug "Writing inventory to {}" [i]
+    liftIO $ LBS.writeFile (Path.encodeString i) (j <> "\n")
+
+    debug_ "Writing inventory to stdout"
+    unless iSilent . liftIO $ LBS.putStrLn j
+  where
+    list = Instance.findAll [] [Filter ("tag:" <> envTag) [iEnv]] >>=
+        foldlM hosts Map.empty
+
+    hosts m RunningInstancesItemType{..} = case riitDnsName of
+        Nothing   -> return m
+        Just fqdn -> do
+            Tags{..} <- lookupTags $ map tag riitTagSet
+
+            let n@Names{..} = createNames tagRole tagEnv tagVersion
+                host     = Host fqdn tagDomain n cRegion
+                update k = Map.insertWith (<>) k (Set.singleton host)
+
+            return $! foldl' (flip update) m
+                [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]
+
+    tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
+
+playbook :: Common -> Ansible -> AWS ()
+playbook c@Common{..} a@Ansible{..} = ansible c $ a
+    { aBin  = aBin `mplus` Just "ansible-playbook"
+    , aArgs = aArgs ++
+        [ "--extra-vars"
+        , concat [ "khan_region="
+                 , show cRegion
+                 , " khan_region_abbrev="
+                 , Text.unpack $ abbreviate cRegion
+                 , " khan_env="
+                 , Text.unpack aEnv
+                 , " khan_key="
+                 , Text.unpack $ aEnv <> "-khan"
+                 ]
+        ]
+    }
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
@@ -197,126 +193,3 @@ ansible c@Common{..} a@Ansible{..} = do
                 ts <- getPOSIXTime
                 return $
                     ts - Posix.modificationTimeHiRes s > fromIntegral aRetain
-
-playbook :: Common -> Ansible -> AWS ()
-playbook c@Common{..} a@Ansible{..} = ansible c $ a
-    { aBin  = aBin `mplus` Just "ansible-playbook"
-    , aArgs = aArgs ++
-        [ "--extra-vars"
-        , concat [ "khan_region="
-                 , show cRegion
-                 , " khan_region_abbrev="
-                 , Text.unpack $ abbreviate cRegion
-                 , " khan_env="
-                 , Text.unpack aEnv
-                 , " khan_key="
-                 , Text.unpack $ aEnv <> "-khan"
-                 ]
-        ]
-    }
-
-inventory :: Common -> Inventory -> AWS ()
-inventory Common{..} Inventory{..} = do
-    j <- Aeson.encodePretty . JS <$> maybe list (const $ return Map.empty) iHost
-    i <- inventoryPath cCache iEnv
-
-    debug "Writing inventory to {}" [i]
-    liftIO $ LBS.writeFile (Path.encodeString i) (j <> "\n")
-
-    debug_ "Writing inventory to stdout"
-    unless iSilent . liftIO $ LBS.putStrLn j
-  where
-    list = Instance.findAll [] [Filter ("tag:" <> envTag) [iEnv]] >>=
-        foldlM hosts Map.empty
-
-    hosts m RunningInstancesItemType{..} = case riitDnsName of
-        Nothing   -> return m
-        Just fqdn -> do
-            Tags{..} <- lookupTags $ map tag riitTagSet
-
-            let n@Names{..} = createNames tagRole tagEnv tagVersion
-                host     = Host fqdn tagDomain n cRegion
-                update k = Map.insertWith (<>) k (Set.singleton host)
-
-            return $! foldl' (flip update) m
-                [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]
-
-    tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
-
-image :: Common -> Image -> AWS ()
-image c@Common{..} d@Image{..} = do
-    shell (Shell.which "ansible-playbook") >>=
-        void . noteAWS "Command {} doesn't exist." ["ansible-playbook" :: Text]
-
-    log "Checking if target Image {} exists..." [imageName]
-    as <- Image.findAll [] [Filter "name" [imageName]]
-
-    unless (null as) $
-        throwAWS "Image {} already exists, exiting..." [imageName]
-
-    log "Looking for base Images matching {}" [iImage]
-    a <- async $ Image.find [iImage] []
-
-    log "Looking for IAM Profile matching {}" [profileName]
-    i <- async $ Profile.find d
-
-    ami <- diritImageId <$> wait a
-    log "Found base Image {}" [ami]
-
-    wait_ i <* log "Found IAM Profile {}" [profileName]
-
-    k <- async $ Key.create cBucket d cCerts
-    g <- async $ Security.update d sshRules
-
-    wait_ k <* log "Found KeyPair {}" [keyName]
-    wait_ g <* log "Found Role Group {}" [groupName]
-
-    az  <- shuffle "bc"
-    mr  <- listToMaybe . map riitInstanceId <$>
-        Instance.run d ami iType (AZ cRegion az) 1 1 False
-    iid <- noteAWS "Failed to launch any Instances using Image {}" [ami] mr
-    log "Launched Instance {}" [iid]
-
-    Instance.wait [iid]
-
-    e <- contextAWS c $ do
-        log "Finding public DNS for {}" [iid]
-        mdns <- join . listToMaybe . map riitDnsName <$>
-            Instance.findAll [iid] []
-        dns  <- noteAWS "Failed to retrieve DNS for {}" [iid] mdns
-
-        let js = LBS.unpack . encode $ ImageInput n cRegion dns
-
-        -- FIXME: poll for ssh connectivity
-        -- ssh -q -o “BatchMode=yes” user@host “echo 2>&1″
-
-        log "Waiting 20 seconds for SSH on {}" [iid]
-        liftIO . threadDelay $ 1000000 * 20
-
-        log "Running Playbook {}" [iPlaybook]
-        playbook c $ Ansible "ami" Nothing Nothing 36000 False $ iArgs ++
-            [ "-i", Text.unpack $ dns <> ",localhost,"
-            , "-e", js
-            , Path.encodeString iPlaybook
-            ]
-
-        void $ Image.create iid imageName (blockDevices iNDevices)
-
-    if isLeft e && iPreserve
-        then log "Error creating Image, preserving base Instance {}" [iid]
-        else do
-            log_ "Terminating base instance"
-            send_ $ TerminateInstances [iid]
-
-    const () <$> hoistError e
-  where
-    n@Names{..} = names d
-
-    blockDevices i = zipWith mkBlockDevice ['b' .. 'z'] [0 .. i - 1]
-
-    mkBlockDevice dev virt = BlockDeviceMappingItemType
-        { bdmitDeviceName  = "/dev/sd" `Text.snoc` dev
-        , bdmitVirtualName = Just $ Text.pack $ "ephemeral" <> show virt
-        , bdmitEbs         = Nothing
-        , bdmitNoDevice    = Nothing
-        }

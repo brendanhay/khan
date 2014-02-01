@@ -22,6 +22,7 @@ import qualified Khan.Model.Key              as Key
 import           Khan.Model.Profile          (Policy(..))
 import qualified Khan.Model.Profile          as Profile
 import qualified Khan.Model.SecurityGroup    as Security
+import qualified Khan.Model.Tag              as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
@@ -122,7 +123,7 @@ launch Common{..} l@Launch{..} = do
 
     let ids = map riitInstanceId r
 
-    Instance.tag l lDomain ids
+    Tag.apply l lDomain ids
     Instance.wait ids
   where
     Names{..} = names l

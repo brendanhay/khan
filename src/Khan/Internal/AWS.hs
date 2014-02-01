@@ -41,17 +41,11 @@ module Khan.Internal.AWS
     ) where
 
 import           Control.Monad.Error
-import qualified Data.Attoparsec.Text     as AText
-import           Data.HashMap.Strict      (HashMap)
-import qualified Data.HashMap.Strict      as Map
-import           Data.SemVer
-import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import           Data.Text.Format         (Format, format)
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy           as LText
 import           Khan.Internal.Options
-import           Khan.Internal.Types
 import           Khan.Prelude             hiding (min, max)
 import           Network.AWS
 import           Network.AWS.AutoScaling  hiding (DescribeTags)

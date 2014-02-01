@@ -15,14 +15,15 @@
 module Khan.CLI.SSH (commands) where
 
 import           Control.Arrow
-import qualified Data.Text                 as Text
+import qualified Data.Text           as Text
 import           Khan.Internal
-import qualified Khan.Model.Instance       as Instance
-import qualified Khan.Model.Key            as Key
-import qualified Khan.Model.SSH            as SSH
+import qualified Khan.Model.Instance as Instance
+import qualified Khan.Model.Key      as Key
+import qualified Khan.Model.SSH      as SSH
+import qualified Khan.Model.Tag      as Tag
 import           Khan.Prelude
 import           Network.AWS.EC2
-import           System.IO                 hiding (FilePath)
+import           System.IO           hiding (FilePath)
 
 -- FIXME: Add scp/sftp
 data SSH = SSH
@@ -54,8 +55,8 @@ ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
     key <- maybe (Key.path cBucket s cCerts) return sKey
     dns <- mapMaybe riitDnsName <$> Instance.findAll []
-        [ Filter ("tag:" <> envTag)  [sEnv]
-        , Filter ("tag:" <> roleTag) [sRole]
+        [ Filter ("tag:" <> Tag.env)  [sEnv]
+        , Filter ("tag:" <> Tag.role) [sRole]
         ]
     go key dns
   where

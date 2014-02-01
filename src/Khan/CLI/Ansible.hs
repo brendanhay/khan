@@ -35,6 +35,9 @@ import           Khan.Internal
 import           Khan.Internal.Ansible
 import qualified Khan.Model.Instance        as Instance
 import qualified Khan.Model.Key             as Key
+import qualified Khan.Model.Profile         as Profile
+import qualified Khan.Model.SecurityGroup   as Security
+import qualified Khan.Model.Tag             as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)

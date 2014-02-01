@@ -45,7 +45,6 @@ programParser env = (,)
         <> Launch.commands
         <> Profile.commands
         <> Group.commands
-        <> HealthCheck.commands
         <> DNS.commands
         <> Artifact.commands
         <> Routing.commands

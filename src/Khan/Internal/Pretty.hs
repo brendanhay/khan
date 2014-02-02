@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.Internal.Pretty
@@ -13,27 +13,90 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Pretty
-    ( PP (..)
-    , prettyPrint
+    ( prettyPrint
     ) where
 
-import qualified Data.Text.Lazy.IO            as LText
-import           Khan.Prelude                 hiding ((<$>), print)
+import           Control.Monad.IO.Class
+import           Data.List               (intersperse, transpose)
+import           Data.Maybe
+import qualified Data.Text               as Text
+import           Data.Time               (UTCTime)
+import qualified Data.Time               as Time
 import           Network.AWS
 import           Network.AWS.AutoScaling
 import           Network.AWS.EC2
-import           Text.PrettyPrint.Leijen.Text
-import           Text.PrettyPrint.Leijen.Text (Pretty)
-import qualified Text.PrettyPrint.Leijen.Text as PP
-
-newtype PP a = PP { pp :: a }
-
-instance Pretty (PP AutoScalingGroup)
-instance Pretty (PP RunningInstancesItemType)
+import           System.Locale
+import           Text.PrettyPrint.Boxes
 
 prettyPrint :: (MonadIO m, Pretty a) => a -> m ()
-prettyPrint = liftIO
-    . LText.putStrLn
-    . PP.displayT
-    . PP.renderPretty 0 80
-    . PP.pretty
+prettyPrint = liftIO . printBox . pretty
+
+class Pretty a where
+    pretty :: a -> Box
+
+instance Pretty AutoScalingGroup where
+    pretty AutoScalingGroup{..} = text name // layout [hs, vs]
+      where
+        name = "[" ++ Text.unpack asgAutoScalingGroupName ++ "] ->"
+
+        hs = [ "zones"
+             , "cooldown"
+             , "min"
+             , "max"
+             , "desired"
+             , "status"
+             , "created"
+             ]
+
+        vs = [ zones
+             , show asgDefaultCooldown
+             , show asgMinSize
+             , show asgMaxSize
+             , show asgDesiredCapacity
+             , maybe "OK" show asgStatus
+             , formatISO8601 asgCreatedTime
+             ]
+
+        zones | null asgAvailabilityZones = ""
+              | otherwise = (show . azRegion $ head asgAvailabilityZones)
+                  ++ "["
+                  ++ intersperse ',' (map azSuffix asgAvailabilityZones)
+                  ++ "]"
+
+instance Pretty [RunningInstancesItemType] where
+    pretty = layout . (hs :) . map f
+      where
+        hs = [ "instance-id"
+             , "image-id"
+             , "public-ip"
+             , "type"
+             , "state"
+             , "reason"
+             , "weight"
+             , "launched"
+             ]
+
+        f RunningInstancesItemType{..} =
+            [ Text.unpack riitInstanceId
+            , Text.unpack riitImageId
+            , Text.unpack $ fromMaybe "" riitIpAddress
+            , show riitInstanceType
+            , Text.unpack $ istName riitInstanceState
+            , show riitStateReason
+            , Text.unpack . fromMaybe "0" $ weight riitTagSet
+            , formatISO8601 riitLaunchTime
+            ]
+
+        weight = listToMaybe
+            . map rtsitValue
+            . filter ((== "Weight") . rtsitKey)
+
+layout :: [[String]] -> Box
+layout = moveDown 1
+    . moveRight 1
+    . hsep 2 left
+    . map (vcat left . map text)
+    . transpose
+
+formatISO8601 :: UTCTime -> String
+formatISO8601 = Time.formatTime defaultTimeLocale (iso8601DateFormat $ Just "%XZ")

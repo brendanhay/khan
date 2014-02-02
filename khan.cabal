@@ -1,5 +1,5 @@
 name:                  khan
-version:               0.1.4
+version:               0.1.5
 synopsis:              Opinionated Provisioning
 homepage:              http://github.com/brendanhay/khan
 license:               OtherLicense
@@ -22,24 +22,68 @@ source-repository head
     type:     git
     location: git://github.com/brendanhay/khan.git
 
-executable khan
+library
     default-language:  Haskell2010
     hs-source-dirs:    src
-    main-is:           Main.hs
+    ghc-options:       -Wall
 
-    ghc-options:       -Wall -rtsopts -threaded
+    exposed-modules:
+        Data.SemVer
+
+      , Khan.CLI.Ansible
+      , Khan.CLI.Artifact
+      , Khan.CLI.Cluster
+      , Khan.CLI.DNS
+      , Khan.CLI.Group
+      , Khan.CLI.Image
+      , Khan.CLI.Launch
+      , Khan.CLI.Metadata
+      , Khan.CLI.Profile
+      , Khan.CLI.Routing
+      , Khan.CLI.SSH
+
+      , Khan.Internal
+
+      , Khan.Model.AvailabilityZone
+      , Khan.Model.Bucket
+      , Khan.Model.HostedZone
+      , Khan.Model.Image
+      , Khan.Model.Instance
+      , Khan.Model.Key
+      , Khan.Model.LaunchConfig
+      , Khan.Model.Object
+      , Khan.Model.Profile
+      , Khan.Model.RecordSet
+      , Khan.Model.SSH
+      , Khan.Model.ScalingGroup
+      , Khan.Model.SecurityGroup
+      , Khan.Model.Tag
+
+      , Khan.Prelude
+
+    other-modules:
+        Khan.Internal.AWS
+      , Khan.Internal.Ansible
+      , Khan.Internal.IO
+      , Khan.Internal.Options
+      , Khan.Internal.Orphans
+      , Khan.Internal.Parsing
+      , Khan.Internal.Text
+      , Khan.Internal.Types
+
+      , Khan.Prelude.Log
 
     build-depends:
-        aeson           >= 0.7
+        aeson                >= 0.7
       , aeson-pretty
-      , amazonka        >= 0.1.3
+      , amazonka             >= 0.1.3
       , attoparsec
-      , base            >= 4.6 && < 5
+      , base                 >= 4.6 && < 5
       , bytestring
       , conduit
       , containers
       , directory
-      , ede             >= 0.1.3
+      , ede                  >= 0.1.3
       , errors
       , http-conduit
       , http-types
@@ -49,10 +93,30 @@ executable khan
       , random
       , semigroups
       , shelly
-      , system-filepath >= 0.4.9
-      , text            >= 1.0
+      , system-filepath      >= 0.4.9
+      , text                 >= 1.0
       , text-format
       , time
       , transformers
       , unix
       , unordered-containers
+
+executable khan
+    default-language:  Haskell2010
+    main-is:           src/Main.hs
+    ghc-options:       -Wall -rtsopts -threaded
+
+    build-depends:
+        amazonka
+      , base                 >= 4.6 && < 5
+      , errors
+      , khan
+      , optparse-applicative
+      , text                 >= 1.0
+
+test-suite khan-tests
+    default-language:  Haskell2010
+    type:              exitcode-stdio-1.0
+    hs-source-dirs:    test
+    main-is:           Main.hs
+    ghc-options:       -Wall -threaded

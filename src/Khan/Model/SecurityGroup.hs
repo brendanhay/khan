@@ -38,32 +38,31 @@ sshGroup = flip update rules . sshGroupName . names
     rules = [ IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]
             ]
 
-find :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
-find (names -> Names{..}) = do
-    log "Searching for Security Group {}" [groupName]
-    mg <- fmap groupMay . sendCatch $ DescribeSecurityGroups [groupName] [] []
-    when (isNothing mg) $ log "Unable to find Security Group {}" [groupName]
+find :: Text -> AWS (Maybe SecurityGroupItemType)
+find name = do
+    log "Searching for Security Group {}" [name]
+    mg <- fmap groupMay . sendCatch $ DescribeSecurityGroups [name] [] []
+    when (isNothing mg) $ log "Unable to find Security Group {}" [name]
     return mg
   where
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
     groupMay (Left  _) = Nothing
 
-create :: Naming a => a -> AWS SecurityGroupItemType
-create (names -> n@Names{..}) = find n >>= maybe f return
+create :: Text -> AWS SecurityGroupItemType
+create name = find name >>= maybe f return
   where
     f = do
-        log "Security Group {} not found, creating..." [groupName]
-        gid <- fmap csgrGroupId . send $
-            CreateSecurityGroup groupName groupName Nothing
+        log "Security Group {} not found, creating..." [name]
+        gid <- fmap csgrGroupId . send $ CreateSecurityGroup name name Nothing
         log "Security Group {} created." [gid]
-        find n >>= noteAWS "Unable to find created Security Group {}" [groupName]
+        find name >>= noteAWS "Unable to find created Security Group {}" [name]
 
 -- FIXME: diff causes rules to be revoked before re-adding, due to shallow diff
 -- which doesn't inspect the inner UserIdGroupPairs, this could potentially cause
 -- a brief netsplit.
-update :: Naming a => a -> [IpPermissionType] -> AWS Bool
-update (names -> n@Names{..}) (sort -> rules) = do
-    grp <- create n
+update :: Text -> [IpPermissionType] -> AWS Bool
+update name (sort -> rules) = do
+    grp <- create name
 
     let gid         = sgitGroupId grp
         fs          = map (UserIdGroupPair Nothing Nothing . uigGroupName)
@@ -71,30 +70,30 @@ update (names -> n@Names{..}) (sort -> rules) = do
         ps          = sort . gs $ sgitIpPermissions grp
         (auth, rev) = diff rules ps
 
-    log "Updating Security Group {}..." [groupName]
+    log "Updating Security Group {}..." [name]
 
     liftM2 (||) (revoke gid rev) (authorise gid auth)
-        <* log "Security Group {} updated." [groupName]
+        <* log "Security Group {} updated." [name]
   where
     revoke gid xs
         | null xs   = return False
         | otherwise = do
-            log "Revoking {} on {}..." [showRules xs, groupName]
+            log "Revoking {} on {}..." [showRules xs, name]
             send_ $ RevokeSecurityGroupIngress (Just gid) Nothing xs
             return True
 
     authorise gid xs
         | null xs   = return False
         | otherwise = do
-            log "Authorising {} on {}..." [showRules xs, groupName]
+            log "Authorising {} on {}..." [showRules xs, name]
             es <- sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing xs)
             verifyEC2 "InvalidPermission.Duplicate" es
             return $ isRight es
 
-delete :: Naming a  => a -> AWS Bool
-delete (names -> n@Names{..}) = find n >>= maybe (return False)
+delete :: Text -> AWS Bool
+delete name = find name >>= maybe (return False)
     (const $ do
-        log "Deleting Security Group {}..." [groupName]
-        send_ $ DeleteSecurityGroup (Just groupName) Nothing
+        log "Deleting Security Group {}..." [name]
+        send_ $ DeleteSecurityGroup (Just name) Nothing
         log_ "Security Group deleted."
         return True)

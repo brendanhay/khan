@@ -215,6 +215,9 @@ overview Common{..} o@Overview{..} = do
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do
+
+    liftIO $ print $ names d
+
     j <- ASG.find d
 
     when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
@@ -228,7 +231,7 @@ deploy c@Common{..} d@Deploy{..} = do
     k <- async $ Key.create cBucket d cCerts
     p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
     s <- async $ Security.sshGroup d
-    g <- async $ Security.create d
+    g <- async $ Security.create groupName
     a <- async $ Image.find [] [Filter "name" [imageName]]
 
     wait_ k

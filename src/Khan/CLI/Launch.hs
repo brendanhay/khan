@@ -112,7 +112,7 @@ launch Common{..} l@Launch{..} = do
 
     k <- async $ Key.create cBucket l cCerts
     s <- async $ Security.sshGroup l
-    g <- async $ Security.create l
+    g <- async $ Security.create groupName
 
     wait_ k <* log "Found KeyPair {}" [keyName]
     wait_ s <* log "Found SSH Group {}" [sshGroupName]

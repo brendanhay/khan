@@ -56,3 +56,4 @@ executable khan
       , transformers
       , unix
       , unordered-containers
+      , wl-pprint-text

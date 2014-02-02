@@ -14,24 +14,24 @@
 
 module Khan.CLI.Cluster (commands) where
 
-import           Control.Concurrent           (threadDelay)
+import           Control.Concurrent          (threadDelay)
+import qualified Data.HashMap.Strict         as Map
 import           Data.SemVer
 import           Khan.Internal
-import qualified Khan.Model.AvailabilityZone  as AZ
-import qualified Khan.Model.Image             as Image
-import qualified Khan.Model.Key               as Key
-import qualified Khan.Model.LaunchConfig      as Config
+import qualified Khan.Model.AvailabilityZone as AZ
+import qualified Khan.Model.Image            as Image
+import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Key              as Key
+import qualified Khan.Model.LaunchConfig     as Config
 import           Khan.Model.Profile           (Policy(..))
-import qualified Khan.Model.Profile           as Profile
-import qualified Khan.Model.ScalingGroup      as ASG
-import qualified Khan.Model.SecurityGroup     as Security
-import qualified Khan.Model.Tag               as Tag
+import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.ScalingGroup     as ASG
+import qualified Khan.Model.SecurityGroup    as Security
+import qualified Khan.Model.Tag              as Tag
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.AutoScaling      hiding (Filter)
+import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
-import qualified Text.PrettyPrint.Leijen.Text as PP
--- import           Text.PrettyPrint.Leijen.Text hiding ((<$>))
 
 data Overview = Overview
     { oRole :: !Role
@@ -180,44 +180,37 @@ commands = group "cluster" "Auto Scaling Groups." $ mconcat
         "Retire a specific cluster version."
     ]
 
-data ClusterStatus = CS
-    { stGroup     :: AutoScalingGroup
-    , stInstances :: [RunningInstancesItemType]
-    }
-
 overview :: Common -> Overview -> AWS ()
 overview Common{..} o@Overview{..} = do
-    -- Describe instances matching role and env
-    is <- fmap (concatMap instances . dirReservationSet) . send $
-        DescribeInstances []
-            [ Tag.filter Tag.role [_role oRole]
-            , Tag.filter Tag.env  [_env  oEnv]
-            ]
+    is <- mapM annotate =<< Instance.findAll []
+        [ Tag.filter Tag.role [_role oRole]
+        , Tag.filter Tag.env  [_env  oEnv]
+        , Filter "tag-key" [groupTag]
+        ]
 
-    liftIO $ print is
+    let m = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
+
+    gs <- ASG.findAll $ Map.keys m
+
+    forM_ gs $ \g@AutoScalingGroup{..} -> do
+        prettyPrint $ PP g
+        xs <- noteAWS "Missing Auto Scaling Group entries: {}" [asgAutoScalingGroupName] $
+            Map.lookup asgAutoScalingGroupName m
+        mapM_ (prettyPrint . PP) xs
   where
-    instances ReservationInfoType{..}
-        | Just "Auto Scaling" <- ritRequesterId = ritInstancesSet
-        | otherwise                             = []
+    annotate i@RunningInstancesItemType{..} = (,)
+        <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName i)
+        <*> pure i
 
-    -- let iis = concatMap ritInstancesSet
+    groupName = listToMaybe
+        . map rtsitValue
+        . filter ((== groupTag) . rtsitKey)
+        . riitTagSet
 
-    -- get a list of versions from the above
-
-    -- use the version to construct autoscaling group names
-
-    -- -- describe autoscaling groups matching (need to paginate)
-    -- ASG.findAll
-
-    -- dasgrAutoScalingGroups . dashrDescribeAutoScalingGroupsResult
-
-    -- make cluster into a data type that can be pretty printed in tabular format
+    groupTag = "aws:autoscaling:groupName"
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do
-
-    liftIO $ print $ names d
-
     j <- ASG.find d
 
     when (Just "Delete in progress" == join (asgStatus <$> j)) $ do

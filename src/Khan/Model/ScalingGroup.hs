@@ -15,6 +15,7 @@
 
 module Khan.Model.ScalingGroup
     ( find
+    , findAll
     , create
     , update
     , delete
@@ -24,22 +25,25 @@ import           Khan.Internal
 import qualified Khan.Model.Tag          as Tag
 import           Khan.Prelude            hiding (find, min, max)
 import           Network.AWS.AutoScaling hiding (Filter)
+import           Network.AWS.EC2         (RunningInstancesItemType)
 
-find (names -> Names{..}) = maybeMembers <$>
-    send (DescribeAutoScalingGroups (Members [appName]) Nothing Nothing)
+data Overview = Overview
+    { oGroup     :: AutoScalingGroup
+    , oNames     :: Names
+    , oInstances :: [RunningInstancesItemType]
+    }
+
+find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
+find (names -> Names{..}) = listToMaybe <$> findAll [appName]
+
+-- FIXME: Add pagination (via underlying amazonka Pg)
+findAll :: [Text] -> AWS [AutoScalingGroup]
+findAll ns = unwrap <$>
+    send (DescribeAutoScalingGroups (Members ns) Nothing Nothing)
   where
-    maybeMembers = listToMaybe
-        . members
+    unwrap = members
         . dasgrAutoScalingGroups
         . dashrDescribeAutoScalingGroupsResult
-
--- find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
--- find (names -> Names{..}) = listToMaybe <$> findAll [appName]
-
--- findAll :: [Text] -> AWS [AutoScalingGroup]
--- findAll = undefined
---     -- fmap (listToMaybe . members . dasgrAutoScalingGroups . dashrDescribeAutoScalingGroupsResult)
---     -- (send $ DescribeAutoScalingGroups (Members [appName]) Nothing Nothing)
 
 create :: Naming a
        => a

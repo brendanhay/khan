@@ -205,8 +205,6 @@ overview Common{..} Overview{..} = do
             Map.lookup asgAutoScalingGroupName m
         prettyPrint $ PP g
         prettyPrint $ PP xs
-
-    log_ ""
   where
     annotate i@RunningInstancesItemType{..} = (,)
         <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName riitTagSet)
@@ -258,20 +256,20 @@ promote _ _ = return ()
 retire :: Common -> Cluster -> AWS ()
 retire _ c = ASG.delete c >> Config.delete c
 
-newtype PP a = PP { pp :: a }
+newtype PP a = PP a
 
 instance Pretty (PP AutoScalingGroup) where
     pretty (PP AutoScalingGroup{..}) = PP.text name PP.// layout [hs, vs]
       where
         name = "[" ++ Text.unpack asgAutoScalingGroupName ++ "] ->"
 
-        hs = [ "zones"
-             , "cooldown"
-             , "min"
-             , "max"
-             , "desired"
-             , "status"
-             , "created"
+        hs = [ "zones:"
+             , "cooldown:"
+             , "min:"
+             , "max:"
+             , "desired:"
+             , "status:"
+             , "created:"
              ]
 
         vs = [ zones
@@ -290,16 +288,16 @@ instance Pretty (PP AutoScalingGroup) where
                   ++ "]"
 
 instance Pretty (PP [RunningInstancesItemType]) where
-    pretty = PP.moveDown 1 . layout . (hs :) . map f . pp
+    pretty (PP xs) = (layout . (hs :) $ map f xs) PP./+/ PP.nullBox
       where
-        hs = [ "instance-id"
-             , "image-id"
-             , "public-ip"
-             , "type"
-             , "state"
-             , "reason"
-             , "weight"
-             , "launched"
+        hs = [ "instance-id:"
+             , "image-id:"
+             , "public-ip:"
+             , "type:"
+             , "state:"
+             , "reason:"
+             , "weight:"
+             , "launched:"
              ]
 
         f RunningInstancesItemType{..} =

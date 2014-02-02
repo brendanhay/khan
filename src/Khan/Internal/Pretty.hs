@@ -25,7 +25,8 @@ prettyPrint :: (MonadIO m, Pretty a) => a -> m ()
 prettyPrint = liftIO . printBox . pretty
 
 layout :: [[String]] -> Box
-layout = moveRight 1
+layout = moveDown 1
+    . moveRight 1
     . hsep 2 left
     . map (vcat left . map text)
     . transpose

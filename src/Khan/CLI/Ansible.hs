@@ -44,7 +44,7 @@ import           System.Directory
 import qualified System.Posix.Files         as Posix
 
 data Inventory = Inventory
-    { iEnv    :: !Text
+    { iEnv    :: !Env
     , iSilent :: !Bool
     , iList   :: !Bool
     , iHost   :: Maybe Text
@@ -63,7 +63,7 @@ inventoryParser = Inventory
 instance Options Inventory
 
 data Ansible = Ansible
-    { aEnv    :: !Text
+    { aEnv    :: !Env
     , aKey    :: Maybe FilePath
     , aBin    :: Maybe Text
     , aRetain :: !Int
@@ -113,15 +113,15 @@ inventory Common{..} Inventory{..} = do
     debug_ "Writing inventory to stdout"
     unless iSilent . liftIO $ LBS.putStrLn j
   where
-    list = Instance.findAll [] [Filter ("tag:" <> Tag.env) [iEnv]] >>=
+    list = Instance.findAll [] [Filter ("tag:" <> Tag.env) [_env iEnv]] >>=
         foldlM hosts Map.empty
 
     hosts m RunningInstancesItemType{..} = case riitDnsName of
         Nothing   -> return m
         Just fqdn -> do
-            Tags{..} <- Tag.lookup $ map tag riitTagSet
+            t@Tags{..} <- Tag.lookup $ map tag riitTagSet
 
-            let n@Names{..} = createNames tagRole tagEnv tagVersion
+            let n@Names{..} = names t
                 host        = Host fqdn tagDomain n cRegion
                 update k    = Map.insertWith (<>) k (Set.singleton host)
 
@@ -140,12 +140,14 @@ playbook c@Common{..} a@Ansible{..} = ansible c $ a
                  , " khan_region_abbrev="
                  , Text.unpack $ abbreviate cRegion
                  , " khan_env="
-                 , Text.unpack aEnv
+                 , Text.unpack envName
                  , " khan_key="
-                 , Text.unpack $ aEnv <> "-khan"
+                 , Text.unpack keyName
                  ]
         ]
     }
+  where
+    Names{..} = names aEnv
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do

@@ -27,8 +27,8 @@ import           System.IO           hiding (FilePath)
 
 -- FIXME: Add scp/sftp
 data SSH = SSH
-    { sRole :: !Text
-    , sEnv  :: !Text
+    { sRole :: !Role
+    , sEnv  :: !Env
     , sKey  :: Maybe FilePath
     , sUser :: !Text
     , sArgs :: [String]
@@ -55,8 +55,8 @@ ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
     key <- maybe (Key.path cBucket s cCerts) return sKey
     dns <- mapMaybe riitDnsName <$> Instance.findAll []
-        [ Filter ("tag:" <> Tag.env)  [sEnv]
-        , Filter ("tag:" <> Tag.role) [sRole]
+        [ Filter ("tag:" <> Tag.env)  [_env  sEnv]
+        , Filter ("tag:" <> Tag.role) [_role sRole]
         ]
     go key dns
   where

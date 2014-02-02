@@ -32,7 +32,7 @@ import           Network.AWS.EC2             hiding (Instance, ec2)
 import qualified Text.EDE                    as EDE
 
 data Routes = Routes
-    { rEnv      :: !Text
+    { rEnv      :: !Env
     , rDomain   :: Maybe Text
     , rRoles    :: [Text]
     , rZones    :: !String
@@ -101,7 +101,7 @@ routes Common{..} Routes{..} = do
 
     filters reg = catMaybes
         [ Just . Filter "availability-zone" $ zones reg
-        , Just $ Filter ("tag:" <> Tag.env) [rEnv]
+        , Just $ Filter ("tag:" <> Tag.env) [_env rEnv]
         , fmap (Filter ("tag:" <> Tag.domain) . (:[])) rDomain
         , role
         ]

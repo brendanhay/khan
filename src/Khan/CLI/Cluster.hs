@@ -31,8 +31,8 @@ import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
 
 data Deploy = Deploy
-    { dRole     :: !Text
-    , dEnv      :: !Text
+    { dRole     :: !Role
+    , dEnv      :: !Env
     , dDomain   :: !Text
     , dVersion  :: !Version
     , dZones    :: !String
@@ -42,8 +42,8 @@ data Deploy = Deploy
     , dDesired  :: !Integer
     , dCooldown :: !Integer
     , dType     :: !InstanceType
-    , dTrust    :: !FilePath
-    , dPolicy   :: !FilePath
+    , dTrust    :: !TrustPath
+    , dPolicy   :: !PolicyPath
     }
 
 deployParser :: Parser Deploy
@@ -89,15 +89,15 @@ instance Options Deploy where
         check (dDesired < dMin) "--desired must be greater than or equal to --min."
         check (dDesired > dMax) "--desired must be less than or equal to --max."
 
-        checkPath dTrust  " specified by --trust must exist."
-        checkPath dPolicy " specified by --policy must exist."
+        checkPath (_trust  dTrust)  " specified by --trust must exist."
+        checkPath (_policy dPolicy) " specified by --policy must exist."
 
 instance Naming Deploy where
     names Deploy{..} = versioned dRole dEnv dVersion
 
 data Scale = Scale
-    { sRole     :: !Text
-    , sEnv      :: !Text
+    { sRole     :: !Role
+    , sEnv      :: !Env
     , sVersion  :: !Version
     , sGrace    :: Maybe Integer
     , sMin      :: Maybe Integer
@@ -124,7 +124,7 @@ scaleParser = Scale
 
 instance Options Scale where
     validate Scale{..} = do
-        check (sMin >= sMax)      "--min must be less than --max."
+        check (sMin >= sMax)    "--min must be less than --max."
         check (sDesired < sMin) "--desired must be greater than or equal to --min."
         check (sDesired > sMax) "--desired must be less than or equal to --max."
 
@@ -132,8 +132,8 @@ instance Naming Scale where
     names Scale{..} = versioned sRole sEnv sVersion
 
 data Cluster = Cluster
-    { cRole    :: !Text
-    , cEnv     :: !Text
+    { cRole    :: !Role
+    , cEnv     :: !Env
     , cVersion :: !Version
     }
 
@@ -174,13 +174,13 @@ deploy c@Common{..} d@Deploy{..} = do
 
     k <- async $ Key.create cBucket d cCerts
     p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
-    s <- async $ Security.update (sshGroup dEnv) sshRules
+    s <- async $ Security.update groupSSH sshRules
     g <- async $ Security.create d
     a <- async $ Image.find [] [Filter "name" [imageName]]
 
     wait_ k
     wait_ p <* log "Found IAM Profile {}" [profileName]
-    wait_ s <* log "Found SSH Group {}"   [sshGroup dEnv]
+    wait_ s <* log "Found SSH Group {}"   [groupSSH]
     wait_ g <* log "Found App Group {}"   [groupName]
 
     ami <- diritImageId <$> wait a
@@ -191,6 +191,8 @@ deploy c@Common{..} d@Deploy{..} = do
     ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax
   where
     Names{..} = names d
+
+    groupSSH = sshGroup $ _env dEnv
 
     zones = map (AZ cRegion) dZones
 

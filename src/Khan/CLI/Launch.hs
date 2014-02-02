@@ -35,8 +35,8 @@ import           Network.AWS.EC2
 -- Client Token
 -- Network Interfaces
 data Launch = Launch
-    { lRole      :: !Text
-    , lEnv       :: !Text
+    { lRole      :: !Role
+    , lEnv       :: !Env
     , lDomain    :: !Text
     , lImage     :: Maybe Text
     , lNum       :: !Int
@@ -44,8 +44,8 @@ data Launch = Launch
     , lType      :: !InstanceType
     , lOptimised :: !Bool
     , lZones     :: !String
-    , lTrust     :: !FilePath
-    , lPolicy    :: !FilePath
+    , lTrust     :: !TrustPath
+    , lPolicy    :: !PolicyPath
     }
 
 launchParser :: Parser Launch
@@ -84,8 +84,8 @@ instance Options Launch where
     validate Launch{..} = do
         check lZones "--zones must be specified."
 
-        checkPath lTrust  " specified by --trust must exist."
-        checkPath lPolicy " specified by --policy must exist."
+        checkPath (_trust  lTrust)  " specified by --trust must exist."
+        checkPath (_policy lPolicy) " specified by --policy must exist."
 
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv

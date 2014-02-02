@@ -60,9 +60,8 @@ import           Khan.Prelude
 import           Network.AWS
 import           Options.Applicative       as Export hiding (command, info)
 import qualified Options.Applicative       as Options
-import qualified Shelly                    as Shell
-
 import           Prelude                   (error)
+import qualified Shelly                    as Shell
 
 data Common = Common
     { cDebug  :: !Bool
@@ -195,12 +194,12 @@ argsOption :: (String -> Maybe a)
 argsOption rdr m desc = many . argument rdr $
     metavar "ARGS .." <> help desc <> m
 
-roleOption :: Parser Text
-roleOption = textOption "role" (short 'r')
+roleOption :: Parser Role
+roleOption = Role <$> textOption "role" (short 'r')
     "Role of the application."
 
-envOption :: Parser Text
-envOption = textOption "env" (value defaultEnv <> short 'e')
+envOption :: Parser Env
+envOption = Env <$> textOption "env" (value defaultEnv <> short 'e')
     "Environment of the application."
 
 versionOption :: Parser Version
@@ -213,12 +212,12 @@ keyOption :: Parser (Maybe FilePath)
 keyOption = optional $ pathOption "key" (short 'i')
     "Path to the private key to use."
 
-trustOption :: Parser FilePath
-trustOption = pathOption "trust"  (value "")
+trustOption :: Parser TrustPath
+trustOption = TrustPath <$> pathOption "trust"  (value "")
     "Trust relationship file."
 
-policyOption :: Parser FilePath
-policyOption = pathOption "policy" (value "")
+policyOption :: Parser PolicyPath
+policyOption = PolicyPath <$> pathOption "policy" (value "")
     "Role policy file."
 
 ansibleOption :: Parser Bool

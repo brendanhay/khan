@@ -1,9 +1,11 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 -- Module      : Khan.Internal.Types
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -22,7 +24,9 @@ import           Data.Aeson.Types             (Options(..), defaultOptions)
 import           Data.HashMap.Strict          (HashMap)
 import qualified Data.HashMap.Strict          as Map
 import           Data.SemVer
+import           Data.String
 import qualified Data.Text                    as Text
+import           Data.Text.Buildable
 import qualified Data.Text.Lazy.Builder       as Build
 import qualified Filesystem.Path.CurrentOS    as Path
 import           GHC.Generics                 (Generic)
@@ -90,8 +94,8 @@ instance ToEnv (HashMap Text Text) where
     toEnv = id
 
 data Tags = Tags
-    { tagRole    :: !Text
-    , tagEnv     :: !Text
+    { tagRole    :: !Role
+    , tagEnv     :: !Env
     , tagDomain  :: !Text
     , tagName    :: Maybe Text
     , tagVersion :: Maybe Version
@@ -100,17 +104,20 @@ data Tags = Tags
 
 instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
-        [ ("ROLE",    tagRole)
-        , ("ENV",     tagEnv)
+        [ ("ROLE",    _role tagRole)
+        , ("ENV",     _env tagEnv)
         , ("WEIGHT",  Text.pack $ show tagWeight)
         ] ++ maybeToList (("VERSION",) . showVersion <$> tagVersion)
           ++ maybeToList (("NAME",) <$> tagName)
 
+instance Naming Tags where
+    names Tags{..} = createNames tagRole tagEnv tagVersion
+
 data DNS = DNS
-    { dnsRole :: !Text
+    { dnsRole :: !Role
     , dnsVer  :: Maybe Version
     , dnsOrd  :: !Integer
-    , dnsEnv  :: !Text
+    , dnsEnv  :: !Env
     , dnsReg  :: !Text
     } deriving (Eq, Ord, Show)
 
@@ -132,8 +139,8 @@ instance ToJSON Names where
             Text.unpack . (`mappend` "_name") . tstrip "Name" . Text.pack
         }
 
-createNames :: Text -> Text -> Maybe Version -> Names
-createNames role env ver = Names
+createNames :: Role -> Env -> Maybe Version -> Names
+createNames (_role -> role) (_env -> env) ver = Names
     { envName     = env
     , keyName     = env <> "-khan"
     , roleName    = role
@@ -154,10 +161,10 @@ safeVersion = Text.map f . showVersion
     f '+' = '/'
     f  c  = c
 
-unversioned :: Text -> Text -> Names
+unversioned :: Role -> Env -> Names
 unversioned role env = createNames role env Nothing
 
-versioned :: Text -> Text -> Version -> Names
+versioned :: Role -> Env -> Version -> Names
 versioned role env = createNames role env . Just
 
 class Naming a where
@@ -167,7 +174,7 @@ instance Naming Names where
     names = id
 
 instance Naming Text where
-    names t = Names t t t t t t t Nothing t
+    names t = createNames (Role t) (Env t) Nothing
 
 data RoutingPolicy
     = Failover
@@ -193,3 +200,15 @@ instance Show RoutingPolicy where
 readAssocList :: [(String, a)] -> Read.ReadPrec a
 readAssocList xs = Read.choice $
     map (\(x, y) -> Read.lift $ ReadP.string x >> return y) xs
+
+newtype Env = Env { _env :: Text }
+    deriving (Eq, Ord, Show, IsString, Invalid, Buildable, Naming)
+
+newtype Role = Role { _role :: Text }
+    deriving (Eq, Ord, Show, IsString, Invalid, Buildable, Naming)
+
+newtype TrustPath = TrustPath { _trust :: FilePath }
+    deriving (Eq, Show, IsString)
+
+newtype PolicyPath = PolicyPath { _policy :: FilePath }
+    deriving (Eq, Show, IsString)

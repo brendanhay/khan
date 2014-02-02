@@ -35,8 +35,6 @@ import           Khan.Internal
 import           Khan.Internal.Ansible
 import qualified Khan.Model.Instance        as Instance
 import qualified Khan.Model.Key             as Key
-import qualified Khan.Model.Profile         as Profile
-import qualified Khan.Model.SecurityGroup   as Security
 import qualified Khan.Model.Tag             as Tag
 import           Khan.Prelude
 import           Network.AWS
@@ -115,17 +113,17 @@ inventory Common{..} Inventory{..} = do
     debug_ "Writing inventory to stdout"
     unless iSilent . liftIO $ LBS.putStrLn j
   where
-    list = Instance.findAll [] [Filter ("tag:" <> envTag) [iEnv]] >>=
+    list = Instance.findAll [] [Filter ("tag:" <> Tag.env) [iEnv]] >>=
         foldlM hosts Map.empty
 
     hosts m RunningInstancesItemType{..} = case riitDnsName of
         Nothing   -> return m
         Just fqdn -> do
-            Tags{..} <- lookupTags $ map tag riitTagSet
+            Tags{..} <- Tag.lookup $ map tag riitTagSet
 
             let n@Names{..} = createNames tagRole tagEnv tagVersion
-                host     = Host fqdn tagDomain n cRegion
-                update k = Map.insertWith (<>) k (Set.singleton host)
+                host        = Host fqdn tagDomain n cRegion
+                update k    = Map.insertWith (<>) k (Set.singleton host)
 
             return $! foldl' (flip update) m
                 [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]

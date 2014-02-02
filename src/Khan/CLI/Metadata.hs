@@ -27,14 +27,12 @@ import           Network.AWS.EC2.Metadata (Dynamic(..), toPath)
 import qualified Network.AWS.EC2.Metadata as Meta
 
 data Describe = Describe
-    { dEnv       :: !Text
-    , dMultiLine :: !Bool
+    { dMultiLine :: !Bool
     }
 
 describeParser :: Parser Describe
 describeParser = Describe
-    <$> envOption
-    <*> switchOption "multiline" False
+    <$> switchOption "multiline" False
         "Write each output KEY=VALUE on a separate line."
 
 instance Options Describe where

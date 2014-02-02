@@ -26,26 +26,26 @@ module Khan.Model.Profile
 import           Data.Aeson
 import qualified Data.Text.Lazy            as LText
 import qualified Filesystem.Path.CurrentOS as Path
-import           Khan.Internal
+import           Khan.Internal             hiding (Role)
 import           Khan.Prelude              hiding (find)
 import           Network.AWS.IAM
 
 default (Text)
 
 data Policy = Policy
-    { pTrustPath  :: !FilePath
-    , pPolicyPath :: !FilePath
+    { pTrustPath  :: !TrustPath
+    , pPolicyPath :: !PolicyPath
     }
 
 policy :: Naming a
        => a
-       -> FilePath -- ^ Config directory
-       -> FilePath -- ^ Trust template path
-       -> FilePath -- ^ Policy template path
+       -> FilePath   -- ^ Config directory
+       -> TrustPath  -- ^ Trust template path
+       -> PolicyPath -- ^ Policy template path
        -> Policy
 policy (names -> Names{..}) root t p = Policy
-    { pTrustPath  = defaultPath t tpath
-    , pPolicyPath = defaultPath p ppath
+    { pTrustPath  = TrustPath $ defaultPath (_trust t) tpath
+    , pPolicyPath = PolicyPath $ defaultPath (_policy p) ppath
     }
   where
     tpath = root </> Path.fromText "trust.ede"
@@ -54,11 +54,11 @@ policy (names -> Names{..}) root t p = Policy
 find :: Naming a => a -> AWS Role
 find = fmap (grrRole . grrGetRoleResult) . send . GetRole . profileName . names
 
-update :: Naming a => a -> FilePath -> FilePath -> AWS Role
+update :: Naming a => a -> TrustPath -> PolicyPath -> AWS Role
 update (names -> n@Names{..}) tpath ppath = do
     (t, p) <- (,)
-        <$> renderTemplate o tpath
-        <*> renderTemplate o ppath
+        <$> renderTemplate o (_trust  tpath)
+        <*> renderTemplate o (_policy ppath)
 
     i <- sendAsync $ CreateInstanceProfile profileName Nothing
     r <- sendAsync $ CreateRole (LText.toStrict t) Nothing profileName

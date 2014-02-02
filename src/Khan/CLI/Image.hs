@@ -37,7 +37,7 @@ import           Network.AWS.EC2             hiding (Failed, Image)
 import qualified Shelly                      as Shell
 
 data Image = Image
-    { iRole     :: !Text
+    { iRole     :: !Role
     , iVersion  :: Maybe Version
     , iPlaybook :: !FilePath
     , iImage    :: !Text
@@ -87,7 +87,7 @@ instance Naming Image where
         }
       where
         ver = maybe (unversioned iRole "ami")
-                    (versioned iRole "ami")
+                    (versioned   iRole "ami")
                     iVersion
 
 commands :: Mod CommandFields Command

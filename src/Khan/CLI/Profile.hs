@@ -31,44 +31,44 @@ import           Network.HTTP.Types         (urlDecode)
 
 default (Text)
 
-data Role = Role
-    { rRole   :: !Text
-    , rEnv    :: !Text
-    , rTrust  :: !FilePath
-    , rPolicy :: !FilePath
+data Profile = Profile
+    { rRole   :: !Role
+    , rEnv    :: !Env
+    , rTrust  :: !TrustPath
+    , rPolicy :: !PolicyPath
     } deriving (Show)
 
-roleParser :: Parser Role
-roleParser = Role
+profileParser :: Parser Profile
+profileParser = Profile
     <$> roleOption
     <*> envOption
     <*> trustOption
     <*> policyOption
 
-instance Options Role where
-    discover _ Common{..} r@Role{..} = return $! r
+instance Options Profile where
+    discover _ Common{..} r@Profile{..} = return $! r
         { rTrust  = pTrustPath
         , rPolicy = pPolicyPath
         }
       where
         Policy{..} = Profile.policy r cConfig rTrust rPolicy
 
-    validate Role{..} = do
-        checkPath rTrust  " specified by --trust must exist."
-        checkPath rPolicy " specified by --policy must exist."
+    validate Profile{..} = do
+        checkPath (_trust  rTrust)  " specified by --trust must exist."
+        checkPath (_policy rPolicy) " specified by --policy must exist."
 
-instance Naming Role where
-    names Role{..} = unversioned rRole rEnv
+instance Naming Profile where
+    names Profile{..} = unversioned rRole rEnv
 
 commands :: Mod CommandFields Command
 commands = group "profile" "Long description." $ mconcat
-    [ command "info" info roleParser
+    [ command "info" info profileParser
         "Create or update IAM profiles."
-    , command "update" update roleParser
+    , command "update" update profileParser
         "Create or update IAM profiles."
     ]
 
-info :: Common -> Role -> AWS ()
+info :: Common -> Profile -> AWS ()
 info _ r = do
     p <- Profile.find r
     log_ . Text.unlines $
@@ -88,5 +88,5 @@ info _ r = do
     dec :: Text -> Maybe Object
     dec = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
 
-update :: Common -> Role -> AWS ()
+update :: Common -> Profile -> AWS ()
 update _ r = void $ Profile.update r (rTrust r) (rPolicy r)

@@ -68,8 +68,8 @@ defaults Names{..} dom =
 
 lookup :: (Applicative m, MonadError AWSError m) => [(Text, Text)] -> m Tags
 lookup (Map.fromList -> ts) = Tags
-    <$> require role ts
-    <*> require env ts
+    <$> (Role <$> require role ts)
+    <*> (Env <$> require env ts)
     <*> require domain ts
     <*> pure (Map.lookup name ts)
     <*> pure (lookupVersion ts)

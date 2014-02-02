@@ -95,10 +95,10 @@ parseArgsFile path = do
 
     end c = T.isHorizontalSpace c || T.isEndOfLine c
 
-inventoryPath :: FilePath -> Text -> AWS FilePath
+inventoryPath :: FilePath -> Env -> AWS FilePath
 inventoryPath dir env = do
     r <- Text.pack . show <$> getRegion
-    return $ dir </> Path.fromText (Text.concat [r, "_", env])
+    return $ dir </> Path.fromText (Text.concat [r, "_", _env env])
 
 data Inv a
     = Meta { unwrap :: a }

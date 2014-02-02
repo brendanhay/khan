@@ -21,8 +21,8 @@ import           Khan.Prelude
 import           Network.AWS.EC2
 
 data Group = Group
-    { gRole    :: !Text
-    , gEnv     :: !Text
+    { gRole    :: !Role
+    , gEnv     :: !Env
     , gRules   :: [IpPermissionType]
     , gAnsible :: !Bool
     }

@@ -39,7 +39,7 @@ data Launch = Launch
     , lEnv       :: !Text
     , lDomain    :: !Text
     , lImage     :: Maybe Text
-    , lNum       :: !Integer
+    , lNum       :: !Int
     , lGroups    :: [Text]
     , lType      :: !InstanceType
     , lOptimised :: !Bool
@@ -118,10 +118,11 @@ launch Common{..} l@Launch{..} = do
     wait_ s <* log "Found SSH Group {}" [sshGroup envName]
     wait_ g <* log "Found Role Group {}" [groupName]
 
-    az <- shuffle lZones
-    r  <- Instance.run l ami lType (AZ cRegion az) lNum lNum lOptimised
+    az <- randomShuffle lZones
+    rs <- forM (take lNum $ cycle az) $ \z ->
+        Instance.run l ami lType (AZ cRegion z) 1 1 lOptimised
 
-    let ids = map riitInstanceId r
+    let ids = concatMap (map riitInstanceId) rs
 
     Tag.apply l lDomain ids
     Instance.wait ids

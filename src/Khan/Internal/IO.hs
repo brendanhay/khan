@@ -1,6 +1,7 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 -- Module      : Khan.Internal.IO
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -24,7 +25,8 @@ module Khan.Internal.IO
     , writeFile
 
     -- * Psuedo Randomisation
-    , shuffle
+    , randomSelect
+    , randomShuffle
 
     -- * Templates
     , renderTemplate
@@ -36,6 +38,8 @@ module Khan.Internal.IO
     ) where
 
 import           Data.Aeson                (Object)
+import qualified Data.List                 as List
+import           Data.Ord
 import           Data.String
 import qualified Data.Text                 as Text
 import qualified Data.Text.Lazy            as LText
@@ -47,7 +51,7 @@ import           Network.AWS               (AWS, liftEitherT)
 import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
 import qualified Shelly                    as Shell
 import           System.Directory
-import           System.Random             (randomRIO)
+import qualified System.Random             as Random
 import qualified Text.EDE                  as EDE
 
 sh :: MonadIO m => Sh a -> EitherT String m a
@@ -81,8 +85,18 @@ writeFile file mode contents = shell $ do
         Shell.mv f $ f <.> Text.pack (show ts)
         backup f
 
-shuffle :: MonadIO m => [a] -> m a
-shuffle xs = liftIO $ (xs !!) <$> randomRIO (0, length xs - 1)
+randomSelect :: MonadIO m => [a] -> m a
+randomSelect xs = liftIO $ (xs !!) <$> Random.randomRIO (0, length xs - 1)
+
+randomShuffle :: MonadIO m => [a] -> m [a]
+randomShuffle xs = liftIO $
+    map snd . List.sortBy (comparing fst) <$> Random.getStdRandom rs
+  where
+    rs g = foldl f ([], g) xs
+
+    f (ys, g1) x =
+        (\(n :: Int, g2) -> ((n, x) : ys, g2))
+        (Random.random g1)
 
 renderTemplate :: Object -> FilePath -> AWS LText.Text
 renderTemplate o (Path.encodeString -> f) = liftEitherT $ do

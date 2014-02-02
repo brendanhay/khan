@@ -11,7 +11,11 @@
 -- Portability : non-portable (GHC extensions)
 
 module Data.SemVer
-    ( Version (..)
+    ( Version (versionRelease, versionMeta)
+
+    , versionMajor
+    , versionMinor
+    , versionPatch
 
     , bumpMajor
     , bumpMinor

@@ -1,5 +1,5 @@
 SHELL := /usr/bin/env bash
-FLAGS := -j --disable-documentation --disable-library-coverage
+FLAGS := --disable-documentation --disable-library-coverage
 BIN   := dist/build/khan/khan
 DEPS  := vendor/amazonka vendor/ede
 
@@ -14,7 +14,7 @@ strip: build
 	strip -o dist/khan $(BIN) && upx dist/khan
 
 install: cabal.sandbox.config add-sources
-	cabal install $(FLAGS)
+	cabal install -j $(FLAGS)
 
 clean:
 	-rm -rf dist cabal.sandbox.config .cabal-sandbox

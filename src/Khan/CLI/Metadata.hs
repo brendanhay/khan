@@ -20,6 +20,7 @@ import qualified Data.Text                as Text
 import qualified Data.Text.Lazy.Builder   as Build
 import qualified Data.Text.Lazy.IO        as LText
 import           Khan.Internal
+import qualified Khan.Model.Tag           as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2.Metadata (Dynamic(..), toPath)
@@ -50,7 +51,7 @@ describe :: Common -> Describe -> AWS ()
 describe _ Describe{..} = do
     doc <- liftEitherT (Meta.dynamic Document) >>= decode
     iid <- instanceId doc
-    ts  <- findRequiredTags iid
+    ts  <- Tag.required iid
 
     liftIO
         . LText.putStrLn

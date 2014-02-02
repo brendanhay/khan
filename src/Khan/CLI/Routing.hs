@@ -25,6 +25,7 @@ import qualified Filesystem.Path.CurrentOS   as Path
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Instance         as Instance
+import qualified Khan.Model.Tag              as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2             hiding (Instance, ec2)
@@ -61,7 +62,7 @@ instance Options Routes where
             then return $! r { rZones = zs, rTemplate = f }
             else do
                 iid      <- liftEitherT $ meta InstanceId
-                Tags{..} <- findRequiredTags iid
+                Tags{..} <- Tag.required iid
                 return $! r
                     { rDomain   = Just tagDomain
                     , rEnv      = tagEnv
@@ -93,22 +94,22 @@ routes Common{..} Routes{..} = do
     renderTemplate zs rTemplate >>= liftIO . LText.putStrLn
   where
     include = (>= rWeight)
-        . lookupWeightTag
+        . Tag.lookupWeight
         . Map.fromList
         . map ((rtsitKey *** rtsitValue) . join (,))
         . riitTagSet
 
     filters reg = catMaybes
         [ Just . Filter "availability-zone" $ zones reg
-        , Just $ Filter ("tag:" <> envTag) [rEnv]
-        , fmap (Filter ("tag:" <> domainTag) . (:[])) rDomain
+        , Just $ Filter ("tag:" <> Tag.env) [rEnv]
+        , fmap (Filter ("tag:" <> Tag.domain) . (:[])) rDomain
         , role
         ]
 
     zones reg = map (Text.pack . show . AZ reg) rZones
 
     role | [] <- rRoles = Nothing
-         | otherwise    = Just $ Filter ("tag:" <> roleTag) rRoles
+         | otherwise    = Just $ Filter ("tag:" <> Tag.role) rRoles
 
     mk RunningInstancesItemType{..} = (name,) $ EDE.fromPairs
         [ "instanceId"       .= riitInstanceId
@@ -121,11 +122,11 @@ routes Common{..} Routes{..} = do
         , "ipAddress"        .= riitIpAddress
         , "privateIpAddress" .= riitPrivateIpAddress
         , "availabilityZone" .= pruAvailabilityZone riitPlacement
-        , "domain"           .= lookup domainTag tags
-        , "name"             .= lookup nameTag tags
-        , "version"          .= lookup versionTag tags
+        , "domain"           .= lookup Tag.domain tags
+        , "name"             .= lookup Tag.name tags
+        , "version"          .= lookup Tag.version tags
         , "role"             .= name
         ]
       where
         tags = map (rtsitKey &&& rtsitValue) riitTagSet
-        name = fromJust $ lookup roleTag tags
+        name = fromJust $ lookup Tag.role tags

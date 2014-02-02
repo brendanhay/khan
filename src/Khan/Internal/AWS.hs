@@ -27,22 +27,6 @@ module Khan.Internal.AWS
     , sshGroup
     , sshRules
 
-    -- * Tags
-    -- ** Constants
-    , envTag
-    , roleTag
-    , domainTag
-    , nameTag
-    , versionTag
-    , weightTag
-
-    -- ** Operations
-    , defaultTags
-    , findRequiredTags
-    , lookupTags
-    , lookupVersionTag
-    , lookupWeightTag
-
     -- * Region
     , abbreviate
 
@@ -57,17 +41,11 @@ module Khan.Internal.AWS
     ) where
 
 import           Control.Monad.Error
-import qualified Data.Attoparsec.Text     as AText
-import           Data.HashMap.Strict      (HashMap)
-import qualified Data.HashMap.Strict      as Map
-import           Data.SemVer
-import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import           Data.Text.Format         (Format, format)
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy           as LText
 import           Khan.Internal.Options
-import           Khan.Internal.Types
 import           Khan.Prelude             hiding (min, max)
 import           Network.AWS
 import           Network.AWS.AutoScaling  hiding (DescribeTags)
@@ -89,58 +67,6 @@ sshRules :: [IpPermissionType]
 sshRules =
     [ IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]
     ]
-
-envTag, roleTag, domainTag, nameTag, versionTag, weightTag :: Text
-envTag     = "Env"
-roleTag    = "Role"
-domainTag  = "Domain"
-nameTag    = "Name"
-versionTag = "Version"
-weightTag  = "Weight"
-
-defaultTags :: Names -> Text -> [(Text, Text)]
-defaultTags Names{..} dom =
-    [ (roleTag,   roleName)
-    , (envTag,    envName)
-    , (domainTag, dom)
-    , (weightTag, "0")
-    ] ++ maybe [] (\v -> [(versionTag, v)]) versionName
-
-findRequiredTags :: Text -> AWS Tags
-findRequiredTags iid = do
-    log "Describing tags for instance-id {}..." [iid]
-    send (DescribeTags [TagResourceId [iid]]) >>= lookupTags . tags
-  where
-    tags = map (\TagSetItemType{..} -> (tsitKey, tsitValue)) . dtagsrTagSet
-
-lookupTags :: (Applicative m, MonadError AWSError m) => [(Text, Text)] -> m Tags
-lookupTags (Map.fromList -> ts) = Tags
-    <$> require roleTag ts
-    <*> require envTag ts
-    <*> require domainTag ts
-    <*> pure (lookupVersionTag ts)
-    <*> pure (lookupWeightTag ts)
-  where
-    require k m = hoistError . note (missing k m) $ Map.lookup k m
-
-    missing k m = Err
-        . Text.unpack
-        $ Text.concat ["No tag '", k, "' found in [", render m, "]"]
-
-    render = Text.intercalate ","
-        . map (\(k, v) -> Text.concat [k, "=", v])
-        . Map.toList
-
-lookupVersionTag :: HashMap Text Text -> Maybe Version
-lookupVersionTag = join
-    . fmap (hush . parseVersion)
-    . Map.lookup versionTag
-
-lookupWeightTag :: HashMap Text Text -> Int
-lookupWeightTag = fromMaybe 0
-    . join
-    . fmap (hush . AText.parseOnly AText.decimal)
-    . Map.lookup weightTag
 
 abbreviate :: Region -> Text
 abbreviate NorthVirginia   = "va"

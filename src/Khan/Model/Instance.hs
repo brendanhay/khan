@@ -17,7 +17,6 @@
 module Khan.Model.Instance
     ( findAll
     , run
-    , tag
     , wait
     ) where
 
@@ -65,14 +64,6 @@ run (names -> Names{..}) image typ az min max opt =
         []                            -- NICs
         [IamInstanceProfileRequestType Nothing (Just profileName)]
         (Just opt)
-
--- FIXME: give a unique Name tag
-tag :: Naming a => a -> Text -> [Text] -> AWS ()
-tag (names -> n) dom ids = do
-    log_ "Tagging instances..."
-    send_ . CreateTags ids
-          . map (uncurry ResourceTagSetItemType)
-          $ defaultTags n dom
 
 wait :: [Text] -> AWS ()
 wait []  = log_ "All instances running."

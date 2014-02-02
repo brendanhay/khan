@@ -20,14 +20,19 @@ module Khan.Model.ScalingGroup
     , delete
     ) where
 
-import Khan.Internal
-import Khan.Prelude            hiding (find, min, max)
-import Network.AWS.AutoScaling hiding (Filter)
+import           Khan.Internal
+import qualified Khan.Model.Tag          as Tag
+import           Khan.Prelude            hiding (find, min, max)
+import           Network.AWS.AutoScaling hiding (Filter)
 
 find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
-find (names -> Names{..}) = fmap
-    (listToMaybe . members . dasgrAutoScalingGroups . dashrDescribeAutoScalingGroupsResult)
-    (send $ DescribeAutoScalingGroups (Members [appName]) Nothing Nothing)
+find (names -> Names{..}) = maybeMembers <$>
+    send (DescribeAutoScalingGroups (Members [appName]) Nothing Nothing)
+  where
+    maybeMembers = listToMaybe
+        . members
+        . dasgrAutoScalingGroups
+        . dashrDescribeAutoScalingGroupsResult
 
 create :: Naming a
        => a
@@ -52,7 +57,7 @@ create (names -> n@Names{..}) dom zones cool desired grace min max = do
         max
         min
         Nothing
-        (Members . map (uncurry tag) $ defaultTags n dom) -- Tags
+        (Members . map (uncurry tag) $ Tag.defaults n dom) -- Tags
         (Members [])
         Nothing
     log "Created Auto Scaling Group {}" [appName]

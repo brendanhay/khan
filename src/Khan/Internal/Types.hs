@@ -93,6 +93,7 @@ data Tags = Tags
     { tagRole    :: !Text
     , tagEnv     :: !Text
     , tagDomain  :: !Text
+    , tagName    :: Maybe Text
     , tagVersion :: Maybe Version
     , tagWeight  :: !Int
     } deriving (Eq, Ord, Show)
@@ -101,9 +102,9 @@ instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
         [ ("ROLE",    tagRole)
         , ("ENV",     tagEnv)
-        , ("DOMAIN",  tagDomain)
         , ("WEIGHT",  Text.pack $ show tagWeight)
         ] ++ maybeToList (("VERSION",) . showVersion <$> tagVersion)
+          ++ maybeToList (("NAME",) <$> tagName)
 
 data DNS = DNS
     { dnsRole :: !Text
@@ -138,14 +139,14 @@ createNames role env ver = Names
     , roleName    = role
     , profileName = nameEnv
     , groupName   = nameEnv
-    , imageName   = Text.concat [role, maybe "" (Text.cons '_') safeVer]
-    , appName     = Text.concat [role, fromMaybe "" safeVer, ".", env]
+    , imageName   = roleVer
+    , appName     = env <> "-" <> roleVer
     , versionName = showVersion <$> ver
     , policyName  = nameEnv
     }
   where
-    nameEnv = Text.concat [env, "-", role]
-    safeVer = safeVersion <$> ver
+    nameEnv = env <> "-" <> role
+    roleVer = role <> maybe "" (Text.cons '_') (safeVersion <$> ver)
 
 safeVersion :: Version -> Text
 safeVersion = Text.map f . showVersion

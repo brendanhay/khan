@@ -113,7 +113,7 @@ inventory Common{..} Inventory{..} = do
     debug_ "Writing inventory to stdout"
     unless iSilent . liftIO $ LBS.putStrLn j
   where
-    list = Instance.findAll [] [Filter ("tag:" <> Tag.env) [_env iEnv]] >>=
+    list = Instance.findAll [] [Tag.filter Tag.env [_env iEnv]] >>=
         foldlM hosts Map.empty
 
     hosts m RunningInstancesItemType{..} = case riitDnsName of

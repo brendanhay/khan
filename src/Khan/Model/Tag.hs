@@ -16,8 +16,11 @@
 
 module Khan.Model.Tag
     (
+    -- * EC2 Filter
+      filter
+
     -- * Constants
-      env
+    , env
     , role
     , domain
     , name
@@ -45,9 +48,12 @@ import           Data.SemVer
 import qualified Data.Text             as Text
 import           Khan.Internal.Options
 import           Khan.Internal.Types
-import           Khan.Prelude          hiding (lookup)
+import           Khan.Prelude          hiding (filter, lookup)
 import           Network.AWS
-import           Network.AWS.EC2       as EC2
+import           Network.AWS.EC2
+
+filter :: Text -> [Text] -> Filter
+filter k = Filter ("tag:" <> k)
 
 env, role, domain, name, version, weight :: Text
 env     = "Env"

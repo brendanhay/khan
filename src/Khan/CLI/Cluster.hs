@@ -263,21 +263,21 @@ instance Pretty (PP AutoScalingGroup) where
       where
         name = "[" ++ Text.unpack asgAutoScalingGroupName ++ "] ->"
 
-        hs = [ "zones:"
+        hs = [ "status:"
+             , "zones:"
              , "cooldown:"
              , "min:"
              , "max:"
              , "desired:"
-             , "status:"
              , "created:"
              ]
 
-        vs = [ zones
+        vs = [ maybe "OK" show asgStatus
+             , zones
              , show asgDefaultCooldown
              , show asgMinSize
              , show asgMaxSize
              , show asgDesiredCapacity
-             , maybe "OK" show asgStatus
              , formatUTC asgCreatedTime
              ]
 

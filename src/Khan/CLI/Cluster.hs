@@ -23,7 +23,7 @@ import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
 import qualified Khan.Model.LaunchConfig     as Config
-import           Khan.Model.Profile           (Policy(..))
+import           Khan.Model.Profile          (Policy(..))
 import qualified Khan.Model.Profile          as Profile
 import qualified Khan.Model.ScalingGroup     as ASG
 import qualified Khan.Model.SecurityGroup    as Security

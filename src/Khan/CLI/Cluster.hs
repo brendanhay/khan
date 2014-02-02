@@ -278,7 +278,7 @@ instance Pretty (PP AutoScalingGroup) where
              , show asgMaxSize
              , show asgDesiredCapacity
              , maybe "OK" show asgStatus
-             , iso8601 asgCreatedTime
+             , formatUTC asgCreatedTime
              ]
 
         zones | null asgAvailabilityZones = ""
@@ -290,23 +290,23 @@ instance Pretty (PP AutoScalingGroup) where
 instance Pretty (PP [RunningInstancesItemType]) where
     pretty (PP xs) = (layout . (hs :) $ map f xs) PP./+/ PP.nullBox
       where
-        hs = [ "instance-id:"
+        hs = [ "weight:"
+             , "instance-id:"
              , "image-id:"
              , "public-ip:"
              , "type:"
+             , "launched:"
              , "state:"
              , "reason:"
-             , "weight:"
-             , "launched:"
              ]
 
         f RunningInstancesItemType{..} =
-            [ Text.unpack riitInstanceId
+            [ show . Tag.lookupWeight $ Tag.flatten riitTagSet
+            , Text.unpack riitInstanceId
             , Text.unpack riitImageId
             , Text.unpack . fromMaybe "" $ riitIpAddress
             , show riitInstanceType
+            , formatUTC riitLaunchTime
             , Text.unpack $ istName riitInstanceState
             , maybe "" show riitStateReason
-            , show . Tag.lookupWeight $ Tag.flatten riitTagSet
-            , iso8601 riitLaunchTime
             ]

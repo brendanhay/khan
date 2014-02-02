@@ -47,7 +47,7 @@ module Khan.Prelude
     , diff
 
     -- * Formatting
-    , iso8601
+    , formatUTC
 
     -- * Re-exported Modules
     , module Applicative
@@ -97,5 +97,5 @@ sync = fmapLT show . syncIO
 diff :: Eq a => [a] -> [a] -> ([a], [a])
 diff xs ys = (xs \\ ys, ys \\ xs)
 
-iso8601 :: UTCTime -> String
-iso8601 = formatTime defaultTimeLocale (iso8601DateFormat $ Just "%XZ")
+formatUTC :: UTCTime -> String
+formatUTC = formatTime defaultTimeLocale "%d.%m.%Y %X"

@@ -14,21 +14,39 @@
 
 module Khan.CLI.Cluster (commands) where
 
-import           Control.Concurrent          (threadDelay)
+import           Control.Concurrent           (threadDelay)
 import           Data.SemVer
 import           Khan.Internal
-import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as Image
-import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.LaunchConfig     as Config
-import           Khan.Model.Profile          (Policy(..))
-import qualified Khan.Model.Profile          as Profile
-import qualified Khan.Model.ScalingGroup     as ASG
-import qualified Khan.Model.SecurityGroup    as Security
+import qualified Khan.Model.AvailabilityZone  as AZ
+import qualified Khan.Model.Image             as Image
+import qualified Khan.Model.Key               as Key
+import qualified Khan.Model.LaunchConfig      as Config
+import           Khan.Model.Profile           (Policy(..))
+import qualified Khan.Model.Profile           as Profile
+import qualified Khan.Model.ScalingGroup      as ASG
+import qualified Khan.Model.SecurityGroup     as Security
+import qualified Khan.Model.Tag               as Tag
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.AutoScaling     hiding (Filter)
+import           Network.AWS.AutoScaling      hiding (Filter)
 import           Network.AWS.EC2
+import qualified Text.PrettyPrint.Leijen.Text as PP
+-- import           Text.PrettyPrint.Leijen.Text hiding ((<$>))
+
+data Overview = Overview
+    { oRole :: !Role
+    , oEnv  :: !Env
+    }
+
+overviewParser :: Parser Overview
+overviewParser = Overview
+    <$> roleOption
+    <*> envOption
+
+instance Options Overview
+
+instance Naming Overview where
+    names Overview{..} = unversioned oRole oEnv
 
 data Deploy = Deploy
     { dRole     :: !Role
@@ -150,7 +168,9 @@ instance Naming Cluster where
 
 commands :: Mod CommandFields Command
 commands = group "cluster" "Auto Scaling Groups." $ mconcat
-    [ command "deploy" deploy deployParser
+    [ command "overview" overview overviewParser
+        "Display an overview of application clusters within the environment."
+    , command "deploy" deploy deployParser
         "Deploy a versioned cluster."
     , command "scale" scale scaleParser
         "Update the scaling information for a cluster."
@@ -159,6 +179,39 @@ commands = group "cluster" "Auto Scaling Groups." $ mconcat
     , command "retire" retire clusterParser
         "Retire a specific cluster version."
     ]
+
+data ClusterStatus = CS
+    { stGroup     :: AutoScalingGroup
+    , stInstances :: [RunningInstancesItemType]
+    }
+
+overview :: Common -> Overview -> AWS ()
+overview Common{..} o@Overview{..} = do
+    -- Describe instances matching role and env
+    is <- fmap (concatMap instances . dirReservationSet) . send $
+        DescribeInstances []
+            [ Tag.filter Tag.role [_role oRole]
+            , Tag.filter Tag.env  [_env  oEnv]
+            ]
+
+    liftIO $ print is
+  where
+    instances ReservationInfoType{..}
+        | Just "Auto Scaling" <- ritRequesterId = ritInstancesSet
+        | otherwise                             = []
+
+    -- let iis = concatMap ritInstancesSet
+
+    -- get a list of versions from the above
+
+    -- use the version to construct autoscaling group names
+
+    -- -- describe autoscaling groups matching (need to paginate)
+    -- ASG.findAll
+
+    -- dasgrAutoScalingGroups . dashrDescribeAutoScalingGroupsResult
+
+    -- make cluster into a data type that can be pretty printed in tabular format
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do
@@ -174,13 +227,13 @@ deploy c@Common{..} d@Deploy{..} = do
 
     k <- async $ Key.create cBucket d cCerts
     p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
-    s <- async $ Security.update groupSSH sshRules
+    s <- async $ Security.sshGroup d
     g <- async $ Security.create d
     a <- async $ Image.find [] [Filter "name" [imageName]]
 
     wait_ k
     wait_ p <* log "Found IAM Profile {}" [profileName]
-    wait_ s <* log "Found SSH Group {}"   [groupSSH]
+    wait_ s <* log "Found SSH Group {}"   [sshGroupName]
     wait_ g <* log "Found App Group {}"   [groupName]
 
     ami <- diritImageId <$> wait a
@@ -191,8 +244,6 @@ deploy c@Common{..} d@Deploy{..} = do
     ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax
   where
     Names{..} = names d
-
-    groupSSH = sshGroup $ _env dEnv
 
     zones = map (AZ cRegion) dZones
 

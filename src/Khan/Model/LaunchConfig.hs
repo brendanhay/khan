@@ -28,17 +28,17 @@ create (names -> Names{..}) ami typ = do
     c <- sendCatch $ CreateLaunchConfiguration
         (Members [])
         Nothing
-        (Just profileName)              -- Instance Profile
-        ami                             -- Image Id
+        (Just profileName)                  -- Instance Profile
+        ami                                 -- Image Id
         Nothing
-        typ                             -- Instance Type
+        typ                                 -- Instance Type
         Nothing
-        (Just keyName)                  -- Key Pair Name
-        appName                         -- Launch Configuration Name
+        (Just keyName)                      -- Key Pair Name
+        appName                             -- Launch Configuration Name
         Nothing
-        (Members [groupName, sshGroup envName]) -- Security Groups
+        (Members [groupName, sshGroupName]) -- Security Groups
         Nothing
-        Nothing                         -- User Data
+        Nothing                             -- User Data
     verifyAS "AlreadyExists" c
     log "Created Launch Configuration {}" [appName]
 

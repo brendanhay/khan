@@ -122,15 +122,16 @@ data DNS = DNS
     } deriving (Eq, Ord, Show)
 
 data Names = Names
-    { envName     :: !Text
-    , keyName     :: !Text
-    , roleName    :: !Text
-    , profileName :: !Text
-    , groupName   :: !Text
-    , imageName   :: !Text
-    , appName     :: !Text
-    , versionName :: Maybe Text
-    , policyName  :: !Text
+    { envName      :: !Text
+    , keyName      :: !Text
+    , roleName     :: !Text
+    , profileName  :: !Text
+    , groupName    :: !Text
+    , sshGroupName :: !Text
+    , imageName    :: !Text
+    , appName      :: !Text
+    , versionName  :: Maybe Text
+    , policyName   :: !Text
     } deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Names where
@@ -141,15 +142,16 @@ instance ToJSON Names where
 
 createNames :: Role -> Env -> Maybe Version -> Names
 createNames (_role -> role) (_env -> env) ver = Names
-    { envName     = env
-    , keyName     = env <> "-khan"
-    , roleName    = role
-    , profileName = nameEnv
-    , groupName   = nameEnv
-    , imageName   = roleVer
-    , appName     = env <> "-" <> roleVer
-    , versionName = showVersion <$> ver
-    , policyName  = nameEnv
+    { envName      = env
+    , keyName      = env <> "-khan"
+    , roleName     = role
+    , profileName  = nameEnv
+    , groupName    = nameEnv
+    , sshGroupName = env <> "-ssh"
+    , imageName    = roleVer
+    , appName      = env <> "-" <> roleVer
+    , versionName  = showVersion <$> ver
+    , policyName   = nameEnv
     }
   where
     nameEnv = env <> "-" <> role

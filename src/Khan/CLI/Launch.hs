@@ -111,11 +111,11 @@ launch Common{..} l@Launch{..} = do
     wait_ p <* log "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create cBucket l cCerts
-    s <- async $ Security.update (sshGroup envName) sshRules
+    s <- async $ Security.sshGroup l
     g <- async $ Security.create l
 
     wait_ k <* log "Found KeyPair {}" [keyName]
-    wait_ s <* log "Found SSH Group {}" [sshGroup envName]
+    wait_ s <* log "Found SSH Group {}" [sshGroupName]
     wait_ g <* log "Found Role Group {}" [groupName]
 
     az <- randomShuffle lZones

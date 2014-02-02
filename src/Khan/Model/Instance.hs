@@ -47,21 +47,21 @@ run (names -> Names{..}) image typ az min max opt =
         min
         max
         (Just keyName)
-        []                            -- Group Ids
-        [groupName, sshGroup envName] -- Group Names
-        Nothing                       -- User Data
+        []                        -- Group Ids
+        [groupName, sshGroupName] -- Group Names
+        Nothing                   -- User Data
         (Just typ)
         (Just $ PlacementType (Just az) Nothing Nothing)
         Nothing
         Nothing
-        []                            -- Block Devices
+        []                        -- Block Devices
         (Just $ MonitoringInstanceType True)
         Nothing
-        Nothing                       -- FIXME: Disable API Termination
-        Nothing                       -- Shutdown Behaviour
-        Nothing                       -- Private IP
-        Nothing                       -- llient Token
-        []                            -- NICs
+        Nothing                   -- FIXME: Disable API Termination
+        Nothing                   -- Shutdown Behaviour
+        Nothing                   -- Private IP
+        Nothing                   -- llient Token
+        []                        -- NICs
         [IamInstanceProfileRequestType Nothing (Just profileName)]
         (Just opt)
 

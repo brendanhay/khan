@@ -83,7 +83,6 @@ instance Options Image where
 instance Naming Image where
     names Image{..} = ver
         { profileName = "ami-builder"
-        , groupName   = sshGroup "ami"
         }
       where
         ver = maybe (unversioned iRole "ami")
@@ -116,11 +115,11 @@ image c@Common{..} d@Image{..} = do
 
     wait_ i <* log "Found IAM Profile {}" [profileName]
 
-    g <- async $ Security.update d sshRules
+    g <- async $ Security.sshGroup d
     z <- async $ AZ.getSuffixes iZones
     k <- async $ Key.create cBucket d cCerts
 
-    wait_ g <* log "Found Role Group {}" [groupName]
+    wait_ g <* log "Found Role Group {}" [sshGroupName]
 
     az  <- fmap (AZ cRegion) $ wait z >>= randomSelect
     key <- wait k <* log "Found KeyPair {}" [keyName]

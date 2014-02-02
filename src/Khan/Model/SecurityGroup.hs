@@ -15,7 +15,12 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.SecurityGroup
-    ( find
+    (
+    -- * SSH group enforcement
+      sshGroup
+
+    -- * EC2 API calls
+    , find
     , create
     , update
     , delete
@@ -26,6 +31,12 @@ import Data.List       (sort)
 import Khan.Internal
 import Khan.Prelude    hiding (find, min, max)
 import Network.AWS.EC2 hiding (Instance)
+
+sshGroup :: Naming a => a -> AWS Bool
+sshGroup = flip update rules . sshGroupName . names
+  where
+    rules = [ IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]
+            ]
 
 find :: Naming a => a -> AWS (Maybe SecurityGroupItemType)
 find (names -> Names{..}) = do

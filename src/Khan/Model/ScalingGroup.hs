@@ -25,7 +25,6 @@ import qualified Khan.Model.Tag          as Tag
 import           Khan.Prelude            hiding (find, min, max)
 import           Network.AWS.AutoScaling hiding (Filter)
 
-find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
 find (names -> Names{..}) = maybeMembers <$>
     send (DescribeAutoScalingGroups (Members [appName]) Nothing Nothing)
   where
@@ -33,6 +32,14 @@ find (names -> Names{..}) = maybeMembers <$>
         . members
         . dasgrAutoScalingGroups
         . dashrDescribeAutoScalingGroupsResult
+
+-- find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
+-- find (names -> Names{..}) = listToMaybe <$> findAll [appName]
+
+-- findAll :: [Text] -> AWS [AutoScalingGroup]
+-- findAll = undefined
+--     -- fmap (listToMaybe . members . dasgrAutoScalingGroups . dashrDescribeAutoScalingGroupsResult)
+--     -- (send $ DescribeAutoScalingGroups (Members [appName]) Nothing Nothing)
 
 create :: Naming a
        => a

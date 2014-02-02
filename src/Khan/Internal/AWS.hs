@@ -23,10 +23,6 @@ module Khan.Internal.AWS
     -- * Encapsulate/rerun an AWS context
     , contextAWS
 
-    -- * SSH
-    , sshGroup
-    , sshRules
-
     -- * Region
     , abbreviate
 
@@ -59,14 +55,6 @@ meta = fmap Text.decodeUtf8 . Meta.meta
 
 contextAWS :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
 contextAWS Common{..} = liftIO . runAWS AuthDiscover cDebug . within cRegion
-
-sshGroup :: Text -> Text
-sshGroup = (<> "-ssh")
-
-sshRules :: [IpPermissionType]
-sshRules =
-    [ IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]
-    ]
 
 abbreviate :: Region -> Text
 abbreviate NorthVirginia   = "va"

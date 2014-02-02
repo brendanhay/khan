@@ -46,6 +46,9 @@ module Khan.Prelude
     -- * Lists
     , diff
 
+    -- * Formatting
+    , iso8601
+
     -- * Re-exported Modules
     , module Applicative
     , module Error
@@ -68,10 +71,12 @@ import Data.List.NonEmpty        (NonEmpty(..))
 import Data.Maybe                as Maybe
 import Data.Monoid               as Monoid
 import Data.Text                 (Text)
+import Data.Time
 import Filesystem.Path.CurrentOS (FilePath)
 import Khan.Prelude.Log          as Log
 import Prelude.Prime             as Prime hiding (FilePath, error, log, writeFile)
 import Shelly                    (whenM, unlessM)
+import System.Locale
 
 accessKey, secretKey :: String
 accessKey = "ACCESS_KEY_ID"
@@ -91,3 +96,6 @@ sync = fmapLT show . syncIO
 
 diff :: Eq a => [a] -> [a] -> ([a], [a])
 diff xs ys = (xs \\ ys, ys \\ xs)
+
+iso8601 :: UTCTime -> String
+iso8601 = formatTime defaultTimeLocale (iso8601DateFormat $ Just "%XZ")

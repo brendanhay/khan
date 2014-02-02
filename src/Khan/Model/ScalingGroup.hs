@@ -25,13 +25,6 @@ import           Khan.Internal
 import qualified Khan.Model.Tag          as Tag
 import           Khan.Prelude            hiding (find, min, max)
 import           Network.AWS.AutoScaling hiding (Filter)
-import           Network.AWS.EC2         (RunningInstancesItemType)
-
-data Overview = Overview
-    { oGroup     :: AutoScalingGroup
-    , oNames     :: Names
-    , oInstances :: [RunningInstancesItemType]
-    }
 
 find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
 find (names -> Names{..}) = listToMaybe <$> findAll [appName]

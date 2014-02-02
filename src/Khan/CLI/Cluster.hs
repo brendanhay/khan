@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -16,7 +17,9 @@ module Khan.CLI.Cluster (commands) where
 
 import           Control.Concurrent          (threadDelay)
 import qualified Data.HashMap.Strict         as Map
+import           Data.List                   (intersperse)
 import           Data.SemVer
+import qualified Data.Text                   as Text
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
@@ -32,6 +35,7 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
+import qualified Text.PrettyPrint.Boxes      as PP
 
 data Overview = Overview
     { oRole :: !Role
@@ -181,7 +185,7 @@ commands = group "cluster" "Auto Scaling Groups." $ mconcat
     ]
 
 overview :: Common -> Overview -> AWS ()
-overview Common{..} o@Overview{..} = do
+overview Common{..} Overview{..} = do
     log "Looking for Instances tagged Role:{} and Env:{}"
         [_role oRole, _env oEnv]
     is <- mapM annotate =<< Instance.findAll []
@@ -199,21 +203,17 @@ overview Common{..} o@Overview{..} = do
     forM_ gs $ \g@AutoScalingGroup{..} -> do
         xs <- noteAWS "Missing Auto Scaling Group entries: {}" [asgAutoScalingGroupName] $
             Map.lookup asgAutoScalingGroupName m
-        prettyPrint g
-        prettyPrint xs
+        prettyPrint $ PP g
+        prettyPrint $ PP xs
 
     log_ ""
   where
     annotate i@RunningInstancesItemType{..} = (,)
-        <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName i)
+        <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName riitTagSet)
         <*> pure i
 
-    groupName = listToMaybe
-        . map rtsitValue
-        . filter ((== groupTag) . rtsitKey)
-        . riitTagSet
-
-    groupTag = "aws:autoscaling:groupName"
+    groupName = Map.lookup groupTag . Tag.flatten
+    groupTag  = "aws:autoscaling:groupName"
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do
@@ -257,3 +257,58 @@ promote _ _ = return ()
 
 retire :: Common -> Cluster -> AWS ()
 retire _ c = ASG.delete c >> Config.delete c
+
+newtype PP a = PP { pp :: a }
+
+instance Pretty (PP AutoScalingGroup) where
+    pretty (PP AutoScalingGroup{..}) = PP.text name PP.// layout [hs, vs]
+      where
+        name = "[" ++ Text.unpack asgAutoScalingGroupName ++ "] ->"
+
+        hs = [ "zones"
+             , "cooldown"
+             , "min"
+             , "max"
+             , "desired"
+             , "status"
+             , "created"
+             ]
+
+        vs = [ zones
+             , show asgDefaultCooldown
+             , show asgMinSize
+             , show asgMaxSize
+             , show asgDesiredCapacity
+             , maybe "OK" show asgStatus
+             , iso8601 asgCreatedTime
+             ]
+
+        zones | null asgAvailabilityZones = ""
+              | otherwise = (show . azRegion $ head asgAvailabilityZones)
+                  ++ "["
+                  ++ intersperse ',' (map azSuffix asgAvailabilityZones)
+                  ++ "]"
+
+instance Pretty (PP [RunningInstancesItemType]) where
+    pretty = PP.moveDown 1 . layout . (hs :) . map f . pp
+      where
+        hs = [ "instance-id"
+             , "image-id"
+             , "public-ip"
+             , "type"
+             , "state"
+             , "reason"
+             , "weight"
+             , "launched"
+             ]
+
+        f RunningInstancesItemType{..} =
+            [ Text.unpack riitInstanceId
+            , Text.unpack riitImageId
+            , Text.unpack . fromMaybe "" $ riitIpAddress
+            , show riitInstanceType
+            , Text.unpack $ istName riitInstanceState
+            , maybe "" show riitStateReason
+            , show . Tag.lookupWeight $ Tag.flatten riitTagSet
+            , iso8601 riitLaunchTime
+            ]

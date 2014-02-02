@@ -30,6 +30,9 @@ module Khan.Model.Tag
     -- * Defaults
     , defaults
 
+    -- * From EC2 instance
+    , flatten
+
     -- * Lookup from HashMap
     , lookup
     , lookupVersion
@@ -72,8 +75,12 @@ defaults Names{..} dom =
     , (weight, "0")
     ] ++ maybe [] (\v -> [(version, v)]) versionName
 
-lookup :: (Applicative m, MonadError AWSError m) => [(Text, Text)] -> m Tags
-lookup (Map.fromList -> ts) = Tags
+flatten :: [ResourceTagSetItemType] -> HashMap Text Text
+flatten = Map.fromList
+    . map (\ResourceTagSetItemType{..} -> (rtsitKey, rtsitValue))
+
+lookup :: (Applicative m, MonadError AWSError m) => HashMap Text Text -> m Tags
+lookup ts = Tags
     <$> (Role <$> require role ts)
     <*> (Env <$> require env ts)
     <*> require domain ts
@@ -107,7 +114,9 @@ required iid = do
     log "Describing tags for instance-id {}..." [iid]
     send (DescribeTags [TagResourceId [iid]]) >>= lookup . tags
   where
-    tags = map (\TagSetItemType{..} -> (tsitKey, tsitValue)) . dtagsrTagSet
+    tags = Map.fromList
+        . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
+        . dtagsrTagSet
 
 apply :: Naming a => a -> Text -> [Text] -> AWS ()
 apply (names -> n) dom ids = do

@@ -119,7 +119,7 @@ inventory Common{..} Inventory{..} = do
     hosts m RunningInstancesItemType{..} = case riitDnsName of
         Nothing   -> return m
         Just fqdn -> do
-            t@Tags{..} <- Tag.lookup $ map tag riitTagSet
+            t@Tags{..} <- Tag.lookup $ Tag.flatten riitTagSet
 
             let n@Names{..} = names t
                 host        = Host fqdn tagDomain n cRegion
@@ -127,8 +127,6 @@ inventory Common{..} Inventory{..} = do
 
             return $! foldl' (flip update) m
                 [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]
-
-    tag ResourceTagSetItemType{..} = (rtsitKey, rtsitValue)
 
 playbook :: Common -> Ansible -> AWS ()
 playbook c@Common{..} a@Ansible{..} = ansible c $ a

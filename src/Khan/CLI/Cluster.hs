@@ -182,6 +182,8 @@ commands = group "cluster" "Auto Scaling Groups." $ mconcat
 
 overview :: Common -> Overview -> AWS ()
 overview Common{..} o@Overview{..} = do
+    log "Looking for Instances tagged Role:{} and Env:{}"
+        [_role oRole, _env oEnv]
     is <- mapM annotate =<< Instance.findAll []
         [ Tag.filter Tag.role [_role oRole]
         , Tag.filter Tag.env  [_env  oEnv]
@@ -190,13 +192,17 @@ overview Common{..} o@Overview{..} = do
 
     let m = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
 
+    log "Describing Auto Scaling Groups: [{}]" [Map.keys m]
     gs <- ASG.findAll $ Map.keys m
 
+    log "Found {} matching Auto Scaling Groups\n" [length gs]
     forM_ gs $ \g@AutoScalingGroup{..} -> do
-        prettyPrint $ PP g
         xs <- noteAWS "Missing Auto Scaling Group entries: {}" [asgAutoScalingGroupName] $
             Map.lookup asgAutoScalingGroupName m
-        mapM_ (prettyPrint . PP) xs
+        prettyPrint g
+        prettyPrint xs
+
+    log_ ""
   where
     annotate i@RunningInstancesItemType{..} = (,)
         <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName i)

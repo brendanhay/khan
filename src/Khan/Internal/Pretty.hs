@@ -64,7 +64,7 @@ instance Pretty AutoScalingGroup where
                   ++ "]"
 
 instance Pretty [RunningInstancesItemType] where
-    pretty = layout . (hs :) . map f
+    pretty = moveDown 1 . layout . (hs :) . map f
       where
         hs = [ "instance-id"
              , "image-id"
@@ -79,21 +79,22 @@ instance Pretty [RunningInstancesItemType] where
         f RunningInstancesItemType{..} =
             [ Text.unpack riitInstanceId
             , Text.unpack riitImageId
-            , Text.unpack $ fromMaybe "" riitIpAddress
+            , m "" riitIpAddress
             , show riitInstanceType
             , Text.unpack $ istName riitInstanceState
-            , show riitStateReason
-            , Text.unpack . fromMaybe "0" $ weight riitTagSet
+            , m "" riitStateReason
+            , m "0" $ weight riitTagSet
             , formatISO8601 riitLaunchTime
             ]
+
+        m d = Text.unpack . fromMaybe d
 
         weight = listToMaybe
             . map rtsitValue
             . filter ((== "Weight") . rtsitKey)
 
 layout :: [[String]] -> Box
-layout = moveDown 1
-    . moveRight 1
+layout = moveRight 1
     . hsep 2 left
     . map (vcat left . map text)
     . transpose

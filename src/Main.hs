@@ -18,7 +18,6 @@ module Main (main) where
 import           Control.Error
 import           Control.Monad
 import qualified Data.Text                as Text
-import           Data.Text.Format         (Shown(..))
 import qualified Khan.CLI.Ansible         as Ansible
 import qualified Khan.CLI.Artifact        as Artifact
 import qualified Khan.CLI.Cluster         as Cluster
@@ -69,7 +68,7 @@ main = do
         c'@Common{..} <- regionalise c p
         validate c'
         rs <- contextAWS c' $ do
-            debug "Running in region {}..." [Shown cRegion]
+            debug "Running in region {}..." [show cRegion]
             y <- discover p c' x
             liftEitherT $ validate y
             f c' y

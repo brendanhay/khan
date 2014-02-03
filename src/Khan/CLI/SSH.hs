@@ -55,8 +55,8 @@ ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
     key <- maybe (Key.path cBucket s cCerts) return sKey
     dns <- mapMaybe riitDnsName <$> Instance.findAll []
-        [ Filter ("tag:" <> Tag.env)  [_env  sEnv]
-        , Filter ("tag:" <> Tag.role) [_role sRole]
+        [ Tag.filter Tag.env  [_env  sEnv]
+        , Tag.filter Tag.role [_role sRole]
         ]
     go key dns
   where

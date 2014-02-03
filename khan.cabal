@@ -79,6 +79,7 @@ library
       , amazonka             >= 0.1.3
       , attoparsec
       , base                 >= 4.6 && < 5
+      , boxes
       , bytestring
       , conduit
       , containers
@@ -88,6 +89,7 @@ library
       , http-conduit
       , http-types
       , mtl
+      , old-locale
       , optparse-applicative
       , prelude-prime
       , random

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -15,20 +16,41 @@
 module Khan.CLI.Cluster (commands) where
 
 import           Control.Concurrent          (threadDelay)
+import qualified Data.HashMap.Strict         as Map
+import           Data.List                   (intersperse)
 import           Data.SemVer
+import qualified Data.Text                   as Text
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
+import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
 import qualified Khan.Model.LaunchConfig     as Config
 import           Khan.Model.Profile          (Policy(..))
 import qualified Khan.Model.Profile          as Profile
 import qualified Khan.Model.ScalingGroup     as ASG
 import qualified Khan.Model.SecurityGroup    as Security
+import qualified Khan.Model.Tag              as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
+import qualified Text.PrettyPrint.Boxes      as PP
+
+data Overview = Overview
+    { oRole :: !Role
+    , oEnv  :: !Env
+    }
+
+overviewParser :: Parser Overview
+overviewParser = Overview
+    <$> roleOption
+    <*> envOption
+
+instance Options Overview
+
+instance Naming Overview where
+    names Overview{..} = unversioned oRole oEnv
 
 data Deploy = Deploy
     { dRole     :: !Role
@@ -150,7 +172,9 @@ instance Naming Cluster where
 
 commands :: Mod CommandFields Command
 commands = group "cluster" "Auto Scaling Groups." $ mconcat
-    [ command "deploy" deploy deployParser
+    [ command "overview" overview overviewParser
+        "Display an overview of application clusters within the environment."
+    , command "deploy" deploy deployParser
         "Deploy a versioned cluster."
     , command "scale" scale scaleParser
         "Update the scaling information for a cluster."
@@ -159,6 +183,35 @@ commands = group "cluster" "Auto Scaling Groups." $ mconcat
     , command "retire" retire clusterParser
         "Retire a specific cluster version."
     ]
+
+overview :: Common -> Overview -> AWS ()
+overview Common{..} Overview{..} = do
+    log "Looking for Instances tagged Role:{} and Env:{}"
+        [_role oRole, _env oEnv]
+    is <- mapM annotate =<< Instance.findAll []
+        [ Tag.filter Tag.role [_role oRole]
+        , Tag.filter Tag.env  [_env  oEnv]
+        , Filter "tag-key" [groupTag]
+        ]
+
+    let m = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
+
+    log "Describing Auto Scaling Groups: [{}]" [Map.keys m]
+    gs <- ASG.findAll $ Map.keys m
+
+    log "Found {} matching Auto Scaling Groups\n" [length gs]
+    forM_ gs $ \g@AutoScalingGroup{..} -> do
+        xs <- noteAWS "Missing Auto Scaling Group entries: {}" [asgAutoScalingGroupName] $
+            Map.lookup asgAutoScalingGroupName m
+        prettyPrint $ PP g
+        prettyPrint $ PP xs
+  where
+    annotate i@RunningInstancesItemType{..} = (,)
+        <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName riitTagSet)
+        <*> pure i
+
+    groupName = Map.lookup groupTag . Tag.flatten
+    groupTag  = "aws:autoscaling:groupName"
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do
@@ -174,13 +227,13 @@ deploy c@Common{..} d@Deploy{..} = do
 
     k <- async $ Key.create cBucket d cCerts
     p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
-    s <- async $ Security.update groupSSH sshRules
-    g <- async $ Security.create d
+    s <- async $ Security.sshGroup d
+    g <- async $ Security.create groupName
     a <- async $ Image.find [] [Filter "name" [imageName]]
 
     wait_ k
     wait_ p <* log "Found IAM Profile {}" [profileName]
-    wait_ s <* log "Found SSH Group {}"   [groupSSH]
+    wait_ s <* log "Found SSH Group {}"   [sshGroupName]
     wait_ g <* log "Found App Group {}"   [groupName]
 
     ami <- diritImageId <$> wait a
@@ -192,8 +245,6 @@ deploy c@Common{..} d@Deploy{..} = do
   where
     Names{..} = names d
 
-    groupSSH = sshGroup $ _env dEnv
-
     zones = map (AZ cRegion) dZones
 
 scale :: Common -> Scale -> AWS ()
@@ -204,3 +255,58 @@ promote _ _ = return ()
 
 retire :: Common -> Cluster -> AWS ()
 retire _ c = ASG.delete c >> Config.delete c
+
+newtype PP a = PP a
+
+instance Pretty (PP AutoScalingGroup) where
+    pretty (PP AutoScalingGroup{..}) = PP.text name PP.// layout [hs, vs]
+      where
+        name = "[" ++ Text.unpack asgAutoScalingGroupName ++ "] ->"
+
+        hs = [ "status:"
+             , "zones:"
+             , "cooldown:"
+             , "min:"
+             , "max:"
+             , "desired:"
+             , "created:"
+             ]
+
+        vs = [ maybe "OK" show asgStatus
+             , zones
+             , show asgDefaultCooldown
+             , show asgMinSize
+             , show asgMaxSize
+             , show asgDesiredCapacity
+             , formatUTC asgCreatedTime
+             ]
+
+        zones | null asgAvailabilityZones = ""
+              | otherwise = (show . azRegion $ head asgAvailabilityZones)
+                  ++ "["
+                  ++ intersperse ',' (map azSuffix asgAvailabilityZones)
+                  ++ "]"
+
+instance Pretty (PP [RunningInstancesItemType]) where
+    pretty (PP xs) = (layout . (hs :) $ map f xs) PP./+/ PP.nullBox
+      where
+        hs = [ "weight:"
+             , "instance-id:"
+             , "image-id:"
+             , "public-ip:"
+             , "type:"
+             , "launched:"
+             , "state:"
+             , "reason:"
+             ]
+
+        f RunningInstancesItemType{..} =
+            [ show . Tag.lookupWeight $ Tag.flatten riitTagSet
+            , Text.unpack riitInstanceId
+            , Text.unpack riitImageId
+            , Text.unpack . fromMaybe "" $ riitIpAddress
+            , show riitInstanceType
+            , formatUTC riitLaunchTime
+            , Text.unpack $ istName riitInstanceState
+            , maybe "" show riitStateReason
+            ]

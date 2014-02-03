@@ -40,17 +40,17 @@ programParser :: [(String, String)] -> Parser (Common, Command)
 programParser env = (,)
     <$> commonParser env
     <*> hsubparser
-         ( Cluster.commands
-        <> Launch.commands
-        <> Profile.commands
-        <> Group.commands
-        <> DNS.commands
+         ( Ansible.commands
         <> Artifact.commands
+        <> Cluster.commands
+        <> DNS.commands
+        <> Group.commands
+        <> Image.commands
+        <> Launch.commands
+        <> Metadata.commands
+        <> Profile.commands
         <> Routing.commands
         <> SSH.commands
-        <> Ansible.commands
-        <> Metadata.commands
-        <> Image.commands
          )
 
 main :: IO ()

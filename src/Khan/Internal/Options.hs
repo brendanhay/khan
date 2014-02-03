@@ -199,7 +199,7 @@ roleOption = Role <$> textOption "role" (short 'r')
     "Role of the application."
 
 envOption :: Parser Env
-envOption = Env <$> textOption "env" (value defaultEnv <> short 'e')
+envOption = Env <$> textOption "env" (short 'e')
     "Environment of the application."
 
 versionOption :: Parser Version
@@ -225,7 +225,7 @@ ansibleOption = switchOption "ansible" False
     "Ansible module compatible output."
 
 userOption :: Parser Text
-userOption = textOption "user" (value defaultUser <> short 'u')
+userOption = textOption "user" (value "ubuntu" <> short 'u')
     "SSH User."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()

@@ -77,7 +77,7 @@ ansibleParser = Ansible
     <*> keyOption
     <*> optional (textOption "bin" (short 'b')
         "Ansible binary name to exec.")
-    <*> readOption "retention" "SECONDS" (value 3600)
+    <*> readOption "retention" "SECONDS" (value 360)
         "Number of seconds to cache inventory results for."
     <*> switchOption "force" False
         "Force update of any previously cached results."

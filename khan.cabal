@@ -68,6 +68,7 @@ library
       , Khan.Internal.Options
       , Khan.Internal.Orphans
       , Khan.Internal.Parsing
+      , Khan.Internal.Pretty
       , Khan.Internal.Text
       , Khan.Internal.Types
 

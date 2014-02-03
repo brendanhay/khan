@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.CLI.Group
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -51,16 +52,21 @@ commands = group "group" "Long description." $ mconcat
     ]
 
 info :: Common -> Group -> AWS ()
-info _ g = Security.find g >>= liftIO . maybe (return ()) print
+info _ (names -> Names{..}) = Security.find groupName
+    >>= liftIO . maybe (return ()) print
 
 update :: Common -> Group -> AWS ()
 update c g@Group{..}
-    | not gAnsible = void $ Security.update g gRules
-    | otherwise    =
-        capture c "security group {}" [gRole] $ Security.update g gRules
+    | not gAnsible = void $ Security.update groupName gRules
+    | otherwise    = capture c "security group {}" [groupName] $
+        Security.update groupName gRules
+  where
+    Names{..} = names g
 
 delete :: Common -> Group -> AWS ()
 delete c g@Group{..}
-    | not gAnsible = void $ Security.delete g
-    | otherwise    =
-        capture c "security group {}" [gRole] $ Security.delete g
+    | not gAnsible = void $ Security.delete groupName
+    | otherwise    = capture c "security group {}" [groupName] $
+        Security.delete groupName
+  where
+    Names{..} = names g

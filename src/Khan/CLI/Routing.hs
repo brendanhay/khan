@@ -101,15 +101,15 @@ routes Common{..} Routes{..} = do
 
     filters reg = catMaybes
         [ Just . Filter "availability-zone" $ zones reg
-        , Just $ Filter ("tag:" <> Tag.env) [_env rEnv]
-        , fmap (Filter ("tag:" <> Tag.domain) . (:[])) rDomain
+        , Just $ Tag.filter Tag.env [_env rEnv]
+        , fmap (Tag.filter Tag.domain . (:[])) rDomain
         , role
         ]
 
     zones reg = map (Text.pack . show . AZ reg) rZones
 
     role | [] <- rRoles = Nothing
-         | otherwise    = Just $ Filter ("tag:" <> Tag.role) rRoles
+         | otherwise    = Just $ Tag.filter Tag.role rRoles
 
     mk RunningInstancesItemType{..} = (name,) $ EDE.fromPairs
         [ "instanceId"       .= riitInstanceId

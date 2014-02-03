@@ -38,11 +38,6 @@ module Khan.Prelude
     , accessKey
     , secretKey
 
-    -- * Defaults
-    , defaultEnv
-    , defaultUser
-    , defaultCache
-
     -- * Lists
     , diff
 
@@ -81,15 +76,6 @@ import System.Locale
 accessKey, secretKey :: String
 accessKey = "ACCESS_KEY_ID"
 secretKey = "SECRET_ACCESS_KEY"
-
-defaultEnv :: Text
-defaultEnv = "dev"
-
-defaultUser :: Text
-defaultUser = "ubuntu"
-
-defaultCache :: Int
-defaultCache = 360
 
 sync :: MonadIO m => IO a -> EitherT String m a
 sync = fmapLT show . syncIO

@@ -49,7 +49,7 @@ instance Naming SSH where
 
 commands :: Mod CommandFields Command
 commands = command "ssh" ssh sshParser
-    "Long description."
+    "Display a multiple choice list of matching hosts to SSH into."
 
 ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do

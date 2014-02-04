@@ -41,6 +41,7 @@ import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
 import qualified Shelly                     as Shell
 import           System.Directory
+import           System.IO                  (stdout)
 import qualified System.Posix.Files         as Posix
 
 data Inventory = Inventory
@@ -95,11 +96,11 @@ instance Naming Ansible where
 commands :: Mod CommandFields Command
 commands = mconcat
     [ command "ansible" ansible ansibleParser
-        "Ansible Command."
+        "Run 'ansible' supplying it with khan_* facts and inventory."
     , command "playbook" playbook ansibleParser
-        "Ansible Playbook."
+        "Run 'ansible-playbook' supplying it with khan_* facts and inventory."
     , command "inventory" inventory inventoryParser
-        "Output Ansible compatible inventory."
+        "Output ansible compatible inventory in JSON format."
     ]
 
 inventory :: Common -> Inventory -> AWS ()
@@ -167,11 +168,11 @@ ansible c@Common{..} a@Ansible{..} = do
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    let xs = args k script
+    let xs  = args k script
+        out = [Shell.OutHandle $ Shell.UseHandle stdout]
 
     log "{} {}" [Shell.toTextIgnore bin, Text.unwords xs]
-    liftEitherT . sh . Shell.silently $
-        Shell.runHandles bin xs [Shell.OutHandle Shell.Inherit] (\_ _ _ -> return ())
+    liftEitherT . sh $ Shell.runHandles bin xs out (\_ _ _ -> return ())
   where
     args k s = argv ++ foldr' add []
         [ ("-i", Text.pack s)

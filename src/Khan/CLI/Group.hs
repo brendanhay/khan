@@ -15,6 +15,7 @@
 
 module Khan.CLI.Group (commands) where
 
+import qualified Data.Text                as Text
 import           Khan.Internal
 import           Khan.Internal.Ansible
 import qualified Khan.Model.SecurityGroup as Security
@@ -24,7 +25,6 @@ import           Network.AWS.EC2
 data Group = Group
     { gRole    :: !Role
     , gEnv     :: !Env
-    , gRules   :: [IpPermissionType]
     , gAnsible :: !Bool
     }
 
@@ -32,8 +32,6 @@ groupParser :: Parser Group
 groupParser = Group
     <$> roleOption
     <*> envOption
-    <*> many (customOption "rule" "RULE" parseRule mempty
-        "Rule description.")
     <*> ansibleOption
 
 instance Options Group
@@ -41,32 +39,63 @@ instance Options Group
 instance Naming Group where
     names Group{..} = unversioned gRole gEnv
 
+data Update = Update
+    { uRole    :: !Role
+    , uEnv     :: !Env
+    , uRules   :: [IpPermissionType]
+    , uAnsible :: !Bool
+    }
+
+updateParser :: Parser Update
+updateParser = Update
+    <$> roleOption
+    <*> envOption
+    <*> many (customOption "rule" "RULE" parseRule mempty
+        "tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...]")
+    <*> ansibleOption
+
+instance Options Update
+
+instance Naming Update where
+    names Update{..} = unversioned uRole uEnv
+
 commands :: Mod CommandFields Command
-commands = group "group" "Long description." $ mconcat
+commands = group "group" "Security Groups." $ mconcat
     [ command "info" info groupParser
-        "Long long long long description."
-    , command "update" update groupParser
-        "Long long long long description."
-    , command "delete" delete groupParser
-        "Long long long long description."
+        "Display information about a security group."
+    , command "create" (modify Security.create) groupParser
+        "Create a security group."
+    , command "delete" (modify Security.delete) groupParser
+        "Delete a security group."
+    , command "update" update updateParser
+        "Update a security group with a new rule set."
     ]
 
 info :: Common -> Group -> AWS ()
-info _ (names -> Names{..}) = Security.find groupName
-    >>= liftIO . maybe (return ()) print
+info _ (names -> Names{..}) =
+    Security.find groupName >>= maybe (return ()) (log_ . format)
+  where
+    format SecurityGroupItemType{..} = Text.init . Text.unlines $
+        [ "OwnerId             = "  <> sgitOwnerId
+        , "GroupId             = "  <> sgitGroupId
+        , "GroupName           = "  <> sgitGroupName
+        , "GroupDescription    = "  <> sgitGroupDescription
+        , "VpcId               = "  <> fromMaybe "''" sgitVpcId
+        , "IpPermissionsEgress = [" <> showRules sgitIpPermissionsEgress <> "]"
+        , "IpPermissions       = [" <> showRules sgitIpPermissions <> "]"
+        ]
 
-update :: Common -> Group -> AWS ()
-update c g@Group{..}
-    | not gAnsible = void $ Security.update groupName gRules
-    | otherwise    = capture c "security group {}" [groupName] $
-        Security.update groupName gRules
+modify :: (Text -> AWS Bool) -> Common -> Group -> AWS ()
+modify f c g@Group{..}
+    | not gAnsible = void $ f groupName
+    | otherwise    = capture c "security group {}" [groupName] $ f groupName
   where
     Names{..} = names g
 
-delete :: Common -> Group -> AWS ()
-delete c g@Group{..}
-    | not gAnsible = void $ Security.delete groupName
+update :: Common -> Update -> AWS ()
+update c u@Update{..}
+    | not uAnsible = void $ Security.update groupName uRules
     | otherwise    = capture c "security group {}" [groupName] $
-        Security.delete groupName
+        Security.update groupName uRules
   where
-    Names{..} = names g
+    Names{..} = names u

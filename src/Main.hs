@@ -32,50 +32,64 @@ import qualified Khan.CLI.SSH             as SSH
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2.Metadata (ec2)
-import           Options.Applicative
+import qualified Network.AWS.EC2.Metadata as Meta
+import           Options.Applicative      (info)
 import           System.Environment
 
-programParser :: [(String, String)] -> Parser (Common, Command)
-programParser env = (,)
-    <$> commonParser env
-    <*> hsubparser
-         ( Ansible.commands
-        <> Artifact.commands
-        <> Cluster.commands
-        <> DNS.commands
-        <> Group.commands
-        <> Image.commands
-        <> Launch.commands
-        <> Metadata.commands
-        <> Profile.commands
-        <> Routing.commands
-        <> SSH.commands
-         )
-
 main :: IO ()
-main = do
-    env <- getEnvironment
-    cmd <- customExecParser (prefs showHelpOnError) (info (programParser env) idm)
-    runScript . fmapLT fmt $ run cmd
-  where
-    fmt (Err msg) = msg
-    fmt ex        = show ex
+main = runScript $ do
+    (n, as, env) <- scriptIO $
+        (,,) <$> getProgName
+             <*> getArgs
+             <*> getEnvironment
 
-    run (c, Command f x) = do
-        unless (cSilent c) enableLogging
-        p <- ec2
-        c'@Common{..} <- regionalise c p
-        validate c'
-        rs <- contextAWS c' $ do
+    ec2 <- Meta.ec2
+    mr  <- regionalise ec2
+    cmd <- either (\e -> scriptIO (errMessage e $ n) >>= left)
+                  right
+                  (execParser as env mr)
+
+    fmapLT format $ run ec2 cmd
+  where
+    regionalise False = return Nothing
+    regionalise True  = do
+        t  <- Text.unpack <$> meta AvailabilityZone
+        az <- tryRead ("Failed to read Availability Zone from: " ++ t) t
+        return $! Just $ azRegion az
+
+    format (Err msg) = msg
+    format ex        = show ex
+
+    run ec2 (c@Common{..}, Command f x) = do
+        unless cSilent enableLogging
+        validate c
+        rs <- contextAWS c $ do
             debug "Running in region {}..." [show cRegion]
-            y <- discover p c' x
+            y <- discover ec2 c x
             liftEitherT $ validate y
-            f c' y
+            f c y
         hoistEither rs
 
-    regionalise c False = return c
-    regionalise c True  = fmapLT Err $ do
-        az <- Text.unpack <$> meta AvailabilityZone
-        r  <- tryRead ("Failed to read region from: " ++ az) az
-        return $! c { cRegion = r }
+execParser :: [String]
+           -> [(String, String)]
+           -> Maybe Region
+           -> Either ParserFailure (Common, Command)
+execParser as env mr =
+    execParserPure (prefs showHelpOnError) (info parser idm) as
+  where
+    parser :: Parser (Common, Command)
+    parser = (,)
+        <$> commonParser env mr
+        <*> hsubparser
+             ( Ansible.commands
+            <> Artifact.commands
+            <> Cluster.commands
+            <> DNS.commands
+            <> Group.commands
+            <> Image.commands
+            <> Launch.commands
+            <> Metadata.commands
+            <> Profile.commands
+            <> Routing.commands
+            <> SSH.commands
+             )

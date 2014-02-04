@@ -65,7 +65,7 @@ launchParser = Launch
     <*> switchOption "optimised" False
         "EBS optimisation."
     <*> stringOption "zones" (value "")
-         "Availability zones suffixes to provision into (psuedo-random)."
+        "Availability zones suffixes to provision into."
     <*> trustOption
     <*> policyOption
 

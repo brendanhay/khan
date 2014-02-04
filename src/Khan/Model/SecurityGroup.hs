@@ -21,8 +21,8 @@ module Khan.Model.SecurityGroup
     -- * EC2 API calls
     , find
     , create
-    , update
     , delete
+    , update
     ) where
 
 import Control.Monad
@@ -47,21 +47,35 @@ find name = do
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
     groupMay (Left  _) = Nothing
 
-create :: Text -> AWS SecurityGroupItemType
-create name = find name >>= maybe f return
-  where
-    f = do
-        log "Security Group {} not found, creating..." [name]
-        gid <- fmap csgrGroupId . send $ CreateSecurityGroup name name Nothing
-        log "Security Group {} created." [gid]
-        find name >>= noteAWS "Unable to find created Security Group {}" [name]
+create :: Text -> AWS Bool
+create name = do
+    mg <- find name
+    maybe (do log "Security Group {} not found, creating..." [name]
+              gid <- fmap csgrGroupId . send $
+                  CreateSecurityGroup name name Nothing
+              log "Security Group {} created." [gid]
+              return True)
+          (const $ return False)
+          mg
+
+delete :: Text -> AWS Bool
+delete name = do
+    mg <- find name
+    maybe (return False)
+          (const $ do
+              log "Deleting Security Group {}..." [name]
+              send_ $ DeleteSecurityGroup (Just name) Nothing
+              log_ "Security Group deleted."
+              return True)
+          mg
 
 -- FIXME: diff causes rules to be revoked before re-adding, due to shallow diff
 -- which doesn't inspect the inner UserIdGroupPairs, this could potentially cause
 -- a brief netsplit.
 update :: Text -> [IpPermissionType] -> AWS Bool
 update name (sort -> rules) = do
-    grp <- create name
+    _   <- create name
+    grp <- find name >>= noteAWS "Unable to find Security Group: {}" [name]
 
     let gid         = sgitGroupId grp
         fs          = map (UserIdGroupPair Nothing Nothing . uigGroupName)
@@ -88,11 +102,3 @@ update name (sort -> rules) = do
             es <- sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing xs)
             verifyEC2 "InvalidPermission.Duplicate" es
             return $ isRight es
-
-delete :: Text -> AWS Bool
-delete name = find name >>= maybe (return False)
-    (const $ do
-        log "Deleting Security Group {}..." [name]
-        send_ $ DeleteSecurityGroup (Just name) Nothing
-        log_ "Security Group deleted."
-        return True)

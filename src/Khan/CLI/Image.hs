@@ -55,7 +55,7 @@ imageParser = Image
     <$> roleOption
     <*> optional versionOption
     <*> pathOption "playbook" (short 'p' <> value "")
-        "Path to the playbook to run on the base instance."
+        "Playbook to run on the base instance."
     <*> textOption "base" (short 'b')
         "Id of the base image/ami."
     <*> readOption "type" "TYPE" (value M1_Small)
@@ -63,14 +63,14 @@ imageParser = Image
     <*> switchOption "preserve" False
         "Don't terminate the base instance on error."
     <*> integralOption "block-devices" (value 8)
-        "Number of ephemeral devices to register the ami with."
+        "Number of ephemeral devices to register the AMI with."
     <*> argsOption str (action "file")
         "Pass through arugments to ansible."
     <*> stringOption "zones" (value "")
-        "Availability zones suffixes to provision into (psuedo-random)."
+        "Availability zones suffixes to provision into."
     <*> userOption
     <*> integralOption "timeout" (value 180)
-        "Timeout for SSH connectivity for the launched base instance."
+        "SSH timeout for the launched base instance."
 
 instance Options Image where
     discover _ _ a@Image{..} = return $! a
@@ -91,7 +91,7 @@ instance Naming Image where
 
 commands :: Mod CommandFields Command
 commands = command "image" image imageParser
-    "Create Image."
+    "Create an Amazon Virtual Machine Image using EC2 and Ansible."
 
 image :: Common -> Image -> AWS ()
 image c@Common{..} d@Image{..} = do

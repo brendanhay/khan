@@ -20,7 +20,7 @@ import qualified Data.HashMap.Strict         as Map
 import           Data.List                   (intersperse)
 import           Data.SemVer
 import qualified Data.Text                   as Text
-import           Khan.Internal
+import           Khan.Internal               hiding (infoParser)
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
@@ -37,20 +37,20 @@ import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
 import qualified Text.PrettyPrint.Boxes      as PP
 
-data Overview = Overview
-    { oRole :: !Role
-    , oEnv  :: !Env
+data Info = Info
+    { iRole :: !Role
+    , iEnv  :: !Env
     }
 
-overviewParser :: Parser Overview
-overviewParser = Overview
+infoParser :: Parser Info
+infoParser = Info
     <$> roleOption
     <*> envOption
 
-instance Options Overview
+instance Options Info
 
-instance Naming Overview where
-    names Overview{..} = unversioned oRole oEnv
+instance Naming Info where
+    names Info{..} = unversioned iRole iEnv
 
 data Deploy = Deploy
     { dRole     :: !Role
@@ -76,9 +76,9 @@ deployParser = Deploy
         "Instance's DNS domain."
     <*> versionOption
     <*> stringOption "zones" (value "")
-         "Availability zones suffixes to provision into."
+         "Availability Zone suffixes the cluster will encompass."
     <*> integralOption "grace" (value 20)
-        "Seconds until healthchecks are activated."
+        "Seconds after an auto scaling activity until healthchecks are activated."
     <*> integralOption "min" (value 1)
         "Minimum number of instances."
     <*> integralOption "max" (value 1)
@@ -86,9 +86,9 @@ deployParser = Deploy
     <*> integralOption "desired" (value 1)
         "Desired number of instances."
     <*> integralOption "cooldown" (value 60)
-        "Seconds between scaling activities."
+        "Seconds between subsequent auto scaling activities."
     <*> readOption "instance" "TYPE" (value M1_Medium)
-        "Type of instance to provision."
+        "Instance Type to provision when auto scaling occurs."
     <*> trustOption
     <*> policyOption
 
@@ -134,7 +134,7 @@ scaleParser = Scale
     <*> envOption
     <*> versionOption
     <*> optional (integralOption "grace" mempty
-        "Seconds until healthchecks are activated.")
+        "Seconds after an auto scaling activity until healthchecks are activated.")
     <*> optional (integralOption "min" mempty
         "Minimum number of instances.")
     <*> optional (integralOption "max" mempty
@@ -142,7 +142,7 @@ scaleParser = Scale
     <*> optional (integralOption "desired" mempty
         "Desired number of instances.")
     <*> optional (integralOption "cooldown" mempty
-        "Seconds between scaling activities.")
+        "Seconds between subsequent auto scaling activities.")
 
 instance Options Scale where
     validate Scale{..} = do
@@ -172,25 +172,25 @@ instance Naming Cluster where
 
 commands :: Mod CommandFields Command
 commands = group "cluster" "Auto Scaling Groups." $ mconcat
-    [ command "overview" overview overviewParser
-        "Display an overview of application clusters within the environment."
+    [ command "info" info infoParser
+        "Display cluster information."
     , command "deploy" deploy deployParser
         "Deploy a versioned cluster."
     , command "scale" scale scaleParser
         "Update the scaling information for a cluster."
     , command "promote" promote clusterParser
-        "Promote a deployed cluster to serve traffic within the environment."
+        "Promote a deployed cluster to serve traffic."
     , command "retire" retire clusterParser
         "Retire a specific cluster version."
     ]
 
-overview :: Common -> Overview -> AWS ()
-overview Common{..} Overview{..} = do
+info :: Common -> Info -> AWS ()
+info Common{..} Info{..} = do
     log "Looking for Instances tagged Role:{} and Env:{}"
-        [_role oRole, _env oEnv]
+        [_role iRole, _env iEnv]
     is <- mapM annotate =<< Instance.findAll []
-        [ Tag.filter Tag.role [_role oRole]
-        , Tag.filter Tag.env  [_env  oEnv]
+        [ Tag.filter Tag.role [_role iRole]
+        , Tag.filter Tag.env  [_env  iEnv]
         , Filter "tag-key" [groupTag]
         ]
 

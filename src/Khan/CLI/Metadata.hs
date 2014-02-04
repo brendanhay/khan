@@ -43,7 +43,7 @@ instance Options Describe where
 
 commands :: Mod CommandFields Command
 commands = command "metadata" describe describeParser
-    "Collect and display various metadata about this instance."
+    "Collect and display various metadata about the running instance."
 
 describe :: Common -> Describe -> AWS ()
 describe _ Describe{..} = do

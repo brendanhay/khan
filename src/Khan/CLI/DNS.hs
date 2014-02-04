@@ -40,10 +40,6 @@ data Record = Record
     , rAnsible :: !Bool
     }
 
--- FIXME: Get info from tags correctly
--- Ability to configure a roundrobin set or whatever and
--- create multiple records and remove unspecified
-
 recordParser :: Parser Record
 recordParser = Record
     <$> textOption "zone" mempty
@@ -68,11 +64,6 @@ recordParser = Record
         "Use the specified values for multiple individual records sets."
     <*> ansibleOption
 
-        -- get zone from tag
-        -- get policy from tag
-        -- get region from metadata
-        -- get values from metadata
-
 instance Options Record where
     discover _ _ r@Record{..}
         | invalid rZone = return r
@@ -94,9 +85,9 @@ instance Options Record where
 commands :: Mod CommandFields Command
 commands = group "dns" "Manage DNS Records." $ mconcat
     [ command "update" update recordParser
-        "long long long description."
+        "Ensure the Record Set exists with the specified options."
     , command "delete" delete recordParser
-        "long long long description."
+        "Delete an existing Record Set."
     ]
 
 update :: Common -> Record -> AWS ()

@@ -203,10 +203,8 @@ envOption = Env <$> textOption "env" (short 'e')
     "Environment of the application."
 
 versionOption :: Parser Version
-versionOption = customOption "version" typ (parseVersion . Text.pack) mempty
+versionOption = customOption "version" "SEMVER" (parseVersion . Text.pack) mempty
     "Version of the application."
-  where
-    typ = "MAJ.MIN.PATCH[-RELEASE][+BUILD]"
 
 keyOption :: Parser (Maybe FilePath)
 keyOption = optional $ pathOption "key" (short 'i')

@@ -96,9 +96,9 @@ instance Naming Ansible where
 commands :: Mod CommandFields Command
 commands = mconcat
     [ command "ansible" ansible ansibleParser
-        "Run the ansible in your PATH supplying it with khan_* facts and inventory."
+        "Run 'ansible' supplying it with khan_* facts and inventory."
     , command "playbook" playbook ansibleParser
-        "Run the ansible-playbook in your PATH supplying it with khan_* facts and inventory."
+        "Run 'ansible-playbook' supplying it with khan_* facts and inventory."
     , command "inventory" inventory inventoryParser
         "Output ansible compatible inventory in JSON format."
     ]

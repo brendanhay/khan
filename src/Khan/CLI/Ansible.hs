@@ -51,9 +51,9 @@ data Inventory = Inventory
     , iHost   :: Maybe Text
     }
 
-inventoryParser :: Parser Inventory
-inventoryParser = Inventory
-    <$> envOption
+inventoryParser :: EnvMap -> Parser Inventory
+inventoryParser env = Inventory
+    <$> envOption env
     <*> switchOption "silent" False
         "Don't output inventory results to stdout."
     <*> switchOption "list" True
@@ -72,9 +72,9 @@ data Ansible = Ansible
     , aArgs   :: [String]
     }
 
-ansibleParser :: Parser Ansible
-ansibleParser = Ansible
-    <$> envOption
+ansibleParser :: EnvMap -> Parser Ansible
+ansibleParser env = Ansible
+    <$> envOption env
     <*> keyOption
     <*> optional (textOption "bin" (short 'b')
         "Ansible binary name to exec.")
@@ -93,13 +93,13 @@ instance Options Ansible where
 instance Naming Ansible where
     names Ansible{..} = unversioned "base" aEnv
 
-commands :: Mod CommandFields Command
-commands = mconcat
-    [ command "ansible" ansible ansibleParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = mconcat
+    [ command "ansible" ansible (ansibleParser env)
         "Run 'ansible' supplying it with khan_* facts and inventory."
-    , command "playbook" playbook ansibleParser
+    , command "playbook" playbook (ansibleParser env)
         "Run 'ansible-playbook' supplying it with khan_* facts and inventory."
-    , command "inventory" inventory inventoryParser
+    , command "inventory" inventory (inventoryParser env)
         "Output ansible compatible inventory in JSON format."
     ]
 

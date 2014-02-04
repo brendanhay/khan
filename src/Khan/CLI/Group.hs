@@ -28,10 +28,10 @@ data Group = Group
     , gAnsible :: !Bool
     }
 
-groupParser :: Parser Group
-groupParser = Group
+groupParser :: EnvMap -> Parser Group
+groupParser env = Group
     <$> roleOption
-    <*> envOption
+    <*> envOption env
     <*> ansibleOption
 
 instance Options Group
@@ -46,10 +46,10 @@ data Update = Update
     , uAnsible :: !Bool
     }
 
-updateParser :: Parser Update
-updateParser = Update
+updateParser :: EnvMap -> Parser Update
+updateParser env = Update
     <$> roleOption
-    <*> envOption
+    <*> envOption env
     <*> many (customOption "rule" "RULE" parseRule mempty
         "tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...]")
     <*> ansibleOption
@@ -59,15 +59,15 @@ instance Options Update
 instance Naming Update where
     names Update{..} = unversioned uRole uEnv
 
-commands :: Mod CommandFields Command
-commands = group "group" "Security Groups." $ mconcat
-    [ command "info" info groupParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = group "group" "Security Groups." $ mconcat
+    [ command "info" info (groupParser env)
         "Display information about a security group."
-    , command "create" (modify Security.create) groupParser
+    , command "create" (modify Security.create) (groupParser env)
         "Create a security group."
-    , command "delete" (modify Security.delete) groupParser
+    , command "delete" (modify Security.delete) (groupParser env)
         "Delete a security group."
-    , command "update" update updateParser
+    , command "update" update (updateParser env)
         "Update a security group with a new rule set."
     ]
 

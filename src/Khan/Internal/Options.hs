@@ -14,7 +14,8 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Options
-    ( Options (..)
+    ( EnvMap
+    , Options (..)
     , Command (..)
     , Common  (..)
 
@@ -70,6 +71,8 @@ import           Options.Applicative       as Export hiding (command, info, exec
 import qualified Options.Applicative       as Options
 import           Prelude                   (error)
 import qualified Shelly                    as Shell
+
+type EnvMap = HashMap String String
 
 data Common = Common
     { cDebug  :: !Bool
@@ -192,7 +195,7 @@ roleOption :: Parser Role
 roleOption = Role <$> textOption "role" (short 'r')
     "Role of the application."
 
-envOption :: HashMap String String -> Parser Env
+envOption :: EnvMap -> Parser Env
 envOption env = Env <$> textOption envLong field
     "Environment of the application."
   where

@@ -38,10 +38,10 @@ data Profile = Profile
     , rPolicy :: !PolicyPath
     } deriving (Show)
 
-profileParser :: Parser Profile
-profileParser = Profile
+profileParser :: EnvMap -> Parser Profile
+profileParser env = Profile
     <$> roleOption
-    <*> envOption
+    <*> envOption env
     <*> trustOption
     <*> policyOption
 
@@ -60,11 +60,11 @@ instance Options Profile where
 instance Naming Profile where
     names Profile{..} = unversioned rRole rEnv
 
-commands :: Mod CommandFields Command
-commands = group "profile" "IAM Profiles and Roles." $ mconcat
-    [ command "info" info profileParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = group "profile" "IAM Profiles and Roles." $ mconcat
+    [ command "info" info (profileParser env)
         "Display information about an IAM Role."
-    , command "update" update profileParser
+    , command "update" update (profileParser env)
         "Create or update IAM Role and associated Profile."
     ]
 

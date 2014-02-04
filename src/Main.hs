@@ -47,7 +47,7 @@ main = runScript $ do
 
     ec2 <- Meta.ec2
     mr  <- regionalise ec2
-    cmd <- either (\e -> scriptIO (errMessage e $ n) >>= left)
+    cmd <- either (\e -> scriptIO (errMessage e n) >>= left)
                   right
                   (execParser as es mr)
 
@@ -82,17 +82,17 @@ execParser as es mr =
     parser = (,)
         <$> commonParser
         <*> hsubparser
-             ( Ansible.commands
+             ( Ansible.commands envMap
             <> Artifact.commands
-            <> Cluster.commands
+            <> Cluster.commands envMap
             <> DNS.commands
-            <> Group.commands
+            <> Group.commands envMap
             <> Image.commands
-            <> Launch.commands
+            <> Launch.commands envMap
             <> Metadata.commands
-            <> Profile.commands
-            <> Routing.commands
-            <> SSH.commands
+            <> Profile.commands envMap
+            <> Routing.commands envMap
+            <> SSH.commands envMap
              )
 
     merged = reverse
@@ -111,8 +111,8 @@ execParser as es mr =
 
     argSet
         | Just r <- mr
-        , not (region `elem` as) = region : show r : as
-        | otherwise              = as
+        , region `notElem` as = region : show r : as
+        | otherwise           = as
 
     envMap = Map.fromList [(k, v) | (k, v) <- es, "KHAN_" `isPrefixOf` k]
 

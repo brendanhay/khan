@@ -20,7 +20,7 @@ import qualified Data.HashMap.Strict         as Map
 import           Data.List                   (intersperse)
 import           Data.SemVer
 import qualified Data.Text                   as Text
-import           Khan.Internal
+import           Khan.Internal               hiding (infoParser)
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
@@ -37,20 +37,20 @@ import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
 import qualified Text.PrettyPrint.Boxes      as PP
 
-data Overview = Overview
-    { oRole :: !Role
-    , oEnv  :: !Env
+data Info = Info
+    { iRole :: !Role
+    , iEnv  :: !Env
     }
 
-overviewParser :: Parser Overview
-overviewParser = Overview
+infoParser :: Parser Info
+infoParser = Info
     <$> roleOption
     <*> envOption
 
-instance Options Overview
+instance Options Info
 
-instance Naming Overview where
-    names Overview{..} = unversioned oRole oEnv
+instance Naming Info where
+    names Info{..} = unversioned iRole iEnv
 
 data Deploy = Deploy
     { dRole     :: !Role
@@ -172,8 +172,8 @@ instance Naming Cluster where
 
 commands :: Mod CommandFields Command
 commands = group "cluster" "Auto Scaling Groups." $ mconcat
-    [ command "overview" overview overviewParser
-        "Display a cluster overview."
+    [ command "info" info infoParser
+        "Display cluster information."
     , command "deploy" deploy deployParser
         "Deploy a versioned cluster."
     , command "scale" scale scaleParser
@@ -184,13 +184,13 @@ commands = group "cluster" "Auto Scaling Groups." $ mconcat
         "Retire a specific cluster version."
     ]
 
-overview :: Common -> Overview -> AWS ()
-overview Common{..} Overview{..} = do
+info :: Common -> Info -> AWS ()
+info Common{..} Info{..} = do
     log "Looking for Instances tagged Role:{} and Env:{}"
-        [_role oRole, _env oEnv]
+        [_role iRole, _env iEnv]
     is <- mapM annotate =<< Instance.findAll []
-        [ Tag.filter Tag.role [_role oRole]
-        , Tag.filter Tag.env  [_env  oEnv]
+        [ Tag.filter Tag.role [_role iRole]
+        , Tag.filter Tag.env  [_env  iEnv]
         , Filter "tag-key" [groupTag]
         ]
 

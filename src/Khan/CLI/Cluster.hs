@@ -76,9 +76,9 @@ deployParser = Deploy
         "Instance's DNS domain."
     <*> versionOption
     <*> stringOption "zones" (value "")
-         "Availability zones suffixes to provision into."
+         "Availability Zone suffixes the cluster will provision instances into."
     <*> integralOption "grace" (value 20)
-        "Seconds until healthchecks are activated."
+        "Seconds after an auto scaling activity until healthchecks are activated."
     <*> integralOption "min" (value 1)
         "Minimum number of instances."
     <*> integralOption "max" (value 1)
@@ -86,9 +86,9 @@ deployParser = Deploy
     <*> integralOption "desired" (value 1)
         "Desired number of instances."
     <*> integralOption "cooldown" (value 60)
-        "Seconds between scaling activities."
+        "Seconds between subsequent auto scaling activities."
     <*> readOption "instance" "TYPE" (value M1_Medium)
-        "Type of instance to provision."
+        "Instance Type to provision when auto scaling occurs."
     <*> trustOption
     <*> policyOption
 
@@ -134,7 +134,7 @@ scaleParser = Scale
     <*> envOption
     <*> versionOption
     <*> optional (integralOption "grace" mempty
-        "Seconds until healthchecks are activated.")
+        "Seconds after an auto scaling activity until healthchecks are activated.")
     <*> optional (integralOption "min" mempty
         "Minimum number of instances.")
     <*> optional (integralOption "max" mempty
@@ -142,7 +142,7 @@ scaleParser = Scale
     <*> optional (integralOption "desired" mempty
         "Desired number of instances.")
     <*> optional (integralOption "cooldown" mempty
-        "Seconds between scaling activities.")
+        "Seconds between subsequent auto scaling activities.")
 
 instance Options Scale where
     validate Scale{..} = do
@@ -173,13 +173,13 @@ instance Naming Cluster where
 commands :: Mod CommandFields Command
 commands = group "cluster" "Auto Scaling Groups." $ mconcat
     [ command "overview" overview overviewParser
-        "Display an overview of application clusters within the environment."
+        "Display a cluster overview."
     , command "deploy" deploy deployParser
         "Deploy a versioned cluster."
     , command "scale" scale scaleParser
         "Update the scaling information for a cluster."
     , command "promote" promote clusterParser
-        "Promote a deployed cluster to serve traffic within the environment."
+        "Promote a deployed cluster to serve traffic."
     , command "retire" retire clusterParser
         "Retire a specific cluster version."
     ]

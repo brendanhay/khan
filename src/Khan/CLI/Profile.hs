@@ -61,11 +61,11 @@ instance Naming Profile where
     names Profile{..} = unversioned rRole rEnv
 
 commands :: Mod CommandFields Command
-commands = group "profile" "Long description." $ mconcat
+commands = group "profile" "IAM Profiles and Roles." $ mconcat
     [ command "info" info profileParser
-        "Create or update IAM profiles."
+        "Display information about an IAM Role."
     , command "update" update profileParser
-        "Create or update IAM profiles."
+        "Create or update IAM Role and associated Profile."
     ]
 
 info :: Common -> Profile -> AWS ()

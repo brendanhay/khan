@@ -76,7 +76,7 @@ deployParser = Deploy
         "Instance's DNS domain."
     <*> versionOption
     <*> stringOption "zones" (value "")
-         "Availability Zone suffixes the cluster will provision instances into."
+         "Availability Zone suffixes the cluster will encompass."
     <*> integralOption "grace" (value 20)
         "Seconds after an auto scaling activity until healthchecks are activated."
     <*> integralOption "min" (value 1)

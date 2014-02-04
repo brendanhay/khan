@@ -41,6 +41,7 @@ import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
 import qualified Shelly                     as Shell
 import           System.Directory
+import           System.IO                  (stdout)
 import qualified System.Posix.Files         as Posix
 
 data Inventory = Inventory
@@ -167,11 +168,11 @@ ansible c@Common{..} a@Ansible{..} = do
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    let xs = args k script
+    let xs  = args k script
+        out = [Shell.OutHandle $ Shell.UseHandle stdout]
 
     log "{} {}" [Shell.toTextIgnore bin, Text.unwords xs]
-    liftEitherT . sh . Shell.silently $
-        Shell.runHandles bin xs [Shell.OutHandle Shell.Inherit] (\_ _ _ -> return ())
+    liftEitherT . sh $ Shell.runHandles bin xs out (\_ _ _ -> return ())
   where
     args k s = argv ++ foldr' add []
         [ ("-i", Text.pack s)

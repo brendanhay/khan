@@ -58,7 +58,7 @@ import           Khan.Internal.IO
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
-import           Options.Applicative       as Export hiding (command, info)
+import           Options.Applicative       as Export hiding (command, info, execParser)
 import qualified Options.Applicative       as Options
 import           Prelude                   (error)
 import qualified Shelly                    as Shell
@@ -83,14 +83,14 @@ class Options a where
 data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
 
-commonParser :: [(String, String)] -> Parser Common
-commonParser env = Common
+commonParser :: [(String, String)] -> Maybe Region -> Parser Common
+commonParser env mr = Common
     <$> switchOption "debug" False
         "Log debug output."
     <*> switchOption "silent" False
         "Suppress standard log output."
     <*> lookupReg "KHAN_REGION"
-        (readOption "region" "REGION" (short 'R')
+        (readOption "region" "REGION" regionOptions
         "Region to operate in.")
     <*> lookupEnv "KHAN_RKEYS" "" Text.pack
          (textOption "remote-keys" (value "" <> short 'K')
@@ -120,6 +120,11 @@ commonParser env = Common
       where
         g v | valid v   = v
             | otherwise = maybe d f $ k `lookup` env
+
+    regionOptions =
+        maybe (short 'R')
+              (mappend (short 'R') . value)
+              mr
 
 instance Options Common where
     validate Common{..} = do

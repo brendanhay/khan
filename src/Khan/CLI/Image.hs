@@ -91,7 +91,7 @@ instance Naming Image where
 
 commands :: Mod CommandFields Command
 commands = command "image" image imageParser
-    "Create Image."
+    "Create an Amazon Virtual Machine Image using EC2 and Ansible."
 
 image :: Common -> Image -> AWS ()
 image c@Common{..} d@Image{..} = do

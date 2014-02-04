@@ -33,13 +33,13 @@ data Object = Object
 objectParser :: Parser Object
 objectParser = Object
     <$> textOption "bucket" (short 'b')
-        "Bucket."
+        "S3 bucket the object resides in."
     <*> textOption "key" (short 'k')
-        "Key."
+        "Full S3 key prefix of the object relative to the bucket."
     <*> pathOption "file" (short 'f' <> action "file")
-        "Local file."
+        "Path to the local destination file."
     <*> switchOption "force" False
-        "Overwrite if exists."
+        "Overwrite the local destination if it already exists."
     <*> ansibleOption
 
 instance Options Object
@@ -56,15 +56,15 @@ data Bucket = Bucket
 bucketParser :: Parser Bucket
 bucketParser = Bucket
     <$> textOption "bucket" (short 'b')
-        "Bucket."
+        "S3 bucket the object resides in."
     <*> optional (textOption "prefix" (short 'p')
-        "Prefix.")
+        "Optional S3 key partial prefix relative to the bucket.")
     <*> pathOption "dir" (short 'd' <> action "directory")
-        "Local file."
+        "Destination directory to write objects into."
     <*> readOption "concurrency" "INT" (short 'n' <> value 4)
         "Number of simultaneous downloads."
     <*> switchOption "force" False
-        "Overwrite if exists."
+        "Overwrite the destination object if it already exists."
     <*> ansibleOption
 
 instance Options Bucket
@@ -96,7 +96,7 @@ commands = group "artifact" "Manage S3 Artifacts." $ mconcat
     [ command "upload" (object Object.upload) objectParser
         "Upload an object to S3."
     , command "download" (object Object.download) objectParser
-        "Download an object to disk."
+        "Download an object from S3 to disk."
     , command "latest" (object Object.latest) objectParser
         "Download the latest semantically versioned object to disk."
     , command "sync" sync bucketParser

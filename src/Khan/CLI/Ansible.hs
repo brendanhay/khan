@@ -150,7 +150,7 @@ playbook c@Common{..} a@Ansible{..} = ansible c $ a
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
-    k <- maybe (Key.path cBucket a cCerts) return aKey
+    k <- maybe (Key.path cRKeys a cLKeys) return aKey
     i <- inventoryPath cCache aEnv
 
     let bin    = Path.fromText $ fromMaybe "ansible" aBin

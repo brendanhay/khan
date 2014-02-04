@@ -53,7 +53,7 @@ commands = command "ssh" ssh sshParser
 
 ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
-    key <- maybe (Key.path cBucket s cCerts) return sKey
+    key <- maybe (Key.path cRKeys s cLKeys) return sKey
     dns <- mapMaybe riitDnsName <$> Instance.findAll []
         [ Tag.filter Tag.env  [_env  sEnv]
         , Tag.filter Tag.role [_role sRole]

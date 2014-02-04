@@ -1,6 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Main
@@ -15,8 +14,11 @@
 
 module Main (main) where
 
+import           Control.Arrow            (second)
 import           Control.Error
 import           Control.Monad
+import qualified Data.HashMap.Strict      as Map
+import           Data.List                (isPrefixOf)
 import qualified Data.Text                as Text
 import qualified Khan.CLI.Ansible         as Ansible
 import qualified Khan.CLI.Artifact        as Artifact
@@ -38,7 +40,7 @@ import           System.Environment
 
 main :: IO ()
 main = runScript $ do
-    (n, as, env) <- scriptIO $
+    (n, as, es) <- scriptIO $
         (,,) <$> getProgName
              <*> getArgs
              <*> getEnvironment
@@ -47,7 +49,7 @@ main = runScript $ do
     mr  <- regionalise ec2
     cmd <- either (\e -> scriptIO (errMessage e $ n) >>= left)
                   right
-                  (execParser as env mr)
+                  (execParser as es mr)
 
     fmapLT format $ run ec2 cmd
   where
@@ -74,12 +76,11 @@ execParser :: [String]
            -> [(String, String)]
            -> Maybe Region
            -> Either ParserFailure (Common, Command)
-execParser as env mr =
-    execParserPure (prefs showHelpOnError) (info parser idm) as
+execParser as es mr =
+    execParserPure (prefs showHelpOnError) (info parser idm) merged
   where
-    parser :: Parser (Common, Command)
     parser = (,)
-        <$> commonParser env mr
+        <$> commonParser
         <*> hsubparser
              ( Ansible.commands
             <> Artifact.commands
@@ -93,3 +94,27 @@ execParser as env mr =
             <> Routing.commands
             <> SSH.commands
              )
+
+    merged = reverse
+        . concatMap append
+        $ map (second prefix)
+            [ ("KHAN_REGION", regionLong)
+            , ("KHAN_RKEYS",  rkeysLong)
+            , ("KHAN_LKEYS",  lkeysLong)
+            , ("KHAN_CACHE",  cacheLong)
+            , ("KHAN_CONFIG", configLong)
+            ]
+
+    append (k, v)
+        | v `elem` argSet = []
+        | otherwise       = maybe [] (: [v]) $ k `Map.lookup` envMap
+
+    argSet
+        | Just r <- mr
+        , not (region `elem` as) = region : show r : as
+        | otherwise              = as
+
+    envMap = Map.fromList [(k, v) | (k, v) <- es, "KHAN_" `isPrefixOf` k]
+
+    region = prefix regionLong
+    prefix = mappend "--"

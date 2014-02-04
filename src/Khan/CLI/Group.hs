@@ -39,36 +39,36 @@ instance Options Group
 instance Naming Group where
     names Group{..} = unversioned gRole gEnv
 
-data Authorise = Authorise
-    { aRole    :: !Role
-    , aEnv     :: !Env
-    , aRules   :: [IpPermissionType]
-    , aAnsible :: !Bool
+data Update = Update
+    { uRole    :: !Role
+    , uEnv     :: !Env
+    , uRules   :: [IpPermissionType]
+    , uAnsible :: !Bool
     }
 
-authoriseParser :: Parser Authorise
-authoriseParser = Authorise
+updateParser :: Parser Update
+updateParser = Update
     <$> roleOption
     <*> envOption
     <*> many (customOption "rule" "RULE" parseRule mempty
         "tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...]")
     <*> ansibleOption
 
-instance Options Authorise
+instance Options Update
 
-instance Naming Authorise where
-    names Authorise{..} = unversioned aRole aEnv
+instance Naming Update where
+    names Update{..} = unversioned uRole uEnv
 
 commands :: Mod CommandFields Command
-commands = group "group" "Long description." $ mconcat
+commands = group "group" "Security Groups." $ mconcat
     [ command "info" info groupParser
-        "Long long long long description."
+        "Display information about a security group."
     , command "create" (modify Security.create) groupParser
-        "Long long long long description."
+        "Create a security group."
     , command "delete" (modify Security.delete) groupParser
-        "Long long long long description."
-    , command "authorise" authorise authoriseParser
-        "Long long long long description."
+        "Delete a security group."
+    , command "update" update updateParser
+        "Update a security group with a new rule set."
     ]
 
 info :: Common -> Group -> AWS ()
@@ -92,10 +92,10 @@ modify f c g@Group{..}
   where
     Names{..} = names g
 
-authorise :: Common -> Authorise -> AWS ()
-authorise c a@Authorise{..}
-    | not aAnsible = void $ Security.update groupName aRules
+update :: Common -> Update -> AWS ()
+update c u@Update{..}
+    | not uAnsible = void $ Security.update groupName uRules
     | otherwise    = capture c "security group {}" [groupName] $
-        Security.update groupName aRules
+        Security.update groupName uRules
   where
-    Names{..} = names a
+    Names{..} = names u

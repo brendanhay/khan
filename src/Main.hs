@@ -95,7 +95,8 @@ execParser as es mr =
             <> SSH.commands envMap
              )
 
-    merged = reverse
+    merged = mappend argSet
+        . reverse
         . concatMap append
         $ map (second prefix)
             [ ("KHAN_REGION", regionLong)

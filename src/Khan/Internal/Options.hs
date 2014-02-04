@@ -56,7 +56,10 @@ module Khan.Internal.Options
     ) where
 
 import qualified Data.Attoparsec.Text      as AText
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as Map
 import           Data.SemVer
+import           Data.String
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.IO
@@ -189,9 +192,15 @@ roleOption :: Parser Role
 roleOption = Role <$> textOption "role" (short 'r')
     "Role of the application."
 
-envOption :: Parser Env
-envOption = Env <$> textOption envLong (short 'e')
+envOption :: HashMap String String -> Parser Env
+envOption env = Env <$> textOption envLong field
     "Environment of the application."
+  where
+    sopt  = short 'e'
+    field =
+        maybe sopt
+              (mappend sopt . value . fromString)
+              ("KHAN_ENV" `Map.lookup` env)
 
 versionOption :: Parser Version
 versionOption = customOption "version" "SEMVER" (parseVersion . Text.pack) mempty

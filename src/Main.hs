@@ -37,22 +37,26 @@ import           Network.AWS
 import qualified Network.AWS.EC2.Metadata as Meta
 import           Options.Applicative      (info)
 import           System.Environment
+import           System.Exit              (exitWith)
+import           System.IO                (hPutStrLn, stderr)
 
 main :: IO ()
 main = runScript $ do
-    (n, as, es) <- scriptIO $
-        (,,) <$> getProgName
-             <*> getArgs
-             <*> getEnvironment
+    (as, es) <- scriptIO $
+        (,) <$> getArgs
+            <*> getEnvironment
 
     ec2 <- Meta.ec2
     mr  <- regionalise ec2
-    cmd <- either (\e -> scriptIO (errMessage e n) >>= left)
-                  right
-                  (execParser as es mr)
+    cmd <- either failure return $ execParser as es mr
 
     fmapLT format $ run ec2 cmd
   where
+    failure ParserFailure{..} = liftIO $ getProgName
+        >>= errMessage
+        >>= hPutStrLn stderr
+        >>  exitWith errExitCode
+
     regionalise False = return Nothing
     regionalise True  = do
         t  <- Text.unpack <$> meta AvailabilityZone

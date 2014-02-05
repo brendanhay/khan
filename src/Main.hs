@@ -1,6 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Main
@@ -15,42 +14,53 @@
 
 module Main (main) where
 
+import           Control.Arrow             (second)
 import           Control.Error
 import           Control.Monad
-import qualified Data.Text                as Text
-import qualified Khan.CLI.Ansible         as Ansible
-import qualified Khan.CLI.Artifact        as Artifact
-import qualified Khan.CLI.Cluster         as Cluster
-import qualified Khan.CLI.DNS             as DNS
-import qualified Khan.CLI.Group           as Group
-import qualified Khan.CLI.Image           as Image
-import qualified Khan.CLI.Launch          as Launch
-import qualified Khan.CLI.Metadata        as Metadata
-import qualified Khan.CLI.Profile         as Profile
-import qualified Khan.CLI.Routing         as Routing
-import qualified Khan.CLI.SSH             as SSH
+import qualified Data.HashMap.Strict       as Map
+import           Data.List                 (isPrefixOf)
+import           Data.Monoid
+import qualified Data.Text                 as Text
+import qualified Khan.CLI.Ansible          as Ansible
+import qualified Khan.CLI.Artifact         as Artifact
+import qualified Khan.CLI.Cluster          as Cluster
+import qualified Khan.CLI.DNS              as DNS
+import qualified Khan.CLI.Group            as Group
+import qualified Khan.CLI.Image            as Image
+import qualified Khan.CLI.Launch           as Launch
+import qualified Khan.CLI.Metadata         as Metadata
+import qualified Khan.CLI.Profile          as Profile
+import qualified Khan.CLI.Routing          as Routing
+import qualified Khan.CLI.SSH              as SSH
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import qualified Network.AWS.EC2.Metadata as Meta
-import           Options.Applicative      (info)
+import qualified Network.AWS.EC2.Metadata  as Meta
+import qualified Options.Applicative       as Opt
+import           Options.Applicative.Types (ParserPrefs)
 import           System.Environment
+import           System.Exit               (exitWith)
+import           System.IO                 (hPutStrLn, stderr)
 
 main :: IO ()
 main = runScript $ do
-    (n, as, env) <- scriptIO $
-        (,,) <$> getProgName
-             <*> getArgs
-             <*> getEnvironment
+    (as, es) <- scriptIO $
+        (,) <$> getArgs
+            <*> getEnvironment
+
+    when ("--bash-completion-index" `elem` as) . void . liftIO $
+        uncurry customExecParser (parserInfo mempty)
 
     ec2 <- Meta.ec2
     mr  <- regionalise ec2
-    cmd <- either (\e -> scriptIO (errMessage e $ n) >>= left)
-                  right
-                  (execParser as env mr)
-
+    cmd <- either failure return $ parseProgram as es mr
     fmapLT format $ run ec2 cmd
   where
+    failure ParserFailure{..} = liftIO $ getProgName
+        >>= errMessage
+        >>= hPutStrLn stderr
+        >>  exitWith errExitCode
+
     regionalise False = return Nothing
     regionalise True  = do
         t  <- Text.unpack <$> meta AvailabilityZone
@@ -70,26 +80,52 @@ main = runScript $ do
             f c y
         hoistEither rs
 
-execParser :: [String]
-           -> [(String, String)]
-           -> Maybe Region
-           -> Either ParserFailure (Common, Command)
-execParser as env mr =
-    execParserPure (prefs showHelpOnError) (info parser idm) as
+parseProgram :: [String]
+             -> [(String, String)]
+             -> Maybe Region
+             -> Either ParserFailure (Common, Command)
+parseProgram as es mr = uncurry execParserPure (parserInfo envMap) merged
   where
-    parser :: Parser (Common, Command)
+    merged = mappend argSet
+        . reverse
+        . concatMap append
+        $ map (second prefix)
+            [ ("KHAN_REGION", regionLong)
+            , ("KHAN_RKEYS",  rkeysLong)
+            , ("KHAN_LKEYS",  lkeysLong)
+            , ("KHAN_CACHE",  cacheLong)
+            , ("KHAN_CONFIG", configLong)
+            ]
+
+    append (k, v)
+        | v `elem` argSet = []
+        | otherwise       = maybe [] (: [v]) $ k `Map.lookup` envMap
+
+    argSet
+        | Just r <- mr
+        , region `notElem` as = region : show r : as
+        | otherwise           = as
+
+    envMap = Map.fromList [(k, v) | (k, v) <- es, "KHAN_" `isPrefixOf` k]
+
+    region = prefix regionLong
+    prefix = mappend "--"
+
+parserInfo :: EnvMap -> (ParserPrefs, ParserInfo (Common, Command))
+parserInfo env = (prefs showHelpOnError, Opt.info parser idm)
+  where
     parser = (,)
-        <$> commonParser env mr
+        <$> commonParser
         <*> hsubparser
-             ( Ansible.commands
+             ( Ansible.commands env
             <> Artifact.commands
-            <> Cluster.commands
+            <> Cluster.commands env
             <> DNS.commands
-            <> Group.commands
+            <> Group.commands env
             <> Image.commands
-            <> Launch.commands
+            <> Launch.commands env
             <> Metadata.commands
-            <> Profile.commands
-            <> Routing.commands
-            <> SSH.commands
+            <> Profile.commands env
+            <> Routing.commands env
+            <> SSH.commands env
              )

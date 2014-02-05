@@ -42,10 +42,10 @@ data Info = Info
     , iEnv  :: !Env
     }
 
-infoParser :: Parser Info
-infoParser = Info
+infoParser :: EnvMap -> Parser Info
+infoParser env = Info
     <$> roleOption
-    <*> envOption
+    <*> envOption env
 
 instance Options Info
 
@@ -68,10 +68,10 @@ data Deploy = Deploy
     , dPolicy   :: !PolicyPath
     }
 
-deployParser :: Parser Deploy
-deployParser = Deploy
+deployParser :: EnvMap -> Parser Deploy
+deployParser env = Deploy
     <$> roleOption
-    <*> envOption
+    <*> envOption env
     <*> textOption "domain" (short 'd')
         "Instance's DNS domain."
     <*> versionOption
@@ -128,10 +128,10 @@ data Scale = Scale
     , sCooldown :: Maybe Integer
     }
 
-scaleParser :: Parser Scale
-scaleParser = Scale
+scaleParser :: EnvMap -> Parser Scale
+scaleParser env = Scale
     <$> roleOption
-    <*> envOption
+    <*> envOption env
     <*> versionOption
     <*> optional (integralOption "grace" mempty
         "Seconds after an auto scaling activity until healthchecks are activated.")
@@ -159,10 +159,10 @@ data Cluster = Cluster
     , cVersion :: !Version
     }
 
-clusterParser :: Parser Cluster
-clusterParser = Cluster
+clusterParser :: EnvMap -> Parser Cluster
+clusterParser env = Cluster
     <$> roleOption
-    <*> envOption
+    <*> envOption env
     <*> versionOption
 
 instance Options Cluster
@@ -170,17 +170,17 @@ instance Options Cluster
 instance Naming Cluster where
     names Cluster{..} = versioned cRole cEnv cVersion
 
-commands :: Mod CommandFields Command
-commands = group "cluster" "Auto Scaling Groups." $ mconcat
-    [ command "info" info infoParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = group "cluster" "Auto Scaling Groups." $ mconcat
+    [ command "info" info (infoParser env)
         "Display cluster information."
-    , command "deploy" deploy deployParser
+    , command "deploy" deploy (deployParser env)
         "Deploy a versioned cluster."
-    , command "scale" scale scaleParser
+    , command "scale" scale (scaleParser env)
         "Update the scaling information for a cluster."
-    , command "promote" promote clusterParser
+    , command "promote" promote (clusterParser env)
         "Promote a deployed cluster to serve traffic."
-    , command "retire" retire clusterParser
+    , command "retire" retire (clusterParser env)
         "Retire a specific cluster version."
     ]
 
@@ -225,7 +225,7 @@ deploy c@Common{..} d@Deploy{..} = do
     when (isJust j) $
         throwAWS "Auto Scaling Group {} already exists." [appName]
 
-    k <- async $ Key.create cBucket d cCerts
+    k <- async $ Key.create cRKeys d cLKeys
     p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
     s <- async $ Security.sshGroup d
     g <- async $ Security.create groupName

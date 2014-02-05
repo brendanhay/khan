@@ -48,10 +48,10 @@ data Launch = Launch
     , lPolicy    :: !PolicyPath
     }
 
-launchParser :: Parser Launch
-launchParser = Launch
+launchParser :: EnvMap -> Parser Launch
+launchParser env = Launch
     <$> roleOption
-    <*> envOption
+    <*> envOption env
     <*> textOption "domain" (short 'd')
         "Instance's DNS domain."
     <*> optional (textOption "image" (value "")
@@ -90,9 +90,9 @@ instance Options Launch where
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv
 
-commands :: Mod CommandFields Command
-commands = mconcat
-    [ command "launch" launch launchParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = mconcat
+    [ command "launch" launch (launchParser env)
         "Launch 1..n instances."
     ]
 
@@ -110,7 +110,7 @@ launch Common{..} l@Launch{..} = do
 
     wait_ p <* log "Found IAM Profile {}" [profileName]
 
-    k <- async $ Key.create cBucket l cCerts
+    k <- async $ Key.create cRKeys l cLKeys
     s <- async $ Security.sshGroup l
     g <- async $ Security.create groupName
 

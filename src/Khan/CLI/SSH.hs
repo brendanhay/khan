@@ -34,10 +34,10 @@ data SSH = SSH
     , sArgs :: [String]
     } deriving (Show)
 
-sshParser :: Parser SSH
-sshParser = SSH
+sshParser :: EnvMap -> Parser SSH
+sshParser env = SSH
     <$> roleOption
-    <*> envOption
+    <*> envOption env
     <*> keyOption
     <*> userOption
     <*> argsOption str mempty "Pass through arugments to ssh."
@@ -47,13 +47,13 @@ instance Options SSH
 instance Naming SSH where
     names SSH{..} = unversioned sRole sEnv
 
-commands :: Mod CommandFields Command
-commands = command "ssh" ssh sshParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = command "ssh" ssh (sshParser env)
     "Display a multiple choice list of matching hosts to SSH into."
 
 ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
-    key <- maybe (Key.path cBucket s cCerts) return sKey
+    key <- maybe (Key.path cRKeys s cLKeys) return sKey
     dns <- mapMaybe riitDnsName <$> Instance.findAll []
         [ Tag.filter Tag.env  [_env  sEnv]
         , Tag.filter Tag.role [_role sRole]
@@ -74,4 +74,3 @@ ssh Common{..} s@SSH{..} = do
         hSetBuffering stdout NoBuffering
         putStr "Select the host to connect to: "
         getLine
-

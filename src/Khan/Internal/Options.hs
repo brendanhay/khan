@@ -3,8 +3,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-{-# LANGUAGE ScopedTypeVariables   #-}
-
 -- Module      : Khan.Internal.Options
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
@@ -16,9 +14,17 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Options
-    ( Options (..)
+    ( EnvMap
+    , Options (..)
     , Command (..)
     , Common  (..)
+
+    , regionLong
+    , rkeysLong
+    , lkeysLong
+    , cacheLong
+    , configLong
+    , envLong
 
     , commonParser
 
@@ -51,7 +57,10 @@ module Khan.Internal.Options
     ) where
 
 import qualified Data.Attoparsec.Text      as AText
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as Map
 import           Data.SemVer
+import           Data.String
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.IO
@@ -63,12 +72,14 @@ import qualified Options.Applicative       as Options
 import           Prelude                   (error)
 import qualified Shelly                    as Shell
 
+type EnvMap = HashMap String String
+
 data Common = Common
     { cDebug  :: !Bool
     , cSilent :: !Bool
     , cRegion :: !Region
-    , cBucket :: !Text
-    , cCerts  :: !FilePath
+    , cRKeys  :: !Text
+    , cLKeys  :: !FilePath
     , cCache  :: !FilePath
     , cConfig :: !FilePath
     } deriving (Show)
@@ -83,53 +94,34 @@ class Options a where
 data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
 
-commonParser :: [(String, String)] -> Maybe Region -> Parser Common
-commonParser env mr = Common
+regionLong, rkeysLong, lkeysLong, cacheLong, configLong, envLong :: String
+regionLong = "region"
+rkeysLong  = "remote-keys"
+lkeysLong  = "local-keys"
+cacheLong  = "cache"
+configLong = "config"
+envLong    = "env"
+
+commonParser :: Parser Common
+commonParser = Common
     <$> switchOption "debug" False
         "Log debug output."
     <*> switchOption "silent" False
         "Suppress standard log output."
-    <*> lookupReg "KHAN_REGION"
-        (readOption "region" "REGION" regionOptions
-        "Region to operate in.")
-    <*> lookupEnv "KHAN_RKEYS" "" Text.pack
-         (textOption "remote-keys" (value "" <> short 'K')
-        "Bucket to retrieve/store certificates.")
-    <*> lookupEnv "KHAN_LKEYS" "/etc/ssl/khan" Path.decodeString
-        (pathOption "local-keys" (value "" <> short 'L')
-        "Path to certificates.")
-    <*> lookupEnv "KHAN_CACHE" "/var/cache/khan" Path.decodeString
-        (pathOption "cache" (value "")
-        "Path to cache.")
-    <*> lookupEnv "KHAN_CONFIG" "/etc/khan" Path.decodeString
-        (pathOption "config" (value "")
-        "Path to configuration files.")
-  where
-    lookupReg :: String -> Parser Region -> Parser Region
-    lookupReg k =
-        fmap (fromMaybe (error "--region or KHAN_REGION must be specified."))
-             . lookupEnv k Nothing readMay . optional
-
-    lookupEnv :: Invalid a
-              => String
-              -> a
-              -> (String -> a)
-              -> Parser a
-              -> Parser a
-    lookupEnv k d f = fmap g
-      where
-        g v | valid v   = v
-            | otherwise = maybe d f $ k `lookup` env
-
-    regionOptions =
-        maybe (short 'R')
-              (mappend (short 'R') . value)
-              mr
+    <*> readOption regionLong "REGION" mempty
+        "Region to operate in."
+    <*> textOption rkeysLong mempty
+        "Bucket to retrieve/store certificates."
+    <*> pathOption lkeysLong (value "")
+        "Path to certificates."
+    <*> pathOption cacheLong (value "")
+        "Path to cache."
+    <*> pathOption configLong (value "")
+        "Path to configuration files."
 
 instance Options Common where
     validate Common{..} = do
-       check cBucket     "--remote-keys or KHAN_RKEYS must be specified."
-       checkPath cCerts  " specified by --local-keys or KHAN_LKEYS must exist."
+       checkPath cLKeys  " specified by --local-keys or KHAN_LKEYS must exist."
        checkPath cCache  " specified by --cache or KHAN_CACHE must exist."
        checkPath cConfig " specified by --config or KHAN_CONFIG must exist."
 
@@ -203,9 +195,15 @@ roleOption :: Parser Role
 roleOption = Role <$> textOption "role" (short 'r')
     "Role of the application."
 
-envOption :: Parser Env
-envOption = Env <$> textOption "env" (short 'e')
+envOption :: EnvMap -> Parser Env
+envOption env = Env <$> textOption envLong field
     "Environment of the application."
+  where
+    sopt  = short 'e'
+    field =
+        maybe sopt
+              (mappend sopt . value . fromString)
+              ("KHAN_ENV" `Map.lookup` env)
 
 versionOption :: Parser Version
 versionOption = customOption "version" "SEMVER" (parseVersion . Text.pack) mempty

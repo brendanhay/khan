@@ -40,9 +40,9 @@ data Routes = Routes
     , rTemplate :: !FilePath
     }
 
-routesParser :: Parser Routes
-routesParser = Routes
-    <$> envOption
+routesParser :: EnvMap -> Parser Routes
+routesParser env = Routes
+    <$> envOption env
     <*> optional (textOption "domain" (short 'd')
         "DNS domain restriction.")
     <*> many (textOption "role" (short 'r')
@@ -78,8 +78,8 @@ instance Options Routes where
         check rZones "--zones must be specified."
         checkPath rTemplate " specified by --template must exist."
 
-commands :: Mod CommandFields Command
-commands = command "routes" routes routesParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = command "routes" routes (routesParser env)
     "Generate a routing table using the specified filters and environment."
 
 routes :: Common -> Routes -> AWS ()

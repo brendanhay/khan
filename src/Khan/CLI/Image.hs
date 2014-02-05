@@ -117,7 +117,7 @@ image c@Common{..} d@Image{..} = do
 
     g <- async $ Security.sshGroup d
     z <- async $ AZ.getSuffixes iZones
-    k <- async $ Key.create cBucket d cCerts
+    k <- async $ Key.create cRKeys d cLKeys
 
     wait_ g <* log "Found Role Group {}" [sshGroupName]
 

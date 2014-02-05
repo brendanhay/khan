@@ -36,7 +36,7 @@ import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
 import qualified Network.AWS.EC2.Metadata  as Meta
-import qualified Options.Applicative       as Opt
+import           Options.Applicative       (info)
 import           Options.Applicative.Types (ParserPrefs)
 import           System.Environment
 import           System.Exit               (exitWith)
@@ -112,7 +112,7 @@ parseProgram as es mr = uncurry execParserPure (parserInfo envMap) merged
     prefix = mappend "--"
 
 parserInfo :: EnvMap -> (ParserPrefs, ParserInfo (Common, Command))
-parserInfo env = (prefs showHelpOnError, Opt.info parser idm)
+parserInfo env = (prefs showHelpOnError, info parser idm)
   where
     parser = (,)
         <$> commonParser

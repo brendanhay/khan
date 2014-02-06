@@ -106,11 +106,11 @@ data Tags = Tags
 
 instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
-        [ ("ROLE",    _role tagRole)
-        , ("ENV",     _env tagEnv)
-        , ("WEIGHT",  Text.pack $ show tagWeight)
-        ] ++ maybeToList (("VERSION",) . showVersion <$> tagVersion)
-          ++ maybeToList (("NAME",) <$> tagName)
+        [ ("role",    _role tagRole)
+        , ("env",     _env tagEnv)
+        , ("weight",  Text.pack $ show tagWeight)
+        ] ++ maybeToList (("version",) . showVersion <$> tagVersion)
+          ++ maybeToList (("name",) <$> tagName)
 
 instance Naming Tags where
     names Tags{..} = createNames tagRole tagEnv tagVersion

@@ -38,6 +38,8 @@ import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
 import qualified Text.Read                    as Read
 
+type EnvMap = HashMap Text Text
+
 class Invalid a where
     invalid :: a -> Bool
     valid   :: a -> Bool

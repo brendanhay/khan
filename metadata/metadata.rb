@@ -17,7 +17,6 @@ def self.run
     puts "Adding #{BIND} to lo0"
     system("ifconfig lo0 alias #{BIND}")
 
-
     dns = RubyDNS::RuleBasedServer.new do
       match("instance-data", IN::A) do |tx|
         tx.respond!('127.0.0.1')
@@ -32,11 +31,10 @@ def self.run
       run Rack::Directory.new(File.expand_path(File.dirname(__FILE__)))
     end
 
-    app   = Rack::Chunked.new(Rack::ContentLength.new(dir))
-    files = Thin::Server.new(BIND, 80, app)
+    files = Rack::Chunked.new(Rack::ContentLength.new(dir))
 
-    Signal.trap('INT', EventMachine.stop)
-    Signal.trap('TERM', EventMachine.stop)
+    Signal.trap('INT')  { EventMachine.stop }
+    Signal.trap('TERM') { EventMachine.stop }
 
     EventMachine.run do
       puts 'Redirecting http://instance-data to localhost'
@@ -46,7 +44,7 @@ def self.run
       ])
 
       puts "Serving metadata on http://#{BIND}/latest"
-      files.start
+      Thin::Server.start(BIND, 80, files, :signals => false)
     end
   ensure
     puts "Removing #{BIND} from lo0"

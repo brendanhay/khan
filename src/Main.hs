@@ -52,6 +52,8 @@ main = runScript $ do
         uncurry customExecParser (parserInfo mempty)
 
     ec2 <- Meta.ec2
+  uses instance-data
+
     mr  <- regionalise ec2
     cmd <- either failure return $ parseProgram as es mr
     fmapLT format $ run ec2 cmd
@@ -71,6 +73,7 @@ main = runScript $ do
     format ex        = show ex
 
     run ec2 (c@Common{..}, Command f x) = do
+        when cDebug . liftIO $ print c
         unless cSilent enableLogging
         validate c
         rs <- contextAWS c $ do

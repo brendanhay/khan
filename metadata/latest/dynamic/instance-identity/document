@@ -1,0 +1,16 @@
+{
+  "availabilityZone" : "eu-west-1a",
+  "instanceId" : "i-74d5dd38",
+  "billingProducts" : null,
+  "pendingTime" : "2013-11-18T12:56:51Z",
+  "accountId" : "093205192929",
+  "imageId" : "ami-171d0163",
+  "kernelId" : "aki-71665e05",
+  "ramdiskId" : null,
+  "architecture" : "x86_64",
+  "instanceType" : "m1.small",
+  "devpayProductCodes" : null,
+  "privateIp" : "10.104.146.116",
+  "region" : "eu-west-1",
+  "version" : "2010-08-31"
+}

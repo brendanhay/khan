@@ -111,10 +111,10 @@ commonParser env = Common
         (epath "KHAN_LKEYS" env)
         "Path to certificates."
     <*> pathOption "cache"
-        (epath "KHAN_LKEYS" env)
+        (epath "KHAN_CACHE" env)
         "Path to cache."
     <*> pathOption "config"
-        (epath "KHAN_LKEYS" env)
+        (epath "KHAN_CONFIG" env)
         "Path to configuration files."
 
 instance Options Common where

@@ -19,7 +19,7 @@ def self.run
 
     dns = RubyDNS::RuleBasedServer.new do
       match("instance-data", IN::A) do |tx|
-        tx.respond!('127.0.0.1')
+        tx.respond!('169.254.169.254')
       end
 
       otherwise do |tx|

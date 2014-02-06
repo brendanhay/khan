@@ -81,4 +81,3 @@ describe _ Describe{..} = do
 
     instanceId = noteError "Unable to find AWS_INSTANCE_ID in: "
         . Map.lookup "AWS_INSTANCE_ID"
-

@@ -41,6 +41,14 @@ module Rack
       [200, {'Content-Type' => 'plain/text; charset=utf-8'}, self]
     end
 
+    def entity_not_found
+      body = "Entity not found: #{@path_info}\n"
+      size = Rack::Utils.bytesize(body)
+      return [404, {'Content-Type' => 'text/plain',
+        'Content-Length' => size.to_s,
+        'X-Cascade' => 'pass'}, [body]]
+    end
+
     def each
       @files.join("\n").each_line { |l| yield l }
     end

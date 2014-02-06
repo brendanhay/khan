@@ -40,3 +40,6 @@ tags
 
 # Binaries
 /khan
+
+# Ruby
+/metadata/Gemfile.lock

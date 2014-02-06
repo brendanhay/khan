@@ -51,8 +51,8 @@ describe :: Common -> Describe -> AWS ()
 describe _ Describe{..} = do
     bs  <- liftEitherT $ Meta.dynamic Document
 
-    whenDebug . log "Received dynamic document:\n{}" $
-        Text.decodeUtf8 bs
+    whenDebug $ log "Received dynamic document:\n{}"
+        [Text.decodeUtf8 bs]
 
     doc <- filterNulls <$> decode bs
     iid <- instanceId doc

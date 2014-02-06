@@ -81,7 +81,7 @@ class ToEnv a where
     renderEnv multi = Map.foldrWithKey (key suffix) mempty . toEnv
       where
         suffix | multi     = Build.singleton '\n'
-               | otherwise = mempty
+               | otherwise = Build.singleton ' '
 
         key suf k v = mappend
              (Build.fromText (Text.toUpper $ EDE.underscore k)

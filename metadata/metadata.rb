@@ -5,6 +5,16 @@ require 'rack'
 require 'rubydns'
 require 'thin'
 
+def self.command(cmd)
+  out = `#{cmd}`
+
+  if $? == 0
+    out
+  else
+    raise "Failed to run: #{cmd}"
+  end
+end
+
 BIND     = '169.254.169.254'
 IN       = Resolv::DNS::Resource::IN
 UPSTREAM = RubyDNS::Resolver.new([
@@ -12,10 +22,42 @@ UPSTREAM = RubyDNS::Resolver.new([
   [:udp, '8.8.8.8', 53]
 ])
 
+DEVICE =
+  if ARGV.length > 0
+    ARGV.first.chomp
+  else
+    puts 'Usage: server.sh <NETWORK_DEVICE>'
+    exit 1
+  end
+
+OS =
+  begin
+    host_os = RbConfig::CONFIG['host_os']
+
+    case host_os
+    when /darwin|mac os/
+      :macosx
+    when /linux/
+      :linux
+    else
+      raise "unsupported os: #{host_os.inspect}"
+    end
+  end
+
+RESOLV =
+  if OS == :macosx
+    out = command("networksetup -getdnsservers #{DEVICE}")
+    command("sudo networksetup -setdnsservers #{DEVICE} 127.0.0.1 8.8.8.8")
+
+    out.gsub("\n", ' ')
+  else
+    ''
+  end
+
 def self.run
   begin
     puts "Adding #{BIND} to lo0"
-    system("ifconfig lo0 alias #{BIND}")
+    command("ifconfig lo0 alias #{BIND}")
 
     dns = RubyDNS::RuleBasedServer.new do
       match("instance-data", IN::A) do |tx|
@@ -49,12 +91,17 @@ def self.run
   ensure
     puts "Removing #{BIND} from lo0"
     system("ifconfig lo0 -alias #{BIND}")
+
+    unless RESOLV.empty?
+      puts "Reverting resolv.conf to #{RESOLV}"
+      system("sudo networksetup -setdnsservers #{DEVICE} #{RESOLV}")
+    end
   end
 end
 
 if ENV['USER'] == 'root'
   run
 else
-  puts 'Error: Please re-run using sudo due to resolv.conf and port 80 usage.'
-  exit(1)
+  puts 'Error: Please re-run using sudo due to resolv.conf modifications and use of port 80.'
+  exit 1
 end

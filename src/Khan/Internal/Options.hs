@@ -102,19 +102,19 @@ commonParser env = Common
     <*> switchOption "silent" False
         "Suppress standard log output."
     <*> readOption "region" "REGION"
-        (evalue (readMay . Text.unpack) "KHAN_REGION" env)
+        (evalue (readMay . Text.unpack) "KHAN_REGION" env <> short 'R')
         "Region to operate in."
     <*> textOption "remote-keys"
-        (etext "KHAN_RKEYS" env)
+        (etext "KHAN_RKEYS" env <> short 'K')
         "Bucket to retrieve/store certificates."
     <*> pathOption "local-keys"
-        (epath "KHAN_LKEYS" env)
+        (epath "KHAN_LKEYS" env <> short 'L')
         "Path to certificates."
     <*> pathOption "cache"
         (epath "KHAN_CACHE" env)
         "Path to cache."
     <*> pathOption "config"
-        (epath "KHAN_CONFIG" env)
+        (epath "KHAN_CONFIG" env <> short 'C')
         "Path to configuration files."
 
 instance Options Common where

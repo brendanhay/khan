@@ -4,6 +4,7 @@ VERSION      := 0.1.0
 BUILD_NUMBER ?= 0
 DEPS         := vendor/amazonka vendor/ede
 DEB          := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
+BIN          := dist/build/khan/khan
 
 all: install dist
 
@@ -20,7 +21,8 @@ clean:
 dist: dist/$(DEB)
 
 dist/khan: build
-	strip -o dist/khan dist/build/khan/khan && upx dist/khan
+	strip -p --strip-unneeded --remove-section=.comment -o dist/khan $(BIN) && \
+	 upx dist/khan
 
 %.deb: dist/khan
 	makedeb --name=$(NAME) \

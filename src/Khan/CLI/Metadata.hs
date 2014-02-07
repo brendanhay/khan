@@ -27,6 +27,7 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2.Metadata (Dynamic(..), toPath)
 import qualified Network.AWS.EC2.Metadata as Meta
+import qualified Text.EDE.Filters         as EDE
 
 data Describe = Describe
     { dMultiLine :: !Bool
@@ -54,7 +55,7 @@ describe _ Describe{..} = do
     whenDebug $ log "Received dynamic document:\n{}"
         [Text.decodeUtf8 bs]
 
-    doc <- filterNulls <$> decode bs
+    doc <- filtered <$> decode bs
     iid <- instanceId doc
     ts  <- Tag.required iid
 
@@ -68,14 +69,16 @@ describe _ Describe{..} = do
         . Aeson.decode
         . LBS.fromStrict
 
-    filterNulls = Map.filter (not . Text.null)
-        . Map.map (fromMaybe "")
+    filtered m = Map.fromList
+        [(key k, fromJust v) | (k, v) <- Map.toList m, isJust v]
 
-    noteError m = hoistError
-        . note (toError . Text.unpack $ m
+    key = mappend "AWS_" . Text.toUpper . EDE.underscore
+
+    noteError e = hoistError
+        . note (toError . Text.unpack $ e
                <> "http://169.254.169.254/latest/dynamic/"
                <> toPath Document)
 
-    instanceId = noteError "Unable to find instanceId in: "
-        . Map.lookup "instanceId"
+    instanceId = noteError "Unable to find AWS_INSTANCE_ID in: "
+        . Map.lookup "AWS_INSTANCE_ID"
 

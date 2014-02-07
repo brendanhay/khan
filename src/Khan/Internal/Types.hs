@@ -84,7 +84,7 @@ class ToEnv a where
                | otherwise = Build.singleton ' '
 
         key suf k v = mappend
-             (Build.fromText (Text.toUpper $ EDE.underscore k)
+             (Build.fromText k
            <> Build.singleton '='
            <> Build.fromText v
            <> suf)
@@ -106,11 +106,11 @@ data Tags = Tags
 
 instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
-        [ ("role",    _role tagRole)
-        , ("env",     _env tagEnv)
-        , ("weight",  Text.pack $ show tagWeight)
-        ] ++ maybeToList (("version",) . showVersion <$> tagVersion)
-          ++ maybeToList (("name",) <$> tagName)
+        [ ("KHAN_ROLE",    _role tagRole)
+        , ("KHAN_ENV",     _env tagEnv)
+        , ("KHAN_WEIGHT",  Text.pack $ show tagWeight)
+        ] ++ maybeToList (("KHAN_VERSION",) . showVersion <$> tagVersion)
+          ++ maybeToList (("KHAN_NAME",) <$> tagName)
 
 instance Naming Tags where
     names Tags{..} = createNames tagRole tagEnv tagVersion

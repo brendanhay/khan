@@ -43,3 +43,6 @@ tags
 
 # Ruby
 /metadata/Gemfile.lock
+
+# Vagrant
+.vagrant

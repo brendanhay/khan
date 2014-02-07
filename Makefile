@@ -11,7 +11,8 @@ build:
 	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS))) && cp -f $(BIN) .
 
 strip: build
-	strip -o dist/khan $(BIN) && upx dist/khan
+	strip -p --strip-unneeded --remove-section=.comment -o dist/khan $(BIN) && \
+	 upx dist/khan
 
 install: cabal.sandbox.config add-sources
 	cabal install -flib-only -j $(FLAGS)

@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -17,6 +18,7 @@ import qualified Data.Aeson               as Aeson
 import qualified Data.ByteString.Lazy     as LBS
 import qualified Data.HashMap.Strict      as Map
 import qualified Data.Text                as Text
+import qualified Data.Text.Encoding       as Text
 import qualified Data.Text.Lazy.Builder   as Build
 import qualified Data.Text.Lazy.IO        as LText
 import           Khan.Internal
@@ -25,6 +27,7 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2.Metadata (Dynamic(..), toPath)
 import qualified Network.AWS.EC2.Metadata as Meta
+import qualified Text.EDE.Filters         as EDE
 
 data Describe = Describe
     { dMultiLine :: !Bool
@@ -47,7 +50,12 @@ commands = command "metadata" describe describeParser
 
 describe :: Common -> Describe -> AWS ()
 describe _ Describe{..} = do
-    doc <- liftEitherT (Meta.dynamic Document) >>= decode
+    bs  <- liftEitherT $ Meta.dynamic Document
+
+    whenDebug $ log "Received dynamic document:\n{}"
+        [Text.decodeUtf8 bs]
+
+    doc <- filtered <$> decode bs
     iid <- instanceId doc
     ts  <- Tag.required iid
 
@@ -61,10 +69,16 @@ describe _ Describe{..} = do
         . Aeson.decode
         . LBS.fromStrict
 
-    instanceId = noteError "Unable to find INSTANCE_ID in: "
-        . Map.lookup "INSTANCE_ID"
+    filtered m = Map.fromList
+        [(key k, fromJust v) | (k, v) <- Map.toList m, isJust v]
 
-    noteError m = hoistError
-        . note (toError . Text.unpack $ m
-               <> "http://169.254.169.254/latest/dynamic-data/"
+    key = mappend "AWS_" . Text.toUpper . EDE.underscore
+
+    noteError e = hoistError
+        . note (toError . Text.unpack $ e
+               <> "http://169.254.169.254/latest/dynamic/"
                <> toPath Document)
+
+    instanceId = noteError "Unable to find AWS_INSTANCE_ID in: "
+        . Map.lookup "AWS_INSTANCE_ID"
+

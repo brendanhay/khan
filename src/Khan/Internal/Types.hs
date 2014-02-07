@@ -81,10 +81,10 @@ class ToEnv a where
     renderEnv multi = Map.foldrWithKey (key suffix) mempty . toEnv
       where
         suffix | multi     = Build.singleton '\n'
-               | otherwise = mempty
+               | otherwise = Build.singleton ' '
 
         key suf k v = mappend
-             (Build.fromText (Text.toUpper $ EDE.underscore k)
+             (Build.fromText k
            <> Build.singleton '='
            <> Build.fromText v
            <> suf)
@@ -106,11 +106,11 @@ data Tags = Tags
 
 instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
-        [ ("ROLE",    _role tagRole)
-        , ("ENV",     _env tagEnv)
-        , ("WEIGHT",  Text.pack $ show tagWeight)
-        ] ++ maybeToList (("VERSION",) . showVersion <$> tagVersion)
-          ++ maybeToList (("NAME",) <$> tagName)
+        [ ("KHAN_ROLE",    _role tagRole)
+        , ("KHAN_ENV",     _env tagEnv)
+        , ("KHAN_WEIGHT",  Text.pack $ show tagWeight)
+        ] ++ maybeToList (("KHAN_VERSION",) . showVersion <$> tagVersion)
+          ++ maybeToList (("KHAN_NAME",) <$> tagName)
 
 instance Naming Tags where
     names Tags{..} = createNames tagRole tagEnv tagVersion

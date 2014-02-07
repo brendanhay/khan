@@ -5,6 +5,8 @@ require 'rack'
 require 'rubydns'
 require 'thin'
 
+require_relative 'rack/metadata'
+
 def self.command(cmd)
   out = `#{cmd}`
 
@@ -70,7 +72,7 @@ def self.run
     end
 
     dir = Rack::Builder.new do
-      run Rack::Directory.new(File.expand_path(File.dirname(__FILE__)))
+      run Rack::Metadata.new(File.expand_path(File.dirname(__FILE__)))
     end
 
     files = Rack::Chunked.new(Rack::ContentLength.new(dir))

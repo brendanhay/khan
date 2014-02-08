@@ -41,7 +41,7 @@ import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
 import qualified Shelly                     as Shell
 import           System.Directory
-import           System.IO                  (stdout)
+import           System.IO                  (stdout, stderr)
 import qualified System.Posix.Files         as Posix
 
 data Inventory = Inventory
@@ -83,7 +83,7 @@ ansibleParser env = Ansible
     <*> switchOption "force" False
         "Force update of any previously cached results."
     <*> argsOption str (action "file")
-        "Pass through arugments to ansible."
+        "Pass through arguments to ansible."
 
 instance Options Ansible where
     validate Ansible{..} =
@@ -169,7 +169,9 @@ ansible c@Common{..} a@Ansible{..} = do
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
     let xs  = args k script
-        out = [Shell.OutHandle $ Shell.UseHandle stdout]
+        out = [ Shell.OutHandle   $ Shell.UseHandle stdout
+              , Shell.ErrorHandle $ Shell.UseHandle stderr
+              ]
 
     log "{} {}" [Shell.toTextIgnore bin, Text.unwords xs]
     liftEitherT . sh $ Shell.runHandles bin xs out (\_ _ _ -> return ())

@@ -47,7 +47,9 @@ wait s addr user key = do
 
     delay = 20 * 1000000
 
-    xs = map Text.pack $ args addr user key ["-q", "-o", "BatchMode=yes"]
+    xs = map Text.pack $ args addr user key opts
+
+    opts = ["-q", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no"]
 
 args :: Text -> Text -> FilePath -> [String] -> [String]
 args addr user key = mappend

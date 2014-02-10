@@ -34,7 +34,7 @@ exec addr user key xs = liftIO $ do
 wait :: MonadIO m => Int -> Text -> Text -> FilePath -> m Bool
 wait s addr user key = do
     log "Waiting {} seconds for SSH on {}" [show s, Text.unpack addr]
-    liftIO $ go s
+    liftIO $ go (s * 1000000)
   where
     go n
         | n <= 0    = return False

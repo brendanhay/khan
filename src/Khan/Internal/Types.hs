@@ -33,7 +33,6 @@ import           GHC.Generics                 (Generic)
 import           Khan.Internal.Text
 import           Khan.Prelude
 import           Network.AWS                  (Region)
-import qualified Text.EDE.Filters             as EDE
 import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
 import qualified Text.Read                    as Read

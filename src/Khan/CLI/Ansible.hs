@@ -168,13 +168,13 @@ ansible c@Common{..} a@Ansible{..} = do
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    let xs  = args k script
-        out = [ Shell.OutHandle   $ Shell.UseHandle stdout
-              , Shell.ErrorHandle $ Shell.UseHandle stderr
-              ]
+    let xs = args k script
+        hs = [ Shell.OutHandle Shell.Inherit
+             , Shell.ErrorHandle Shell.Inherit
+             ]
 
     log "{} {}" [Shell.toTextIgnore bin, Text.unwords xs]
-    liftEitherT . sh $ Shell.runHandles bin xs out (\_ _ _ -> return ())
+    liftEitherT . sh $ Shell.runHandles bin xs hs (\_ _ _ -> return ())
   where
     args k s = argv ++ foldr' add []
         [ ("-i", Text.pack s)

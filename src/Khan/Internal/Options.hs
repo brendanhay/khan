@@ -52,11 +52,6 @@ module Khan.Internal.Options
     , checkIO
     , checkPath
 
-    -- * From Environment
-    , etext
-    , epath
-    , evalue
-
     , module Export
     ) where
 

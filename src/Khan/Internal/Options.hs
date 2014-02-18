@@ -139,8 +139,8 @@ instance Options Common where
     validate Common{..} = do
        check cRegion " --region or KHAN_REGION must be specified."
 
-       checkPath (lKeysDir cLKeys)  " specified by --local-keys or KHAN_LKEYS must exist."
-       checkPath (cacheDir cCache)   " specified by --cache or KHAN_CACHE must exist."
+       checkPath (lKeysDir  cLKeys)  " specified by --local-keys or KHAN_LKEYS must exist."
+       checkPath (cacheDir  cCache)  " specified by --cache or KHAN_CACHE must exist."
        checkPath (configDir cConfig) " specified by --config or KHAN_CONFIG must exist."
 
 group :: String -> String -> Mod CommandFields a -> Mod CommandFields a

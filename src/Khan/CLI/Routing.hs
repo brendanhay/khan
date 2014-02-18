@@ -86,7 +86,7 @@ commands env = command "routes" routes (routesParser env)
 routes :: Common -> Routes -> AWS ()
 routes Common{..} Routes{..} = do
     reg <- getRegion
-    is  <- filter include <$> Instance.findAll [] (filters reg (_env rEnv))
+    is  <- filter include <$> Instance.findAll [] (filters reg)
 
     let xs = map mk $ filter (isJust . riitDnsName) is
         ys = Map.fromListWith (<>) [(k, [v]) | (k, v) <- xs]
@@ -100,9 +100,9 @@ routes Common{..} Routes{..} = do
         . map ((rtsitKey *** rtsitValue) . join (,))
         . riitTagSet
 
-    filters reg env = catMaybes
+    filters reg = catMaybes
         [ Just . Filter "availability-zone" $ zones reg
-        , Just $ Tag.filter Tag.env [env]
+        , Just $ Tag.filter Tag.env [_env rEnv]
         , fmap (Tag.filter Tag.domain . (:[])) rDomain
         , role
         ]

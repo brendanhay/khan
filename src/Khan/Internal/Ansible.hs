@@ -95,8 +95,8 @@ parseArgsFile path = do
 
     end c = T.isHorizontalSpace c || T.isEndOfLine c
 
-inventoryPath :: FilePath -> Env -> AWS FilePath
-inventoryPath dir env = do
+inventoryPath :: CacheDir -> Env -> AWS FilePath
+inventoryPath (CacheDir dir) env = do
     r <- Text.pack . show <$> getRegion
     return $ dir </> Path.fromText (Text.concat [r, "_", _env env])
 

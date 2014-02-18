@@ -55,10 +55,10 @@ routesParser env = Routes
         "Path to the ED-E HAProxy configuration template."
 
 instance Options Routes where
-    discover p Common{..} r@Routes{..} = do
+    discover aws Common{..} r@Routes{..} = do
         zs <- AZ.getSuffixes rZones
         debug "Using Availability Zones '{}'" [zs]
-        if not p
+        if not aws
             then return $! r { rZones = zs, rTemplate = f }
             else do
                 iid      <- liftEitherT $ meta InstanceId
@@ -71,10 +71,11 @@ instance Options Routes where
                     }
       where
         f = if invalid rTemplate
-                then cConfig </> Path.decodeString "haproxy.ede"
+                then configDir cConfig </> Path.decodeString "haproxy.ede"
                 else rTemplate
 
     validate Routes{..} = do
+        check rEnv   "--env must be specified."
         check rZones "--zones must be specified."
         checkPath rTemplate " specified by --template must exist."
 

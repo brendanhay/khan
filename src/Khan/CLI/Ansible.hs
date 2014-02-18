@@ -41,7 +41,6 @@ import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
 import qualified Shelly                     as Shell
 import           System.Directory
-import           System.IO                  (stdout, stderr)
 import qualified System.Posix.Files         as Posix
 
 data Inventory = Inventory
@@ -65,6 +64,7 @@ instance Options Inventory
 
 data Ansible = Ansible
     { aEnv    :: !Env
+    , aRKeys  :: !RKeysBucket
     , aKey    :: Maybe FilePath
     , aBin    :: Maybe Text
     , aRetain :: !Int
@@ -75,6 +75,7 @@ data Ansible = Ansible
 ansibleParser :: EnvMap -> Parser Ansible
 ansibleParser env = Ansible
     <$> envOption env
+    <*> rKeysOption env
     <*> keyOption
     <*> optional (textOption "bin" (short 'b')
         "Ansible binary name to exec.")
@@ -86,7 +87,8 @@ ansibleParser env = Ansible
         "Pass through arguments to ansible."
 
 instance Options Ansible where
-    validate Ansible{..} =
+    validate Ansible{..} = do
+        check aEnv "--env must be specified."
         check aArgs "Pass ansible options through using the -- delimiter.\n\
                     \Usage: khan ansible [KHAN OPTIONS] -- [ANSIBLE OPTIONS]."
 
@@ -150,7 +152,7 @@ playbook c@Common{..} a@Ansible{..} = ansible c $ a
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
-    k <- maybe (Key.path cRKeys a cLKeys) return aKey
+    k <- maybe (Key.path aRKeys a cLKeys) return aKey
     i <- inventoryPath cCache aEnv
 
     let bin    = Path.fromText $ fromMaybe "ansible" aBin

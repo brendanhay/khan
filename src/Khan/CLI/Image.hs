@@ -37,7 +37,8 @@ import           Network.AWS.EC2             hiding (Failed, Image)
 import qualified Shelly                      as Shell
 
 data Image = Image
-    { iRole     :: !Role
+    { iRKeys    :: !RKeysBucket
+    , iRole     :: !Role
     , iVersion  :: Maybe Version
     , iPlaybook :: !FilePath
     , iImage    :: !Text
@@ -50,9 +51,10 @@ data Image = Image
     , iTimeout  :: !Int
     }
 
-imageParser :: Parser Image
-imageParser = Image
-    <$> roleOption
+imageParser :: EnvMap -> Parser Image
+imageParser env = Image
+    <$> rKeysOption env
+    <*> roleOption
     <*> optional versionOption
     <*> pathOption "playbook" (short 'p' <> value "")
         "Playbook to run on the base instance."
@@ -89,8 +91,8 @@ instance Naming Image where
                     (versioned   iRole "ami")
                     iVersion
 
-commands :: Mod CommandFields Command
-commands = command "image" image imageParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = command "image" image (imageParser env)
     "Create an Amazon Virtual Machine Image using EC2 and Ansible."
 
 image :: Common -> Image -> AWS ()
@@ -117,7 +119,7 @@ image c@Common{..} d@Image{..} = do
 
     g <- async $ Security.sshGroup d
     z <- async $ AZ.getSuffixes iZones
-    k <- async $ Key.create cRKeys d cLKeys
+    k <- async $ Key.create iRKeys d cLKeys
 
     wait_ g <* log "Found Role Group {}" [sshGroupName]
 
@@ -143,7 +145,7 @@ image c@Common{..} d@Image{..} = do
             throwAWS "Failed to gain SSH connectivity for {}" [iid]
 
         log "Running Playbook {}" [iPlaybook]
-        playbook c $ Ansible "ami" Nothing Nothing 36000 False $ iArgs ++
+        playbook c $ Ansible "ami" iRKeys Nothing Nothing 36000 False $ iArgs ++
             [ "-i", Text.unpack $ dns <> ",localhost,"
             , "-e", LBS.unpack . Aeson.encode $ ImageInput n cRegion dns
             , Path.encodeString iPlaybook

@@ -35,7 +35,8 @@ import           Network.AWS.EC2
 -- Client Token
 -- Network Interfaces
 data Launch = Launch
-    { lRole      :: !Role
+    { lRKeys     :: !RKeysBucket
+    , lRole      :: !Role
     , lEnv       :: !Env
     , lDomain    :: !Text
     , lImage     :: Maybe Text
@@ -50,7 +51,8 @@ data Launch = Launch
 
 launchParser :: EnvMap -> Parser Launch
 launchParser env = Launch
-    <$> roleOption
+    <$> rKeysOption env
+    <*> roleOption
     <*> envOption env
     <*> textOption "domain" (short 'd')
         "Instance's DNS domain."
@@ -82,6 +84,7 @@ instance Options Launch where
         Policy{..} = Profile.policy l cConfig lTrust lPolicy
 
     validate Launch{..} = do
+        check lEnv   "--env must be specified."
         check lZones "--zones must be specified."
 
         checkPath (_trust  lTrust)  " specified by --trust must exist."
@@ -110,7 +113,7 @@ launch Common{..} l@Launch{..} = do
 
     wait_ p <* log "Found IAM Profile {}" [profileName]
 
-    k <- async $ Key.create cRKeys l cLKeys
+    k <- async $ Key.create lRKeys l cLKeys
     s <- async $ Security.sshGroup l
     g <- async $ Security.create groupName
 

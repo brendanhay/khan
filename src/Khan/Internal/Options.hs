@@ -16,11 +16,15 @@
 module Khan.Internal.Options
     (
     -- * GADT/Class
-      Options (..)
-    , Command (..)
+      Options     (..)
+    , Command     (..)
 
     -- * Common
-    , Common  (..)
+    , Common      (..)
+    , RKeysBucket (..)
+    , LKeysDir    (..)
+    , CacheDir    (..)
+    , ConfigDir   (..)
     , commonParser
 
     -- * Top-level
@@ -46,6 +50,7 @@ module Khan.Internal.Options
     , policyOption
     , ansibleOption
     , userOption
+    , rKeysOption
 
     -- * Validation
     , check
@@ -84,11 +89,22 @@ data Common = Common
     { cDebug  :: !Bool
     , cSilent :: !Bool
     , cRegion :: !Region
-    , cRKeys  :: !Text
-    , cLKeys  :: !FilePath
-    , cCache  :: !FilePath
-    , cConfig :: !FilePath
+    , cLKeys  :: !LKeysDir
+    , cCache  :: !CacheDir
+    , cConfig :: !ConfigDir
     } deriving (Show)
+
+newtype RKeysBucket = RKeysBucket { rKeysBucket :: Text }
+    deriving (Eq, Show)
+
+newtype LKeysDir = LKeysDir { lKeysDir :: FilePath }
+    deriving (Eq, Show)
+
+newtype CacheDir = CacheDir { cacheDir :: FilePath }
+    deriving (Eq, Show)
+
+newtype ConfigDir = ConfigDir { configDir :: FilePath }
+    deriving (Eq, Show)
 
 commonParser :: EnvMap -> Parser Common
 commonParser env = Common
@@ -100,32 +116,28 @@ commonParser env = Common
          ( evalue (readMay . Text.unpack) "KHAN_REGION" env
         <> short 'R'
          ) "Region to operate in."
-    <*> textOption "remote-keys"
-         ( etext "KHAN_RKEYS" env
-        <> short 'K'
-         ) "Bucket to retrieve/store certificates."
-    <*> pathOption "local-keys"
+    <*> (LKeysDir <$> pathOption "local-keys"
          ( value "/etc/ssl/khan"
         <> epath "KHAN_LKEYS" env
         <> short 'L'
-         ) "Path to certificates."
-    <*> pathOption "cache"
+         ) "Path to certificates.")
+    <*> (CacheDir <$> pathOption "cache"
          ( value "/var/cache/khan"
         <> epath "KHAN_CACHE" env
-         ) "Path to cache."
-    <*> pathOption "config"
+         ) "Path to cache.")
+    <*> (ConfigDir <$> pathOption "config"
          ( value "/etc/khan"
         <> epath "KHAN_CONFIG" env
         <> short 'C'
-         ) "Path to configuration files."
+         ) "Path to configuration files.")
 
 instance Options Common where
     validate Common{..} = do
        check cRegion " --region or KHAN_REGION must be specified."
 
-       checkPath cLKeys  " specified by --local-keys or KHAN_LKEYS must exist."
-       checkPath cCache  " specified by --cache or KHAN_CACHE must exist."
-       checkPath cConfig " specified by --config or KHAN_CONFIG must exist."
+       checkPath (lKeysDir  cLKeys)  " specified by --local-keys or KHAN_LKEYS must exist."
+       checkPath (cacheDir  cCache)  " specified by --cache or KHAN_CACHE must exist."
+       checkPath (configDir cConfig) " specified by --config or KHAN_CONFIG must exist."
 
 group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs = Options.command name $
@@ -198,8 +210,11 @@ roleOption = Role <$> textOption "role" (short 'r')
     "Role of the application."
 
 envOption :: EnvMap -> Parser Env
-envOption env = Env <$> textOption "env" (short 'e' <> etext "KHAN_ENV" env)
-    "Environment of the application."
+envOption env = Env <$> textOption "env"
+    (  short 'e'
+    <> etext "KHAN_ENV" env
+    <> value ""
+    ) "Environment of the application."
 
 versionOption :: Parser Version
 versionOption = customOption "version" "SEMVER" (parseVersion . Text.pack) mempty
@@ -224,6 +239,12 @@ ansibleOption = switchOption "ansible" False
 userOption :: Parser Text
 userOption = textOption "user" (value "ubuntu" <> short 'u')
     "SSH User."
+
+rKeysOption :: EnvMap -> Parser RKeysBucket
+rKeysOption env = RKeysBucket <$> textOption "remote-keys"
+    ( etext "KHAN_RKEYS" env
+   <> short 'K'
+    ) "Bucket to retrieve/store certificates."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

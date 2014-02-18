@@ -34,7 +34,9 @@ groupParser env = Group
     <*> envOption env
     <*> ansibleOption
 
-instance Options Group
+instance Options Group where
+    validate Group{..} =
+        check gEnv "--env must be specified."
 
 instance Naming Group where
     names Group{..} = unversioned gRole gEnv

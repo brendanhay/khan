@@ -28,8 +28,8 @@ import           Khan.Prelude              hiding (min, max)
 import           Network.AWS.EC2           hiding (Instance)
 import qualified Shelly                    as Shell
 
-create :: Naming a => Text -> a -> FilePath -> AWS FilePath
-create b (names -> n@Names{..}) dir = do
+create :: Naming a => RKeysBucket -> a -> LKeysDir -> AWS FilePath
+create (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
     f <- filePath n dir
     e <- sendCatch $ CreateKeyPair keyName
     either exist (write f) e
@@ -51,8 +51,8 @@ create b (names -> n@Names{..}) dir = do
         log "Wrote new Key Pair to {}" [f]
         void $ Object.upload b (Text.pack . Path.encodeString $ Path.filename f) f
 
-path :: Naming a => Text -> a -> FilePath -> AWS FilePath
-path b (names -> n@Names{..}) dir = do
+path :: Naming a => RKeysBucket -> a -> LKeysDir -> AWS FilePath
+path (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
     f <- filePath n dir
     void $ Object.download b (Text.pack . Path.encodeString $ Path.filename f) f
     shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]

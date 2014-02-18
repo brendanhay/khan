@@ -98,6 +98,8 @@ image c@Common{..} d@Image{..} = do
     shell (Shell.which "ansible-playbook") >>=
         void . noteAWS "Command {} doesn't exist." ["ansible-playbook" :: Text]
 
+    rKeys <- Key.requireRKeys cRKeys
+
     log "Checking if target Image {} exists..." [imageName]
     as <- Image.findAll [] [Filter "name" [imageName]]
 
@@ -117,7 +119,7 @@ image c@Common{..} d@Image{..} = do
 
     g <- async $ Security.sshGroup d
     z <- async $ AZ.getSuffixes iZones
-    k <- async $ Key.create cRKeys d cLKeys
+    k <- async $ Key.create rKeys d cLKeys
 
     wait_ g <* log "Found Role Group {}" [sshGroupName]
 

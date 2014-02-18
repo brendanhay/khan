@@ -110,7 +110,9 @@ launch Common{..} l@Launch{..} = do
 
     wait_ p <* log "Found IAM Profile {}" [profileName]
 
-    k <- async $ Key.create cRKeys l cLKeys
+    rKeys <- Key.requireRKeys cRKeys
+
+    k <- async $ Key.create rKeys l cLKeys
     s <- async $ Security.sshGroup l
     g <- async $ Security.create groupName
 

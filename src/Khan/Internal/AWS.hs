@@ -27,6 +27,7 @@ module Khan.Internal.AWS
 
     -- * Errors
     , throwAWS
+    , throwAWS_
     , noteAWS
 
     -- * Asserts
@@ -36,6 +37,7 @@ module Khan.Internal.AWS
     ) where
 
 import           Control.Monad.Error
+import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import           Data.Text.Format         (Format, format)
 import           Data.Text.Format.Params
@@ -64,6 +66,9 @@ abbreviate Singapore       = "sg"
 abbreviate Tokyo           = "tyo"
 abbreviate Sydney          = "syd"
 abbreviate SaoPaulo        = "sao"
+
+throwAWS_ :: MonadError AWSError m => Text -> m a
+throwAWS_ = throwError . Err . Text.unpack
 
 throwAWS :: (Params a, MonadError AWSError m) => Format -> a -> m b
 throwAWS f = throwError . Err . LText.unpack . format f

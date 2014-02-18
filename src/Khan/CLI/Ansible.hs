@@ -41,7 +41,6 @@ import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
 import qualified Shelly                     as Shell
 import           System.Directory
-import           System.IO                  (stdout, stderr)
 import qualified System.Posix.Files         as Posix
 
 data Inventory = Inventory
@@ -150,8 +149,9 @@ playbook c@Common{..} a@Ansible{..} = ansible c $ a
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
-    k <- maybe (Key.path cRKeys a cLKeys) return aKey
-    i <- inventoryPath cCache aEnv
+    rKeys <- Key.requireRKeys cRKeys
+    k     <- maybe (Key.path rKeys a cLKeys) return aKey
+    i     <- inventoryPath cCache aEnv
 
     let bin    = Path.fromText $ fromMaybe "ansible" aBin
         script = Path.encodeString $ i <.> "sh"

@@ -53,11 +53,12 @@ commands env = command "ssh" ssh (sshParser env)
 
 ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
-    key <- maybe (Key.path cRKeys s cLKeys) return sKey
-    dns <- mapMaybe riitDnsName <$> Instance.findAll []
-        [ Tag.filter Tag.env  [_env  sEnv]
-        , Tag.filter Tag.role [_role sRole]
-        ]
+    rKeys <- Key.requireRKeys cRKeys
+    key   <- maybe (Key.path rKeys s cLKeys) return sKey
+    dns   <- mapMaybe riitDnsName <$> Instance.findAll []
+          [ Tag.filter Tag.env  [_env  sEnv]
+          , Tag.filter Tag.role [_role sRole]
+          ]
     go key dns
   where
     go _   []  = log_ "No hosts found, exiting..."

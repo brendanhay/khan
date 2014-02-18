@@ -32,7 +32,7 @@ import           Network.AWS.EC2             hiding (Instance, ec2)
 import qualified Text.EDE                    as EDE
 
 data Routes = Routes
-    { rEnv      :: !Env
+    { rEnv      :: Maybe Env
     , rDomain   :: Maybe Text
     , rRoles    :: [Text]
     , rZones    :: !String
@@ -42,7 +42,7 @@ data Routes = Routes
 
 routesParser :: EnvMap -> Parser Routes
 routesParser env = Routes
-    <$> envOption env
+    <$> optional (envOption env)
     <*> optional (textOption "domain" (short 'd')
         "DNS domain restriction.")
     <*> many (textOption "role" (short 'r')
@@ -55,23 +55,23 @@ routesParser env = Routes
         "Path to the ED-E HAProxy configuration template."
 
 instance Options Routes where
-    discover p Common{..} r@Routes{..} = do
+    discover aws Common{..} r@Routes{..} = do
         zs <- AZ.getSuffixes rZones
         debug "Using Availability Zones '{}'" [zs]
-        if not p
+        if not aws
             then return $! r { rZones = zs, rTemplate = f }
             else do
                 iid      <- liftEitherT $ meta InstanceId
                 Tags{..} <- Tag.required iid
                 return $! r
                     { rDomain   = Just tagDomain
-                    , rEnv      = tagEnv
+                    , rEnv      = Just tagEnv
                     , rZones    = zs
                     , rTemplate = f
                     }
       where
         f = if invalid rTemplate
-                then cConfig </> Path.decodeString "haproxy.ede"
+                then configDir cConfig </> Path.decodeString "haproxy.ede"
                 else rTemplate
 
     validate Routes{..} = do
@@ -84,8 +84,11 @@ commands env = command "routes" routes (routesParser env)
 
 routes :: Common -> Routes -> AWS ()
 routes Common{..} Routes{..} = do
+    env <- maybe (throwAWS_ "(-e|--env STR) required outside of an EC2 instance")
+                 (return . _env)
+                 rEnv
     reg <- getRegion
-    is  <- filter include <$> Instance.findAll [] (filters reg)
+    is  <- filter include <$> Instance.findAll [] (filters reg env)
 
     let xs = map mk $ filter (isJust . riitDnsName) is
         ys = Map.fromListWith (<>) [(k, [v]) | (k, v) <- xs]
@@ -99,9 +102,9 @@ routes Common{..} Routes{..} = do
         . map ((rtsitKey *** rtsitValue) . join (,))
         . riitTagSet
 
-    filters reg = catMaybes
+    filters reg env = catMaybes
         [ Just . Filter "availability-zone" $ zones reg
-        , Just $ Tag.filter Tag.env [_env rEnv]
+        , Just $ Tag.filter Tag.env [env]
         , fmap (Tag.filter Tag.domain . (:[])) rDomain
         , role
         ]

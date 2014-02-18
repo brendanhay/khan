@@ -39,11 +39,11 @@ data Policy = Policy
 
 policy :: Naming a
        => a
-       -> FilePath   -- ^ Config directory
+       -> ConfigDir
        -> TrustPath  -- ^ Trust template path
        -> PolicyPath -- ^ Policy template path
        -> Policy
-policy (names -> Names{..}) root t p = Policy
+policy (names -> Names{..}) (ConfigDir root) t p = Policy
     { pTrustPath  = TrustPath $ defaultPath (_trust t) tpath
     , pPolicyPath = PolicyPath $ defaultPath (_policy p) ppath
     }

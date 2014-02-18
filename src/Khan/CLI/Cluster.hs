@@ -225,7 +225,9 @@ deploy c@Common{..} d@Deploy{..} = do
     when (isJust j) $
         throwAWS "Auto Scaling Group {} already exists." [appName]
 
-    k <- async $ Key.create cRKeys d cLKeys
+    rKeys <- Key.requireRKeys cRKeys
+
+    k <- async $ Key.create rKeys d cLKeys
     p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
     s <- async $ Security.sshGroup d
     g <- async $ Security.create groupName

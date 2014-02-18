@@ -54,6 +54,7 @@ instance Options Profile where
         Policy{..} = Profile.policy r cConfig rTrust rPolicy
 
     validate Profile{..} = do
+        check rEnv "--env must be specified."
         checkPath (_trust  rTrust)  " specified by --trust must exist."
         checkPath (_policy rPolicy) " specified by --policy must exist."
 

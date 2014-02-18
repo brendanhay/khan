@@ -32,7 +32,7 @@ import           Network.AWS.EC2             hiding (Instance, ec2)
 import qualified Text.EDE                    as EDE
 
 data Routes = Routes
-    { rEnv      :: Maybe Env
+    { rEnv      :: !Env
     , rDomain   :: Maybe Text
     , rRoles    :: [Text]
     , rZones    :: !String
@@ -42,7 +42,7 @@ data Routes = Routes
 
 routesParser :: EnvMap -> Parser Routes
 routesParser env = Routes
-    <$> optional (envOption env)
+    <$> envOption env
     <*> optional (textOption "domain" (short 'd')
         "DNS domain restriction.")
     <*> many (textOption "role" (short 'r')
@@ -65,7 +65,7 @@ instance Options Routes where
                 Tags{..} <- Tag.required iid
                 return $! r
                     { rDomain   = Just tagDomain
-                    , rEnv      = Just tagEnv
+                    , rEnv      = tagEnv
                     , rZones    = zs
                     , rTemplate = f
                     }
@@ -75,6 +75,7 @@ instance Options Routes where
                 else rTemplate
 
     validate Routes{..} = do
+        check rEnv   "--env must be specified."
         check rZones "--zones must be specified."
         checkPath rTemplate " specified by --template must exist."
 
@@ -84,11 +85,8 @@ commands env = command "routes" routes (routesParser env)
 
 routes :: Common -> Routes -> AWS ()
 routes Common{..} Routes{..} = do
-    env <- maybe (throwAWS_ "(-e|--env STR) required outside of an EC2 instance")
-                 (return . _env)
-                 rEnv
     reg <- getRegion
-    is  <- filter include <$> Instance.findAll [] (filters reg env)
+    is  <- filter include <$> Instance.findAll [] (filters reg (_env rEnv))
 
     let xs = map mk $ filter (isJust . riitDnsName) is
         ys = Map.fromListWith (<>) [(k, [v]) | (k, v) <- xs]

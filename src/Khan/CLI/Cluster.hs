@@ -53,7 +53,8 @@ instance Naming Info where
     names Info{..} = unversioned iRole iEnv
 
 data Deploy = Deploy
-    { dRole     :: !Role
+    { dRKeys    :: !RKeysBucket
+    , dRole     :: !Role
     , dEnv      :: !Env
     , dDomain   :: !Text
     , dVersion  :: !Version
@@ -70,7 +71,8 @@ data Deploy = Deploy
 
 deployParser :: EnvMap -> Parser Deploy
 deployParser env = Deploy
-    <$> roleOption
+    <$> rKeysOption env
+    <*> roleOption
     <*> envOption env
     <*> textOption "domain" (short 'd')
         "Instance's DNS domain."
@@ -105,6 +107,7 @@ instance Options Deploy where
         Policy{..} = Profile.policy d cConfig dTrust dPolicy
 
     validate Deploy{..} = do
+        check dEnv   "--env must be specified."
         check dZones "--zones must be specified."
 
         check (dMax < dMin)     "--max must be greater than or equal to --max."
@@ -225,9 +228,7 @@ deploy c@Common{..} d@Deploy{..} = do
     when (isJust j) $
         throwAWS "Auto Scaling Group {} already exists." [appName]
 
-    rKeys <- Key.requireRKeys cRKeys
-
-    k <- async $ Key.create rKeys d cLKeys
+    k <- async $ Key.create dRKeys d cLKeys
     p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
     s <- async $ Security.sshGroup d
     g <- async $ Security.create groupName

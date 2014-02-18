@@ -27,22 +27,26 @@ import           System.IO           hiding (FilePath)
 
 -- FIXME: Add scp/sftp
 data SSH = SSH
-    { sRole :: !Role
-    , sEnv  :: !Env
-    , sKey  :: Maybe FilePath
-    , sUser :: !Text
-    , sArgs :: [String]
+    { sRKeys :: !RKeysBucket
+    , sRole  :: !Role
+    , sEnv   :: !Env
+    , sKey   :: Maybe FilePath
+    , sUser  :: !Text
+    , sArgs  :: [String]
     } deriving (Show)
 
 sshParser :: EnvMap -> Parser SSH
 sshParser env = SSH
-    <$> roleOption
+    <$> rKeysOption env
+    <*> roleOption
     <*> envOption env
     <*> keyOption
     <*> userOption
     <*> argsOption str mempty "Pass through arugments to ssh."
 
-instance Options SSH
+instance Options SSH where
+    validate SSH{..} =
+        check sEnv "--env must be specified."
 
 instance Naming SSH where
     names SSH{..} = unversioned sRole sEnv
@@ -53,8 +57,7 @@ commands env = command "ssh" ssh (sshParser env)
 
 ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
-    rKeys <- Key.requireRKeys cRKeys
-    key   <- maybe (Key.path rKeys s cLKeys) return sKey
+    key   <- maybe (Key.path sRKeys s cLKeys) return sKey
     dns   <- mapMaybe riitDnsName <$> Instance.findAll []
           [ Tag.filter Tag.env  [_env  sEnv]
           , Tag.filter Tag.role [_role sRole]

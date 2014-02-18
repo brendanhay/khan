@@ -64,6 +64,7 @@ instance Options Inventory
 
 data Ansible = Ansible
     { aEnv    :: !Env
+    , aRKeys  :: !RKeysBucket
     , aKey    :: Maybe FilePath
     , aBin    :: Maybe Text
     , aRetain :: !Int
@@ -74,6 +75,7 @@ data Ansible = Ansible
 ansibleParser :: EnvMap -> Parser Ansible
 ansibleParser env = Ansible
     <$> envOption env
+    <*> rKeysOption env
     <*> keyOption
     <*> optional (textOption "bin" (short 'b')
         "Ansible binary name to exec.")
@@ -85,7 +87,8 @@ ansibleParser env = Ansible
         "Pass through arguments to ansible."
 
 instance Options Ansible where
-    validate Ansible{..} =
+    validate Ansible{..} = do
+        check aEnv "--env must be specified."
         check aArgs "Pass ansible options through using the -- delimiter.\n\
                     \Usage: khan ansible [KHAN OPTIONS] -- [ANSIBLE OPTIONS]."
 
@@ -149,9 +152,8 @@ playbook c@Common{..} a@Ansible{..} = ansible c $ a
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
-    rKeys <- Key.requireRKeys cRKeys
-    k     <- maybe (Key.path rKeys a cLKeys) return aKey
-    i     <- inventoryPath cCache aEnv
+    k <- maybe (Key.path aRKeys a cLKeys) return aKey
+    i <- inventoryPath cCache aEnv
 
     let bin    = Path.fromText $ fromMaybe "ansible" aBin
         script = Path.encodeString $ i <.> "sh"

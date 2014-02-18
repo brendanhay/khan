@@ -50,6 +50,7 @@ module Khan.Internal.Options
     , policyOption
     , ansibleOption
     , userOption
+    , rKeysOption
 
     -- * Validation
     , check
@@ -88,7 +89,6 @@ data Common = Common
     { cDebug  :: !Bool
     , cSilent :: !Bool
     , cRegion :: !Region
-    , cRKeys  :: Maybe RKeysBucket
     , cLKeys  :: !LKeysDir
     , cCache  :: !CacheDir
     , cConfig :: !ConfigDir
@@ -116,10 +116,6 @@ commonParser env = Common
          ( evalue (readMay . Text.unpack) "KHAN_REGION" env
         <> short 'R'
          ) "Region to operate in."
-    <*> optional (RKeysBucket <$> textOption "remote-keys"
-        ( etext "KHAN_RKEYS" env
-        <> short 'K'
-        ) "Bucket to retrieve/store certificates.")
     <*> (LKeysDir <$> pathOption "local-keys"
          ( value "/etc/ssl/khan"
         <> epath "KHAN_LKEYS" env
@@ -214,8 +210,11 @@ roleOption = Role <$> textOption "role" (short 'r')
     "Role of the application."
 
 envOption :: EnvMap -> Parser Env
-envOption env = Env <$> textOption "env" (short 'e' <> etext "KHAN_ENV" env)
-    "Environment of the application."
+envOption env = Env <$> textOption "env"
+    (  short 'e'
+    <> etext "KHAN_ENV" env
+    <> value ""
+    ) "Environment of the application."
 
 versionOption :: Parser Version
 versionOption = customOption "version" "SEMVER" (parseVersion . Text.pack) mempty
@@ -240,6 +239,12 @@ ansibleOption = switchOption "ansible" False
 userOption :: Parser Text
 userOption = textOption "user" (value "ubuntu" <> short 'u')
     "SSH User."
+
+rKeysOption :: EnvMap -> Parser RKeysBucket
+rKeysOption env = RKeysBucket <$> textOption "remote-keys"
+    ( etext "KHAN_RKEYS" env
+   <> short 'K'
+    ) "Bucket to retrieve/store certificates."
 
 check :: (MonadIO m, Invalid a) => a -> String -> EitherT AWSError m ()
 check x = when (invalid x) . throwT . Err

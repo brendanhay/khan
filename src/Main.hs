@@ -104,7 +104,7 @@ parserInfo env = (prefs showHelpOnError, info parser idm)
             <> Cluster.commands env
             <> DNS.commands
             <> Group.commands env
-            <> Image.commands
+            <> Image.commands env
             <> Launch.commands env
             <> Metadata.commands
             <> Profile.commands env

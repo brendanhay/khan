@@ -97,7 +97,7 @@ data Common = Common
 newtype RKeysBucket = RKeysBucket { rKeysBucket :: Text }
     deriving (Eq, Show)
 
-newtype LKeysDir = LKeysDir { lKeysPath :: FilePath }
+newtype LKeysDir = LKeysDir { lKeysDir :: FilePath }
     deriving (Eq, Show)
 
 newtype CacheDir = CacheDir { cacheDir :: FilePath }
@@ -139,7 +139,7 @@ instance Options Common where
     validate Common{..} = do
        check cRegion " --region or KHAN_REGION must be specified."
 
-       checkPath (lKeysPath cLKeys)  " specified by --local-keys or KHAN_LKEYS must exist."
+       checkPath (lKeysDir cLKeys)  " specified by --local-keys or KHAN_LKEYS must exist."
        checkPath (cacheDir cCache)   " specified by --cache or KHAN_CACHE must exist."
        checkPath (configDir cConfig) " specified by --config or KHAN_CONFIG must exist."
 

@@ -17,7 +17,6 @@
 module Khan.Model.Key
     ( create
     , path
-    , requireRKeys
     ) where
 
 import qualified Data.Text                 as Text
@@ -58,11 +57,6 @@ path (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
     void $ Object.download b (Text.pack . Path.encodeString $ Path.filename f) f
     shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
     return f
-
-requireRKeys :: Maybe RKeysBucket -> AWS RKeysBucket
-requireRKeys = maybe (throwAWS_ msg) return
-  where
-    msg = "Remote keys required (--remote-keys or KHAN_RKEYS)."
 
 filePath :: Names -> FilePath -> AWS FilePath
 filePath Names{..} dir = do

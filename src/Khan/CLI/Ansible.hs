@@ -39,8 +39,10 @@ import qualified Khan.Model.Tag             as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
+import           Shelly                     (StdHandle(..), StdStream(..))
 import qualified Shelly                     as Shell
 import           System.Directory
+import           System.IO                  (stdout, stderr)
 import qualified System.Posix.Files         as Posix
 
 data Inventory = Inventory
@@ -171,13 +173,15 @@ ansible c@Common{..} a@Ansible{..} = do
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
     let xs = args k script
-        hs = [ Shell.OutHandle Shell.Inherit
-             , Shell.ErrorHandle Shell.Inherit
-             ]
+        hs = [OutHandle CreatePipe, ErrorHandle CreatePipe]
 
     log "{} {}" [Shell.toTextIgnore bin, Text.unwords xs]
-    liftEitherT . sh $ Shell.runHandles bin xs hs (\_ _ _ -> return ())
+    shell . Shell.runHandles bin xs hs $ \_ hout herr -> do
+        connect hout stdout
+        connect herr stderr
   where
+    connect x y = void . liftIO $ Shell.transferFoldHandleLines [] const x y
+
     args k s = argv ++ foldr' add []
         [ ("-i", Text.pack s)
         , ("--private-key", Shell.toTextIgnore k)

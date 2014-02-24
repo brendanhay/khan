@@ -43,7 +43,7 @@ create :: Text -> Text -> [BlockDeviceMappingItemType] -> AWS Text
 create i n bs = do
     log "Creating Image {} from {}" [n, i]
     img <- cjImageId <$> send (CreateImage i n Nothing Nothing bs)
-    wait img
+    wait limit img
     log "Tagging Image {}" [img]
     send_ $ CreateTags [img] [ResourceTagSetItemType "Name" n]
     return img

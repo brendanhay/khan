@@ -37,6 +37,7 @@ create (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
   where
     exist e = do
         verifyEC2 "InvalidKeyPair.Duplicate" (Left e)
+        void $ path (RKeysBucket b) n (LKeysDir dir)
         log "Key Pair {} exists, not updating." [keyName]
 
     write f k = do

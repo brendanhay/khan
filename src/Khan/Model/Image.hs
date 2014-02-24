@@ -49,18 +49,18 @@ create i n bs = do
     return img
   where
     wait 0 img = throwAWS "Image creation failed: {}" [img]
-    wait n img = do
+    wait l img = do
         log "Waiting {} seconds for Image {} creation..."
             [show delay, Text.unpack img]
         liftIO $ threadDelay delay
         rs <- findAllCatch [img] []
         verifyEC2 "InvalidAMIID.NotFound" rs
         if pending (hush rs)
-            then log "Image still pending: {}" [img] >> wait (n - 1) img
+            then log "Image still pending: {}" [img] >> wait (l - 1) img
             else log "Image marked as available: {}" [img]
 
     pending (Just (x:_)) = diritImageState x /= "available"
     pending _            = True
 
-    limit = 24           -- 24 * 20 seconds = 8 minutes
+    limit = 24 :: Int    -- 24 * 20 seconds = 8 minutes
     delay = 1000000 * 20 -- 20 seconds

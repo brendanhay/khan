@@ -75,7 +75,7 @@ imageParser env = Image
         "SSH timeout for the launched base instance."
 
 instance Options Image where
-    discover _ _ a@Image{..} = return $! a
+    discover _ _ i@Image{..} = return $! i
         { iPlaybook = defaultPath iPlaybook $ Path.fromText "image.yml"
         }
 

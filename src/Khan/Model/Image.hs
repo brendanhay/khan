@@ -14,45 +14,51 @@
 module Khan.Model.Image
     ( find
     , findAll
+    , findAllCatch
     , create
     ) where
 
-import Control.Arrow      ((***))
-import Control.Concurrent (threadDelay)
-import Control.Monad
-import Data.List          (partition)
-import Khan.Internal
-import Khan.Prelude       hiding (find, min, max)
-import Network.AWS.EC2    hiding (Instance, wait)
+import           Control.Concurrent (threadDelay)
+import           Control.Monad
+import qualified Data.Text          as Text
+import           Khan.Internal
+import           Khan.Prelude       hiding (find, min, max)
+import           Network.AWS.EC2    hiding (Instance, wait)
 
 find :: [Text] -> [Filter] -> AWS DescribeImagesResponseItemType
 find ids fs = findAll ids fs >>=
     hoistError . note "Failed to find any matching Images" . listToMaybe
 
 findAll :: [Text] -> [Filter] -> AWS [DescribeImagesResponseItemType]
-findAll ids = fmap djImagesSet . send . DescribeImages [] ids []
+findAll ids fs = djImagesSet <$>
+    send (DescribeImages [] ids [] fs)
+
+findAllCatch :: [Text]
+             -> [Filter]
+             -> AWS (Either EC2ErrorResponse [DescribeImagesResponseItemType])
+findAllCatch ids fs = either Left (Right . djImagesSet) <$>
+    sendCatch (DescribeImages [] ids [] fs)
 
 create :: Text -> Text -> [BlockDeviceMappingItemType] -> AWS Text
 create i n bs = do
     log "Creating Image {} from {}" [n, i]
-    rid <- cjImageId <$> send (CreateImage i n Nothing Nothing bs)
-    log "Waiting for Image {} creation..." [rid]
-    wait [rid]
-    log "Tagging Image {}" [rid]
-    send_ $ CreateTags [rid] [ResourceTagSetItemType "Name" n]
-    return rid
-
-wait :: [Text] -> AWS ()
-wait []  = log_ "All Images available."
-wait ids = do
-    xs <- findAll ids []
-    let (ps, rs) = join (***) (map diritImageId) $ pending xs
-    unless (null rs) $
-        log "Images marked as available: {}" [rs]
-    unless (null ps) $ do
-        log "Images still pending: {}" [ps]
-        log_ "Waiting..."
-        liftIO . threadDelay $ 1000000 * 30
-    wait ps
+    img <- cjImageId <$> send (CreateImage i n Nothing Nothing bs)
+    wait img
+    log "Tagging Image {}" [img]
+    send_ $ CreateTags [img] [ResourceTagSetItemType "Name" n]
+    return img
   where
-    pending = partition (("available" /=) . diritImageState)
+    wait img = do
+        log "Waiting {} seconds for Image {} creation..."
+            [show delay, Text.unpack img]
+        liftIO $ threadDelay delay
+        rs <- findAllCatch [img] []
+        verifyEC2 "InvalidAMIID.NotFound" rs
+        if pending (hush rs)
+            then log "Image still pending: {}" [img] >> wait img
+            else log "Image marked as available: {}" [img]
+
+    pending (Just (x:_)) = diritImageState x /= "available"
+    pending _            = True
+
+    delay = 1000000 * 30

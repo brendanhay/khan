@@ -63,6 +63,8 @@ inventoryParser env = Inventory
         "Host.")
 
 instance Options Inventory
+    validate Inventory{..} =
+        check iEnv "--env must be specified."
 
 data Ansible = Ansible
     { aEnv    :: !Env

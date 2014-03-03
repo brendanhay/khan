@@ -62,7 +62,7 @@ inventoryParser env = Inventory
     <*> optional (textOption "host" mempty
         "Host.")
 
-instance Options Inventory
+instance Options Inventory where
     validate Inventory{..} =
         check iEnv "--env must be specified."
 

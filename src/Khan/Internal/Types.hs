@@ -138,14 +138,6 @@ instance ToEnv Tags where
 instance Naming Tags where
     names Tags{..} = createNames tagRole tagEnv tagVersion
 
-data DNS = DNS
-    { dnsRole :: !Role
-    , dnsVer  :: Maybe Version
-    , dnsOrd  :: !Integer
-    , dnsEnv  :: !Env
-    , dnsReg  :: !Text
-    } deriving (Eq, Ord, Show)
-
 data Names = Names
     { envName      :: !Text
     , keyName      :: !Text

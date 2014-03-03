@@ -17,7 +17,31 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Internal.Types where
+module Khan.Internal.Types
+   (
+   -- * Aliases
+     EnvMap
+
+   -- * Classes
+   , Invalid       (..)
+   , ToEnv         (..)
+   , Naming        (..)
+
+   -- * Types
+   , Tags          (..)
+   , Names         (..)
+   , RoutingPolicy (..)
+   , TrustPath     (..)
+   , PolicyPath    (..)
+   , Role          (_role)
+   , Env           (_env)
+
+   -- * Smart constructors
+   , versioned
+   , unversioned
+   , newRole
+   , newEnv
+   ) where
 
 import           Data.Aeson
 import           Data.Aeson.Types             (Options(..), defaultOptions)
@@ -204,14 +228,29 @@ readAssocList :: [(String, a)] -> Read.ReadPrec a
 readAssocList xs = Read.choice $
     map (\(x, y) -> Read.lift $ ReadP.string x >> return y) xs
 
-newtype Env = Env { _env :: Text }
-    deriving (Eq, Ord, Show, IsString, Invalid, Buildable, Naming)
-
-newtype Role = Role { _role :: Text }
-    deriving (Eq, Ord, Show, IsString, Invalid, Buildable, Naming)
-
 newtype TrustPath = TrustPath { _trust :: FilePath }
     deriving (Eq, Show, IsString)
 
 newtype PolicyPath = PolicyPath { _policy :: FilePath }
     deriving (Eq, Show, IsString)
+
+newtype Role = Role { _role :: Text }
+    deriving (Eq, Ord, Show, Invalid, Naming, Buildable)
+
+instance IsString Role where
+    fromString = newRole . fromString
+
+newRole :: Text -> Role
+newRole = Role . Text.map f
+  where
+    f '-' = '_'
+    f c   = c
+
+newtype Env = Env { _env :: Text }
+    deriving (Eq, Ord, Show, Invalid, Naming, Buildable)
+
+instance IsString Env where
+    fromString = newEnv . fromString
+
+newEnv :: Text -> Env
+newEnv = Env

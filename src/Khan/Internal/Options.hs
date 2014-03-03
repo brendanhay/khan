@@ -206,11 +206,11 @@ argsOption rdr m desc = many . argument rdr $
     metavar "ARGS .." <> help desc <> m
 
 roleOption :: Parser Role
-roleOption = Role <$> textOption "role" (short 'r')
+roleOption = newRole <$> textOption "role" (short 'r')
     "Role of the application."
 
 envOption :: EnvMap -> Parser Env
-envOption env = Env <$> textOption "env"
+envOption env = newEnv <$> textOption "env"
     (  short 'e'
     <> value ""
     <> etext "KHAN_ENV" env

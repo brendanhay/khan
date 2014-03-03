@@ -81,8 +81,8 @@ flatten = Map.fromList
 
 lookup :: (Applicative m, MonadError AWSError m) => HashMap Text Text -> m Tags
 lookup ts = Tags
-    <$> (Role <$> require role ts)
-    <*> (Env <$> require env ts)
+    <$> (newRole <$> require role ts)
+    <*> (newEnv  <$> require env ts)
     <*> require domain ts
     <*> pure (Map.lookup name ts)
     <*> pure (lookupVersion ts)

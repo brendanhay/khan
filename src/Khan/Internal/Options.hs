@@ -212,8 +212,8 @@ roleOption = Role <$> textOption "role" (short 'r')
 envOption :: EnvMap -> Parser Env
 envOption env = Env <$> textOption "env"
     (  short 'e'
-    <> etext "KHAN_ENV" env
     <> value ""
+    <> etext "KHAN_ENV" env
     ) "Environment of the application."
 
 versionOption :: Parser Version

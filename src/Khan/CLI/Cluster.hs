@@ -17,17 +17,15 @@ module Khan.CLI.Cluster (commands) where
 
 import           Control.Concurrent          (threadDelay)
 import qualified Data.HashMap.Strict         as Map
-import           Data.List                   (intersperse)
 import           Data.SemVer
-import qualified Data.Text                   as Text
-import           Khan.Internal               hiding (infoParser)
+import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
 import qualified Khan.Model.LaunchConfig     as Config
-import           Khan.Model.Profile          (Policy(..))
-import qualified Khan.Model.Profile          as Profile
+import           Khan.Model.Role             (Paths(..))
+import qualified Khan.Model.Role             as Role
 import qualified Khan.Model.ScalingGroup     as ASG
 import qualified Khan.Model.SecurityGroup    as Security
 import qualified Khan.Model.Tag              as Tag
@@ -35,7 +33,6 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
-import qualified Text.PrettyPrint.Boxes      as PP
 
 data Info = Info
     { iRole :: !Role
@@ -104,7 +101,7 @@ instance Options Deploy where
             , dPolicy = pPolicyPath
             }
       where
-        Policy{..} = Profile.policy d cConfig dTrust dPolicy
+        Paths{..} = Role.paths d cConfig dTrust dPolicy
 
     validate Deploy{..} = do
         check dEnv   "--env must be specified."
@@ -202,12 +199,11 @@ info Common{..} Info{..} = do
     log "Describing Auto Scaling Groups: [{}]" [Map.keys m]
     gs <- ASG.findAll $ Map.keys m
 
-    log "Found {} matching Auto Scaling Groups\n" [length gs]
+    log "Found {} matching Auto Scaling Groups" [length gs]
     forM_ gs $ \g@AutoScalingGroup{..} -> do
         xs <- noteAWS "Missing Auto Scaling Group entries: {}" [asgAutoScalingGroupName] $
             Map.lookup asgAutoScalingGroupName m
-        prettyPrint $ PP g
-        prettyPrint $ PP xs
+        ln >> pp (title asgAutoScalingGroupName) >> ppi 2 g >> ln >> ppi 2 xs >> ln
   where
     annotate i@RunningInstancesItemType{..} = (,)
         <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName riitTagSet)
@@ -229,7 +225,7 @@ deploy c@Common{..} d@Deploy{..} = do
         throwAWS "Auto Scaling Group {} already exists." [appName]
 
     k <- async $ Key.create dRKeys d cLKeys
-    p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
+    p <- async $ Role.find d <|> Role.update d dTrust dPolicy
     s <- async $ Security.sshGroup d
     g <- async $ Security.create groupName
     a <- async $ Image.find [] [Filter "name" [imageName]]
@@ -254,62 +250,8 @@ scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 promote :: Common -> Cluster -> AWS ()
-promote _ _ = return ()
+promote _ c@Cluster{..} = return ()
 
+-- FIXME: Ensure the cluster is not currently the only promoted one.
 retire :: Common -> Cluster -> AWS ()
 retire _ c = ASG.delete c >> Config.delete c
-
-newtype PP a = PP a
-
-instance Pretty (PP AutoScalingGroup) where
-    pretty (PP AutoScalingGroup{..}) = PP.text name PP.// layout [hs, vs]
-      where
-        name = "[" ++ Text.unpack asgAutoScalingGroupName ++ "] ->"
-
-        hs = [ "status:"
-             , "zones:"
-             , "cooldown:"
-             , "min:"
-             , "max:"
-             , "desired:"
-             , "created:"
-             ]
-
-        vs = [ maybe "OK" show asgStatus
-             , zones
-             , show asgDefaultCooldown
-             , show asgMinSize
-             , show asgMaxSize
-             , show asgDesiredCapacity
-             , formatUTC asgCreatedTime
-             ]
-
-        zones | null asgAvailabilityZones = ""
-              | otherwise = (show . azRegion $ head asgAvailabilityZones)
-                  ++ "["
-                  ++ intersperse ',' (map azSuffix asgAvailabilityZones)
-                  ++ "]"
-
-instance Pretty (PP [RunningInstancesItemType]) where
-    pretty (PP xs) = (layout . (hs :) $ map f xs) PP./+/ PP.nullBox
-      where
-        hs = [ "weight:"
-             , "instance-id:"
-             , "image-id:"
-             , "public-ip:"
-             , "type:"
-             , "launched:"
-             , "state:"
-             , "reason:"
-             ]
-
-        f RunningInstancesItemType{..} =
-            [ show . Tag.lookupWeight $ Tag.flatten riitTagSet
-            , Text.unpack riitInstanceId
-            , Text.unpack riitImageId
-            , Text.unpack . fromMaybe "" $ riitIpAddress
-            , show riitInstanceType
-            , formatUTC riitLaunchTime
-            , Text.unpack $ istName riitInstanceState
-            , maybe "" show riitStateReason
-            ]

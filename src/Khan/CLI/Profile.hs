@@ -18,10 +18,10 @@
 module Khan.CLI.Profile (commands) where
 
 import           Khan.Internal
-import           Khan.Model.Profile (Policy(..))
-import qualified Khan.Model.Profile as Profile
+import           Khan.Model.Role (Paths(..))
+import qualified Khan.Model.Role as Role
 import           Khan.Prelude
-import           Network.AWS.IAM    hiding (Role)
+import           Network.AWS.IAM hiding (Role)
 
 default (Text)
 
@@ -62,7 +62,7 @@ instance Options Update where
         , uPolicy = pPolicyPath
         }
       where
-        Policy{..} = Profile.policy r cConfig uTrust uPolicy
+        Paths{..} = Role.paths r cConfig uTrust uPolicy
 
     validate Update{..} = do
         check uEnv "--env must be specified."
@@ -77,11 +77,18 @@ commands env = group "profile" "IAM Updates and Roles." $ mconcat
     [ command "info" info (infoParser env)
         "Display information about an IAM Role."
     , command "update" update (updateParser env)
-        "Create or update IAM Role and associated Profile."
+        "Create or update IAM Role and associated Role."
     ]
 
 info :: Common -> Info -> AWS ()
-info _ = pp <=< Profile.find
+info _ i = do
+    ra <- async (Role.find i)
+    pa <- async (Role.findPolicy i)
+
+    r <- wait ra
+    p <- wait pa
+
+    ln >> pp (title $ rRoleName r) >> ppi 2 r >> ppi 2 p >> ln
 
 update :: Common -> Update -> AWS ()
-update _ u = void $ Profile.update u (uTrust u) (uPolicy u)
+update _ u = void $ Role.update u (uTrust u) (uPolicy u)

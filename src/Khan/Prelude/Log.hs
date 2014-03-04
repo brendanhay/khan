@@ -12,23 +12,25 @@
 
 module Khan.Prelude.Log
    ( enableLogging
+   , pp
    , log
    , log_
    , debug
    , debug_
    ) where
 
-import           Control.Monad.IO.Class  (MonadIO, liftIO)
+import           Control.Monad.IO.Class       (MonadIO, liftIO)
 import           Data.IORef
-import           Data.Text               (Text)
+import           Data.Text                    (Text)
 import           Data.Text.Format
 import           Data.Text.Format.Params
-import qualified Data.Text.Lazy          as LText
-import qualified Data.Text.Lazy.IO       as LText
-import           Network.AWS             (AWS, whenDebug)
-import           Prelude                 hiding (log)
-import qualified System.IO               as IO
-import           System.IO.Unsafe        (unsafePerformIO)
+import qualified Data.Text.Lazy               as LText
+import qualified Data.Text.Lazy.IO            as LText
+import           Network.AWS                  (AWS, whenDebug)
+import           Prelude                      hiding (log)
+import qualified System.IO                    as IO
+import           System.IO.Unsafe             (unsafePerformIO)
+import           Text.PrettyPrint.Leijen.Text
 
 logger :: IORef (LText.Text -> IO ())
 logger = unsafePerformIO . newIORef . const $ return ()
@@ -40,6 +42,9 @@ enableLogging = liftIO $ do
     atomicWriteIORef logger $! LText.hPutStrLn hd
   where
     hd = IO.stdout
+
+pp :: (MonadIO m, Pretty a) => a -> m ()
+pp = log "{}" . Only . displayT . renderPretty 0.4 100 . pretty
 
 log :: (MonadIO m, Params ps) => Format -> ps -> m ()
 log f ps = liftIO $ readIORef logger >>= ($ format f ps)

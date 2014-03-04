@@ -217,8 +217,13 @@ envOption env = newEnv <$> textOption "env"
     ) "Environment of the application."
 
 versionOption :: Parser Version
-versionOption = customOption "version" "SEMVER" (parseVersion . Text.pack) mempty
+versionOption = customOption "version" "SEMVER" p mempty
     "Version of the application."
+  where
+    p = parseVersion . Text.map f . Text.pack
+
+    f '/' = '+'
+    f  c  = c
 
 keyOption :: Parser (Maybe FilePath)
 keyOption = optional $ pathOption "key" (short 'i')

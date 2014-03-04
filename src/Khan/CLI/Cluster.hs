@@ -44,7 +44,9 @@ infoParser env = Info
     <$> roleOption
     <*> envOption env
 
-instance Options Info
+instance Options Info where
+    validate Info{..} =
+        check iEnv "--env must be specified."
 
 instance Naming Info where
     names Info{..} = unversioned iRole iEnv
@@ -146,6 +148,7 @@ scaleParser env = Scale
 
 instance Options Scale where
     validate Scale{..} = do
+        check sEnv "--env must be specified."
         check (sMin >= sMax)    "--min must be less than --max."
         check (sDesired < sMin) "--desired must be greater than or equal to --min."
         check (sDesired > sMax) "--desired must be less than or equal to --max."
@@ -186,24 +189,35 @@ commands env = group "cluster" "Auto Scaling Groups." $ mconcat
 
 info :: Common -> Info -> AWS ()
 info Common{..} Info{..} = do
-    log "Looking for Instances tagged Role:{} and Env:{}"
-        [_role iRole, _env iEnv]
+    let r = _role iRole
+        e = _env  iEnv
+
+    log "Looking for Instances tagged with Role:{} and Env:{}" [r, e]
     is <- mapM annotate =<< Instance.findAll []
-        [ Tag.filter Tag.role [_role iRole]
-        , Tag.filter Tag.env  [_env  iEnv]
+        [ Tag.filter Tag.role [r]
+        , Tag.filter Tag.env  [e]
+        , Filter "instance-state-name" ["pending", "running", "stopping", "shutting-down"]
         , Filter "tag-key" [groupTag]
         ]
 
-    let m = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
+    let m  = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
+        ks = Map.keys m
 
-    log "Describing Auto Scaling Groups: [{}]" [Map.keys m]
-    gs <- ASG.findAll $ Map.keys m
+    if null ks
+        then log_ "No Auto Scaling Groups found."
+        else do
+            log "Describing Auto Scaling Groups: [{}]" [ks]
+            gs <- ASG.findAll ks
 
-    log "Found {} matching Auto Scaling Groups" [length gs]
-    forM_ gs $ \g@AutoScalingGroup{..} -> do
-        xs <- noteAWS "Missing Auto Scaling Group entries: {}" [asgAutoScalingGroupName] $
-            Map.lookup asgAutoScalingGroupName m
-        ln >> pp (title asgAutoScalingGroupName) >> ppi 2 g >> ln >> ppi 2 xs >> ln
+            log "Found {} matching Auto Scaling Groups" [length gs]
+            forM_ gs $ \g@AutoScalingGroup{..} -> do
+                xs <- noteAWS "[Error] Auto Scaling Group entries: {}"
+                    [asgAutoScalingGroupName]
+                    (Map.lookup asgAutoScalingGroupName m)
+
+                ln >> pp (title asgAutoScalingGroupName)
+                ppi 2 g  >> ln
+                ppi 2 xs >> ln
   where
     annotate i@RunningInstancesItemType{..} = (,)
         <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName riitTagSet)
@@ -251,6 +265,11 @@ scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 promote :: Common -> Cluster -> AWS ()
 promote _ c@Cluster{..} = return ()
+    -- find all role clusters in the current region
+
+    -- sort by their weight tags
+
+    -- present multiple choice
 
 -- FIXME: Ensure the cluster is not currently the only promoted one.
 retire :: Common -> Cluster -> AWS ()

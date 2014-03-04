@@ -70,7 +70,7 @@ import           Khan.Internal.IO
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
-import           Options.Applicative       as Export hiding (command, info, execParser)
+import           Options.Applicative       as Export hiding (command, info, infoParser, execParser)
 import qualified Options.Applicative       as Options
 import           Prelude                   (error)
 import qualified Shelly                    as Shell

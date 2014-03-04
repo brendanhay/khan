@@ -14,33 +14,33 @@
 
 module Main (main) where
 
-import           Control.Arrow               ((***))
+import           Control.Arrow             ((***))
 import           Control.Error
 import           Control.Monad
-import qualified Data.HashMap.Strict         as Map
-import           Data.List                   (isPrefixOf)
+import qualified Data.HashMap.Strict       as Map
+import           Data.List                 (isPrefixOf)
 import           Data.Monoid
-import qualified Data.Text                   as Text
-import qualified Khan.CLI.Ansible            as Ansible
-import qualified Khan.CLI.Artifact           as Artifact
-import qualified Khan.CLI.Cluster            as Cluster
-import qualified Khan.CLI.DNS                as DNS
-import qualified Khan.CLI.Group              as Group
-import qualified Khan.CLI.Image              as Image
-import qualified Khan.CLI.Launch             as Launch
-import qualified Khan.CLI.Metadata           as Metadata
-import qualified Khan.CLI.Profile            as Profile
-import qualified Khan.CLI.Routing            as Routing
-import qualified Khan.CLI.SSH                as SSH
+import qualified Data.Text                 as Text
+import qualified Khan.CLI.Ansible          as Ansible
+import qualified Khan.CLI.Artifact         as Artifact
+import qualified Khan.CLI.Cluster          as Cluster
+import qualified Khan.CLI.DNS              as DNS
+import qualified Khan.CLI.Group            as Group
+import qualified Khan.CLI.Image            as Image
+import qualified Khan.CLI.Launch           as Launch
+import qualified Khan.CLI.Metadata         as Metadata
+import qualified Khan.CLI.Profile          as Role
+import qualified Khan.CLI.Routing          as Routing
+import qualified Khan.CLI.SSH              as SSH
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import qualified Network.AWS.EC2.Metadata    as Meta
-import           Options.Applicative         (info)
-import           Options.Applicative.Types   (ParserPrefs)
+import qualified Network.AWS.EC2.Metadata  as Meta
+import           Options.Applicative       (info)
+import           Options.Applicative.Types (ParserPrefs)
 import           System.Environment
-import           System.Exit                 (exitWith)
-import           System.IO                   (hPutStrLn, stderr)
+import           System.Exit               (exitWith)
+import           System.IO                 (hPutStrLn, stderr)
 
 main :: IO ()
 main = runScript $ do
@@ -107,7 +107,7 @@ parserInfo env = (prefs showHelpOnError, info parser idm)
             <> Image.commands env
             <> Launch.commands env
             <> Metadata.commands
-            <> Profile.commands env
+            <> Role.commands env
             <> Routing.commands env
             <> SSH.commands env
              )

@@ -19,8 +19,8 @@ import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
-import           Khan.Model.Profile          (Policy(..))
-import qualified Khan.Model.Profile          as Profile
+import           Khan.Model.Role             (Paths(..))
+import qualified Khan.Model.Role             as Role
 import qualified Khan.Model.SecurityGroup    as Security
 import qualified Khan.Model.Tag              as Tag
 import           Khan.Prelude
@@ -81,7 +81,7 @@ instance Options Launch where
             , lPolicy = pPolicyPath
             }
       where
-        Policy{..} = Profile.policy l cConfig lTrust lPolicy
+        Paths{..} = Role.paths l cConfig lTrust lPolicy
 
     validate Launch{..} = do
         check lEnv   "--env must be specified."
@@ -106,7 +106,7 @@ launch Common{..} l@Launch{..} = do
         (Filter "image-id" . (:[])) lImage
 
     log "Looking for IAM Profiles matching {}" [profileName]
-    p <- async $ Profile.find l <|> Profile.update l lTrust lPolicy
+    p <- async $ Role.find l <|> Role.update l lTrust lPolicy
 
     ami <- diritImageId <$> wait a
     log "Using Image {}" [ami]

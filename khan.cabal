@@ -52,8 +52,8 @@ library
       , Khan.Model.Key
       , Khan.Model.LaunchConfig
       , Khan.Model.Object
-      , Khan.Model.Profile
       , Khan.Model.RecordSet
+      , Khan.Model.Role
       , Khan.Model.SSH
       , Khan.Model.ScalingGroup
       , Khan.Model.SecurityGroup

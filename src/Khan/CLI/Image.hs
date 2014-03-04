@@ -28,7 +28,7 @@ import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.Role          as Role
 import qualified Khan.Model.SSH              as SSH
 import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
@@ -109,7 +109,7 @@ image c@Common{..} d@Image{..} = do
     a <- async $ Image.find [iImage] []
 
     log "Looking for IAM Profile matching {}" [profileName]
-    i <- async $ Profile.find d
+    i <- async $ Role.find d
 
     ami <- diritImageId <$> wait a
     log "Found base Image {}" [ami]

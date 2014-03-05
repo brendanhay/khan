@@ -19,6 +19,7 @@ module Khan.CLI.Ansible
     -- * Convenience exports for the Image CLI
     , Ansible (..)
     , playbook
+    , which
     ) where
 
 import           Control.Monad              (mplus)
@@ -39,11 +40,11 @@ import qualified Khan.Model.Tag             as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
-import           Shelly                     (StdHandle(..), StdStream(..))
 import qualified Shelly                     as Shell
 import           System.Directory
-import           System.IO                  (stdout, stderr)
+import qualified System.IO                  as IO
 import qualified System.Posix.Files         as Posix
+import           System.Process             (callCommand)
 
 data Inventory = Inventory
     { iEnv    :: !Env
@@ -136,31 +137,20 @@ inventory Common{..} Inventory{..} = do
                 [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]
 
 playbook :: Common -> Ansible -> AWS ()
-playbook c@Common{..} a@Ansible{..} = ansible c $ a
-    { aBin  = aBin `mplus` Just "ansible-playbook"
-    , aArgs = aArgs ++
-        [ "--extra-vars"
-        , concat [ "khan_region="
-                 , show cRegion
-                 , " khan_region_abbrev="
-                 , Text.unpack $ abbreviate cRegion
-                 , " khan_env="
-                 , Text.unpack envName
-                 , " khan_key="
-                 , Text.unpack keyName
-                 ]
-        ]
-    }
-  where
-    Names{..} = names aEnv
+playbook c@Common{..} a@Ansible{..} =
+    let Names{..} = names aEnv
+     in ansible c $ a { aBin = aBin `mplus` Just "ansible-playbook" }
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
+    let bin = Text.unpack $ fromMaybe "ansible" aBin
+
+    which bin
+
     k <- maybe (Key.path aRKeys a cLKeys) return aKey
     i <- inventoryPath cCache aEnv
 
-    let bin    = Path.fromText $ fromMaybe "ansible" aBin
-        script = Path.encodeString $ i <.> "sh"
+    let script = Path.encodeString $ i <.> "sh"
         inv    = Path.encodeString i
 
     whenM ((|| aForce) <$> exceeds inv) $ do
@@ -174,25 +164,23 @@ ansible c@Common{..} a@Ansible{..} = do
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    let xs = args k script
-        hs = [OutHandle CreatePipe, ErrorHandle CreatePipe]
+    debug_ "Setting line-buffering on stdout and stderr"
+    liftIO $ do
+        IO.hSetBuffering IO.stdout IO.LineBuffering
+        IO.hSetBuffering IO.stderr IO.LineBuffering
 
-    log "{} {}" [Shell.toTextIgnore bin, Text.unwords xs]
-    shell . Shell.runHandles bin xs hs $ \_ hout herr -> do
-        connect hout stdout
-        connect herr stderr
+    let cmd = unwords ["ANSIBLE_FORCE_COLOR=1", unwords (bin : args k script)]
+
+    log "{}" [cmd]
+    liftEitherT . sync $ callCommand cmd
   where
-    connect x y = void . liftIO $ Shell.transferFoldHandleLines [] const x y
-
-    args k s = argv ++ foldr' add []
-        [ ("-i", Text.pack s)
-        , ("--private-key", Shell.toTextIgnore k)
+    args k s = aArgs ++ foldr' add []
+        [ ("-i", s)
+        , ("--private-key", Path.encodeString k)
         ]
 
-    argv = map Text.pack aArgs
-
     add (k, v) xs =
-        if k `elem` argv
+        if k `elem` aArgs
             then xs
             else k : v : xs
 
@@ -203,5 +191,8 @@ ansible c@Common{..} a@Ansible{..} = do
             else do
                 s  <- Posix.getFileStatus i
                 ts <- getPOSIXTime
-                return $
-                    ts - Posix.modificationTimeHiRes s > fromIntegral aRetain
+                return $ ts - Posix.modificationTimeHiRes s > fromIntegral aRetain
+
+which :: String -> AWS ()
+which cmd = shell (Shell.which $ Path.decodeString cmd) >>=
+    void . noteAWS "Command {} doesn't exist." ["ansible-playbook" :: Text]

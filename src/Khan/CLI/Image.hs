@@ -21,7 +21,7 @@ import           Data.SemVer
 import qualified Data.Text                   as Text
 import qualified Data.Text.Format            as Format
 import qualified Filesystem.Path.CurrentOS   as Path
-import           Khan.CLI.Ansible            (Ansible(..), playbook)
+import           Khan.CLI.Ansible            (Ansible(..), playbook, which)
 import           Khan.Internal
 import           Khan.Internal.Ansible
 import qualified Khan.Model.AvailabilityZone as AZ
@@ -34,7 +34,6 @@ import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2             hiding (Failed, Image)
-import qualified Shelly                      as Shell
 
 data Image = Image
     { iRKeys    :: !RKeysBucket
@@ -79,7 +78,8 @@ instance Options Image where
         { iPlaybook = defaultPath iPlaybook $ Path.fromText "image.yml"
         }
 
-    validate Image{..} =
+    validate Image{..} = do
+        checkPath iPlaybook    " specified by --playbook must exist."
         check (iNDevices > 24) "--block-devices should be less than 24"
 
 instance Naming Image where
@@ -97,8 +97,7 @@ commands env = command "image" image (imageParser env)
 
 image :: Common -> Image -> AWS ()
 image c@Common{..} d@Image{..} = do
-    shell (Shell.which "ansible-playbook") >>=
-        void . noteAWS "Command {} doesn't exist." ["ansible-playbook" :: Text]
+    which "ansible-playbook"
 
     log "Checking if target Image {} exists..." [imageName]
     as <- Image.findAll [] [Filter "name" [imageName]]
@@ -147,7 +146,7 @@ image c@Common{..} d@Image{..} = do
         log "Running Playbook {}" [iPlaybook]
         playbook c $ Ansible "ami" iRKeys Nothing Nothing 36000 False $ iArgs ++
             [ "-i", Text.unpack $ dns <> ",localhost,"
-            , "-e", LBS.unpack . Aeson.encode $ ImageInput n cRegion dns
+            , "-e", encode $ ImageInput n cRegion dns
             , Path.encodeString iPlaybook
             ]
 
@@ -162,6 +161,8 @@ image c@Common{..} d@Image{..} = do
     const () <$> hoistError e
   where
     n@Names{..} = names d
+
+    encode x = '\'' : LBS.unpack (Aeson.encode x <> "'")
 
     blockDevices i = zipWith mkBlockDevice ['b' .. 'z'] [0 .. i - 1]
 

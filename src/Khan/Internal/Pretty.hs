@@ -12,8 +12,10 @@ import qualified Data.Aeson.Encode.Pretty     as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LBS
 import           Data.String
 import qualified Data.Text                    as Text
+import           Data.Text.Buildable
 import qualified Data.Text.Encoding           as Text
 import           Data.Text.Format             (Only(..))
+import qualified Data.Text.Lazy.Builder       as LText
 import           Data.Time                    (UTCTime)
 import qualified Khan.Model.Tag               as Tag
 import           Khan.Prelude
@@ -27,6 +29,32 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 default (Doc)
 
+data Column where
+    H :: Pretty a => a -> Column
+    C :: Pretty a => a -> Column
+    D :: Pretty a => a -> Column
+
+instance Pretty Column where
+    pretty (H x) = pretty x
+    pretty (C x) = pretty x
+    pretty (D x) = pretty x
+
+cols :: Int -> [Column] -> [Doc]
+cols w = map f
+  where
+    f (H x) = fill w  (bold $ pretty x)
+    f (C x) = fill w  (pretty x)
+    f (D x) = fill 19 (pretty x)
+
+hcols :: Int -> [Column] -> Doc
+hcols w = hsep . cols w
+
+vcols :: Int -> [Column] -> Doc
+vcols w = vsep . cols w
+
+title :: Pretty a => a -> Doc
+title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
+
 pp :: (MonadIO m, Pretty a) => a -> m ()
 pp = ppi 0
 
@@ -35,32 +63,6 @@ ppi i = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100 . indent i . 
 
 ln :: MonadIO m => m ()
 ln = liftIO (putStrLn "")
-
-title :: Pretty a => a -> Doc
-title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
-
-data Col where
-    H :: Pretty a => a -> Col
-    C :: Pretty a => a -> Col
-    D :: Pretty a => a -> Col
-
-instance Pretty Col where
-    pretty (H x) = pretty x
-    pretty (C x) = pretty x
-    pretty (D x) = pretty x
-
-cols :: Int -> [Col] -> [Doc]
-cols w = map f
-  where
-    f (H x) = fill w  (bold $ pretty x)
-    f (C x) = fill w  (pretty x)
-    f (D x) = fill 19 (pretty x)
-
-hcols :: Int -> [Col] -> Doc
-hcols w = hsep . cols w
-
-vcols :: Int -> [Col] -> Doc
-vcols w = vsep . cols w
 
 (<->) :: Doc -> Doc -> Doc
 (<->) = (PP.<$>)

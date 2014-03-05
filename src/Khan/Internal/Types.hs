@@ -227,7 +227,7 @@ newtype PolicyPath = PolicyPath { _policy :: FilePath }
     deriving (Eq, Show, IsString)
 
 newtype Role = Role { _role :: Text }
-    deriving (Eq, Ord, Show, Invalid, Naming, Buildable)
+    deriving (Eq, Ord, Show, Invalid, Naming)
 
 instance IsString Role where
     fromString = newRole . fromString
@@ -239,7 +239,7 @@ newRole = Role . Text.map f
     f c   = c
 
 newtype Env = Env { _env :: Text }
-    deriving (Eq, Ord, Show, Invalid, Naming, Buildable)
+    deriving (Eq, Ord, Show, Invalid, Naming)
 
 instance IsString Env where
     fromString = newEnv . fromString

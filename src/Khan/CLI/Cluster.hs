@@ -19,6 +19,7 @@ import           Control.Concurrent          (threadDelay)
 import qualified Data.HashMap.Strict         as Map
 import           Data.SemVer
 import           Khan.Internal
+import           Khan.Internal.Pretty
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
@@ -192,7 +193,7 @@ info Common{..} Info{..} = do
     let r = _role iRole
         e = _env  iEnv
 
-    log "Looking for Instances tagged with Role:{} and Env:{}" [r, e]
+    say "Looking for Instances tagged with {} and {}" [r, e]
     is <- mapM annotate =<< Instance.findAll []
         [ Tag.filter Tag.role [r]
         , Tag.filter Tag.env  [e]
@@ -206,10 +207,10 @@ info Common{..} Info{..} = do
     if null ks
         then log_ "No Auto Scaling Groups found."
         else do
-            log "Describing Auto Scaling Groups: [{}]" [ks]
+            say "Describing Auto Scaling Groups: {}" [ks]
             gs <- ASG.findAll ks
 
-            log "Found {} matching Auto Scaling Groups" [length gs]
+            say "Found {} matching Auto Scaling Groups" [length gs]
             forM_ gs $ \g@AutoScalingGroup{..} -> do
                 xs <- noteAWS "[Error] Auto Scaling Group entries: {}"
                     [asgAutoScalingGroupName]
@@ -220,7 +221,7 @@ info Common{..} Info{..} = do
                 ppi 2 xs >> ln
   where
     annotate i@RunningInstancesItemType{..} = (,)
-        <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName riitTagSet)
+        <$> noteAWS "No Auto Scaling Group for: {}" [Bold riitInstanceId] (groupName riitTagSet)
         <*> pure i
 
     groupName = Map.lookup groupTag . Tag.flatten
@@ -231,12 +232,12 @@ deploy c@Common{..} d@Deploy{..} = do
     j <- ASG.find d
 
     when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
-        log "Waiting for previous deletion of Auto Scaling Group {}" [appName]
+        say "Waiting for previous deletion of Auto Scaling Group {}" [appName]
         liftIO . threadDelay $ 10 * 1000000
         deploy c d
 
     when (isJust j) $
-        throwAWS "Auto Scaling Group {} already exists." [appName]
+        throwAWS "Auto Scaling Group {} already exists." [Bold appName]
 
     k <- async $ Key.create dRKeys d cLKeys
     p <- async $ Role.find d <|> Role.update d dTrust dPolicy
@@ -245,12 +246,12 @@ deploy c@Common{..} d@Deploy{..} = do
     a <- async $ Image.find [] [Filter "name" [imageName]]
 
     wait_ k
-    wait_ p <* log "Found IAM Profile {}" [profileName]
-    wait_ s <* log "Found SSH Group {}"   [sshGroupName]
-    wait_ g <* log "Found App Group {}"   [groupName]
+    wait_ p <* say "Found IAM Profile {}" [profileName]
+    wait_ s <* say "Found SSH Group {}"   [sshGroupName]
+    wait_ g <* say "Found App Group {}"   [groupName]
 
     ami <- diritImageId <$> wait a
-    log "Found AMI {} named {}" [ami, imageName]
+    say "Found AMI {} named {}" [ami, imageName]
 
     Config.create d ami dType
 

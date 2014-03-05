@@ -71,9 +71,9 @@ wait ids = do
     xs <- findAll ids []
     let (ps, rs) = join (***) (map riitInstanceId) $ pending xs
     unless (null rs) $
-        log "Instances marked as running: {}" [rs]
+        say "Instances marked as running: {}" [rs]
     unless (null ps) $ do
-        log "Instances still pending: {}" [ps]
+        say "Instances still pending: {}" [ps]
         log_ "Waiting..."
         liftIO . threadDelay $ 1000000 * 30
     wait ps

@@ -39,9 +39,9 @@ sshGroup = flip update rules . sshGroupName . names
 
 find :: Text -> AWS (Maybe SecurityGroupItemType)
 find name = do
-    log "Searching for Security Group {}" [name]
+    say "Searching for Security Group {}" [name]
     mg <- fmap groupMay . sendCatch $ DescribeSecurityGroups [name] [] []
-    when (isNothing mg) $ log "Unable to find Security Group {}" [name]
+    when (isNothing mg) $ say "Unable to find Security Group {}" [name]
     return mg
   where
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
@@ -50,10 +50,10 @@ find name = do
 create :: Text -> AWS Bool
 create name = do
     mg <- find name
-    maybe (do log "Security Group {} not found, creating..." [name]
+    maybe (do say "Security Group {} not found, creating..." [name]
               gid <- fmap csgrGroupId . send $
                   CreateSecurityGroup name name Nothing
-              log "Security Group {} created." [gid]
+              say "Security Group {} created." [gid]
               return True)
           (const $ return False)
           mg
@@ -63,7 +63,7 @@ delete name = do
     mg <- find name
     maybe (return False)
           (const $ do
-              log "Deleting Security Group {}..." [name]
+              say "Deleting Security Group {}..." [name]
               send_ $ DeleteSecurityGroup (Just name) Nothing
               log_ "Security Group deleted."
               return True)
@@ -75,7 +75,7 @@ delete name = do
 update :: Text -> [IpPermissionType] -> AWS Bool
 update name (sort -> rules) = do
     _   <- create name
-    grp <- find name >>= noteAWS "Unable to find Security Group: {}" [name]
+    grp <- find name >>= noteAWS "Unable to find Security Group: {}" [B name]
 
     let gid         = sgitGroupId grp
         fs          = map (UserIdGroupPair Nothing Nothing . uigGroupName)
@@ -91,14 +91,14 @@ update name (sort -> rules) = do
     revoke gid xs
         | null xs   = return False
         | otherwise = do
-            log "Revoking {} on {}..." [showRules xs, name]
+            log "Revoking {} on {}..." [B xs, B name]
             send_ $ RevokeSecurityGroupIngress (Just gid) Nothing xs
             return True
 
     authorise gid xs
         | null xs   = return False
         | otherwise = do
-            log "Authorising {} on {}..." [showRules xs, name]
+            log "Authorising {} on {}..." [B xs, B name]
             es <- sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing xs)
             verifyEC2 "InvalidPermission.Duplicate" es
             return $ isRight es

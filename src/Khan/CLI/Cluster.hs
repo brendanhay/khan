@@ -19,7 +19,6 @@ import           Control.Concurrent          (threadDelay)
 import qualified Data.HashMap.Strict         as Map
 import           Data.SemVer
 import           Khan.Internal
-import           Khan.Internal.Pretty
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
@@ -212,20 +211,22 @@ info Common{..} Info{..} = do
 
             say "Found {} matching Auto Scaling Groups" [length gs]
             forM_ gs $ \g@AutoScalingGroup{..} -> do
-                xs <- noteAWS "[Error] Auto Scaling Group entries: {}"
-                    [asgAutoScalingGroupName]
+                xs <- noteAWS "Missing Auto Scaling Group entries: {}"
+                    [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
 
                 ln >> pp (title asgAutoScalingGroupName)
                 ppi 2 g  >> ln
-                ppi 2 xs >> ln
+                ppi 2 (map weighted xs) >> ln
   where
     annotate i@RunningInstancesItemType{..} = (,)
-        <$> noteAWS "No Auto Scaling Group for: {}" [Bold riitInstanceId] (groupName riitTagSet)
+        <$> noteAWS "No Auto Scaling Group for: {}" [B riitInstanceId] (groupName riitTagSet)
         <*> pure i
 
     groupName = Map.lookup groupTag . Tag.flatten
     groupTag  = "aws:autoscaling:groupName"
+
+    weighted i = PI i (Tag.lookupWeight . Tag.flatten $ riitTagSet i)
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do
@@ -237,7 +238,7 @@ deploy c@Common{..} d@Deploy{..} = do
         deploy c d
 
     when (isJust j) $
-        throwAWS "Auto Scaling Group {} already exists." [Bold appName]
+        throwAWS "Auto Scaling Group {} already exists." [B appName]
 
     k <- async $ Key.create dRKeys d cLKeys
     p <- async $ Role.find d <|> Role.update d dTrust dPolicy
@@ -247,8 +248,8 @@ deploy c@Common{..} d@Deploy{..} = do
 
     wait_ k
     wait_ p <* say "Found IAM Profile {}" [profileName]
-    wait_ s <* say "Found SSH Group {}"   [sshGroupName]
-    wait_ g <* say "Found App Group {}"   [groupName]
+    wait_ s <* say "Found SSH Group {}" [sshGroupName]
+    wait_ g <* say "Found App Group {}" [groupName]
 
     ami <- diritImageId <$> wait a
     say "Found AMI {} named {}" [ami, imageName]

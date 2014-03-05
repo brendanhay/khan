@@ -41,23 +41,23 @@ findAllCatch ids fs = either Left (Right . djImagesSet) <$>
 
 create :: Text -> Text -> [BlockDeviceMappingItemType] -> AWS Text
 create i n bs = do
-    log "Creating Image {} from {}" [n, i]
+    say "Creating Image {} from {}" [n, i]
     img <- cjImageId <$> send (CreateImage i n Nothing Nothing bs)
     wait limit img
-    log "Tagging Image {}" [img]
+    say "Tagging Image {}" [img]
     send_ $ CreateTags [img] [ResourceTagSetItemType "Name" n]
     return img
   where
-    wait 0 img = throwAWS "Image creation failed: {}" [img]
+    wait 0 img = throwAWS "Image creation failed: {}" [B img]
     wait l img = do
-        log "Waiting {} seconds for Image {} creation..."
+        say "Waiting {} seconds for Image {} creation..."
             [show delay, Text.unpack img]
         liftIO $ threadDelay delay
         rs <- findAllCatch [img] []
         verifyEC2 "InvalidAMIID.NotFound" rs
         if pending (hush rs)
-            then log "Image still pending: {}" [img] >> wait (l - 1) img
-            else log "Image marked as available: {}" [img]
+            then say "Image still pending: {}" [img] >> wait (l - 1) img
+            else say "Image marked as available: {}" [img]
 
     pending (Just (x:_)) = diritImageState x /= "available"
     pending _            = True

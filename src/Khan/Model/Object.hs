@@ -39,9 +39,9 @@ download :: Text -> Text -> FilePath -> AWS Bool
 download b k (Path.encodeString -> f) = do
     p <- liftIO $ doesFileExist f
     if p
-        then log "File '{}' already exists." [f]
+        then say "File {} already exists." [f]
         else do
-            log "Downloading {}/{} to {}" [b, k, Text.pack f]
+            say "Downloading {}/{} to {}" [b, k, Text.pack f]
             rs <- send $ GetObject b (safeKey k) []
             responseBody rs $$+- Conduit.sinkFile f
     return $ not p
@@ -50,21 +50,21 @@ upload :: Text -> Text -> FilePath -> AWS Bool
 upload b k (Path.encodeString -> f) = do
     p <- fmap isRight . sendCatch $ HeadObject b (safeKey k) []
     if p
-        then log "Object '{}/{}' already exists." [b, k]
+        then say "Object {}/{} already exists." [b, k]
         else do
-            log "Uploading {} to {}/{}" [Text.pack f, b, k]
+            say "Uploading {} to {}/{}" [Text.pack f, b, k]
             mb  <- requestBodyFile f
-            bdy <- noteAWS "Unable to get file size: {}" [f] mb
+            bdy <- noteAWS "Unable to get file size: {}" [B f] mb
             send_ $ PutObject b (safeKey k) [] bdy
     return $ not p
 
 latest :: Text -> Text -> FilePath -> AWS Bool
 latest b p f = do
-    log "Paginating bucket '{}' contents" [b]
+    say "Paginating bucket {} contents" [b]
     mk <- paginate start
         $= Conduit.concatMap contents
         $$ Conduit.fold max' Nothing
-    maybe (throwAWS "No semantically versioned keys in bucket '{}'" [b])
+    maybe (throwAWS "No semantically versioned keys in bucket {}" [B b])
           (\(k, _) -> download b k f)
           mk
   where
@@ -81,7 +81,7 @@ latest b p f = do
 
 delete :: Text -> Text -> AWS Bool
 delete b k = do
-    log "Deleting '{}/{}'" [b, k]
+    say "Deleting {}/{}" [b, k]
     send_ $ DeleteObject b (safeKey k) []
     return True
 

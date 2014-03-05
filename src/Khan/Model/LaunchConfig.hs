@@ -40,9 +40,9 @@ create (names -> Names{..}) ami typ = do
         Nothing
         Nothing                             -- User Data
     verifyAS "AlreadyExists" c
-    log "Created Launch Configuration {}" [appName]
+    say "Created Launch Configuration {}" [appName]
 
 delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
     void . send $ DeleteLaunchConfiguration appName
-    log "Deleted Launch Configuration {}" [appName]
+    say "Deleted Launch Configuration {}" [appName]

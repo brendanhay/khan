@@ -1,5 +1,9 @@
+
 {-# LANGUAGE ExtendedDefaultRules       #-}
+<<<<<<< HEAD
 {-# LANGUAGE GADTs                      #-}
+=======
+>>>>>>> b44920f... Adding pretty print instances for Role and Cluster info subcommand usage
 {-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -7,15 +11,38 @@
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
+<<<<<<< HEAD
+=======
+-- Module      : Khan.Internal.Pretty
+-- Copyright   : (c) 2013-2014 Brendan Hay <brendan.g.hay@gmail.com>
+-- License     : This Source Code Form is subject to the terms of
+--               the Mozilla Public License, v. 2.0.
+--               A copy of the MPL can be found in the LICENSE file or
+--               you can obtain it at http://mozilla.org/MPL/2.0/.
+-- Maintainer  : Brendan Hay <brendan.g.hay@gmail.com>
+-- Stability   : experimental
+-- Portability : non-portable (GHC extensions)
+
+module Khan.Internal.Pretty
+    ( Pretty (..)
+    , pp
+    , ppi
+    , ln
+    , title
+    ) where
+
+>>>>>>> b44920f... Adding pretty print instances for Role and Cluster info subcommand usage
 import           Data.Aeson
 import qualified Data.Aeson.Encode.Pretty     as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LBS
 import           Data.String
 import qualified Data.Text                    as Text
-import           Data.Text.Buildable
 import qualified Data.Text.Encoding           as Text
 import           Data.Text.Format             (Only(..))
-import qualified Data.Text.Lazy.Builder       as LText
+<<<<<<< HEAD
+=======
+import qualified Data.Text.Lazy               as LText
+>>>>>>> b44920f... Adding pretty print instances for Role and Cluster info subcommand usage
 import           Data.Time                    (UTCTime)
 import qualified Khan.Model.Tag               as Tag
 import           Khan.Prelude
@@ -24,36 +51,11 @@ import qualified Network.AWS.AutoScaling      as ASG
 import qualified Network.AWS.EC2              as EC2
 import qualified Network.AWS.IAM              as IAM
 import           Network.HTTP.Types           (urlDecode)
+<<<<<<< HEAD
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 default (Doc)
-
-data Column where
-    H :: Pretty a => a -> Column
-    C :: Pretty a => a -> Column
-    D :: Pretty a => a -> Column
-
-instance Pretty Column where
-    pretty (H x) = pretty x
-    pretty (C x) = pretty x
-    pretty (D x) = pretty x
-
-cols :: Int -> [Column] -> [Doc]
-cols w = map f
-  where
-    f (H x) = fill w  (bold $ pretty x)
-    f (C x) = fill w  (pretty x)
-    f (D x) = fill 19 (pretty x)
-
-hcols :: Int -> [Column] -> Doc
-hcols w = hsep . cols w
-
-vcols :: Int -> [Column] -> Doc
-vcols w = vsep . cols w
-
-title :: Pretty a => a -> Doc
-title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
 
 pp :: (MonadIO m, Pretty a) => a -> m ()
 pp = ppi 0
@@ -63,6 +65,59 @@ ppi i = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100 . indent i . 
 
 ln :: MonadIO m => m ()
 ln = liftIO (putStrLn "")
+
+title :: Pretty a => a -> Doc
+title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
+
+data Col where
+    H :: Pretty a => a -> Col
+    C :: Pretty a => a -> Col
+    D :: Pretty a => a -> Col
+
+instance Pretty Col where
+    pretty (H x) = pretty x
+    pretty (C x) = pretty x
+    pretty (D x) = pretty x
+
+cols :: Int -> [Col] -> [Doc]
+cols w = map f
+  where
+    f (H x) = fill w  (bold $ pretty x)
+    f (C x) = fill w  (pretty x)
+    f (D x) = fill 19 (pretty x)
+
+hcols :: Int -> [Col] -> Doc
+hcols w = hsep . cols w
+
+vcols :: Int -> [Col] -> Doc
+vcols w = vsep . cols w
+
+(<->) :: Doc -> Doc -> Doc
+(<->) = (PP.<$>)
+=======
+import qualified Text.PrettyPrint.Leijen.Text as PP
+import           Text.PrettyPrint.Leijen.Text hiding ((<$>), (<>))
+>>>>>>> b44920f... Adding pretty print instances for Role and Cluster info subcommand usage
+
+default (Doc)
+
+pp :: (MonadIO m, Pretty a) => a -> m ()
+pp = ppi 0
+
+ppi :: (MonadIO m, Pretty a) => Int -> a -> m ()
+ppi i = log "{}" . Only . displayT . renderPretty 0.4 100 . indent i . pretty
+
+ln :: MonadIO m => m ()
+ln = liftIO (putStrLn "")
+
+title :: Pretty a => a -> Doc
+title n = lbracket <> pretty n <> rbracket <+> "->"
+
+dol :: Pretty a => a -> Doc
+dol = fill 19 . pretty
+
+col :: Pretty a => a -> Doc
+col = fill 15 . pretty
 
 (<->) :: Doc -> Doc -> Doc
 (<->) = (PP.<$>)
@@ -82,9 +137,16 @@ instance Pretty UTCTime where
 instance Pretty Region where
     pretty = text . show
 
+instance Pretty UTCTime where
+    pretty = fromString . formatUTC
+
+instance Pretty Region where
+    pretty = fromString . show
+
 instance Pretty IAM.Role where
     pretty IAM.Role{..} = vsep hs <-> policy
       where
+<<<<<<< HEAD
         cl = fill 23 . bold . pretty
 
         hs = [ cl "arn:"         <+> pretty rArn
@@ -121,6 +183,43 @@ instance Pretty ASG.AutoScalingGroup where
              , C asgMaxSize
              , C asgDesiredCapacity
              , C (D asgCreatedTime)
+=======
+        col' :: Pretty a => a -> Doc
+        col' = fill 23 . pretty
+
+        hs = [ col' "arn:"         <+> pretty rArn
+             , col' "role-id:"     <+> pretty rRoleId
+             , col' "path:"        <+> pretty rPath
+             , col' "create-date:" <+> pretty rCreateDate
+             ]
+
+        policy = col' "assume-policy-document:" <+>
+            (pretty . prettyJSON $ decodeURL <$> rAssumeRolePolicyDocument)
+
+instance Pretty IAM.GetRolePolicyResult where
+    pretty IAM.GetRolePolicyResult{..} = fill 23 "policy-document:" <+>
+            (pretty . prettyJSON $ decodeURL grprPolicyDocument)
+
+instance Pretty ASG.AutoScalingGroup where
+    pretty ASG.AutoScalingGroup{..} = hsep hs <-> hsep bs
+      where
+        hs = [ col "status:"
+             , col "zones:"
+             , col "cooldown:"
+             , col "min:"
+             , col "max:"
+             , col "desired:"
+             , dol "created:"
+             ]
+
+        bs = [ col (maybe "OK" pretty asgStatus)
+             , col asgAvailabilityZones
+             , col asgDefaultCooldown
+             , col asgMinSize
+             , col asgMaxSize
+             , col asgDesiredCapacity
+             , dol asgCreatedTime
+>>>>>>> b44920f... Adding pretty print instances for Role and Cluster info subcommand usage
              ]
 
 instance Pretty AvailabilityZone where
@@ -131,6 +230,7 @@ instance Pretty AvailabilityZone where
     prettyList (a:as) = pretty (azRegion a) <> prettyList (map azSuffix as)
 
 instance Pretty EC2.RunningInstancesItemType where
+<<<<<<< HEAD
     pretty EC2.RunningInstancesItemType{..} = hcols 15
         [ C (int . Tag.lookupWeight $ Tag.flatten riitTagSet)
         , C riitInstanceId
@@ -151,3 +251,27 @@ instance Pretty EC2.RunningInstancesItemType where
              , H "state:"
              , H (D "launched:")
              ]
+=======
+    pretty EC2.RunningInstancesItemType{..} = hsep
+        [ col . int . Tag.lookupWeight $ Tag.flatten riitTagSet
+        , col riitInstanceId
+        , col riitImageId
+        , col (fromMaybe "" $ riitIpAddress)
+        , col riitInstanceType
+        , col (EC2.istName riitInstanceState)
+        , dol riitLaunchTime
+        ]
+
+    prettyList is = hsep hs <-> vsep (map pretty is)
+      where
+        hs = [ col "weight:"
+             , col "instance-id:"
+             , col "image-id:"
+             , col "public-ip:"
+             , col "type:"
+             , col "state:"
+             , dol "launched:"
+             ]
+
+instance Pretty EC2.InstanceType where
+    pretty = fromString . show

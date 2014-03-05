@@ -26,14 +26,14 @@ import qualified System.Posix.Process      as Posix
 
 exec :: MonadIO m => Text -> Text -> FilePath -> [String] -> m a
 exec addr user key xs = liftIO $ do
-    log "ssh {}" [unwords as]
+    say "ssh {}" [unwords as]
     Posix.executeFile "ssh" True as Nothing
   where
     as = args addr user key xs
 
 wait :: MonadIO m => Int -> Text -> Text -> FilePath -> m Bool
 wait s addr user key = do
-    log "Waiting {} seconds for SSH on {}" [show s, Text.unpack addr]
+    say "Waiting {} seconds for SSH on {}" [show s, Text.unpack addr]
     liftIO $ go (s * 1000000)
   where
     go n

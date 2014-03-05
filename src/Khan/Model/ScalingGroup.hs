@@ -64,7 +64,7 @@ create (names -> n@Names{..}) dom zones cool desired grace min max = do
         (Members . map (uncurry tag) $ Tag.defaults n dom) -- Tags
         (Members [])
         Nothing
-    log "Created Auto Scaling Group {}" [appName]
+    say "Created Auto Scaling Group {}" [appName]
     -- Create and update level2 'name' DNS SRV record
     -- Health checks, monitoring, statistics
   where
@@ -84,7 +84,7 @@ update :: Naming a
        -> AWS ()
 update (names -> n@Names{..}) cool desired grace min max = do
     AutoScalingGroup{..} <- find n >>=
-        noteAWS "Auto Scaling Group %s doesn't exist." [appName]
+        noteAWS "Auto Scaling Group {} doesn't exist." [B appName]
     send_ $ UpdateAutoScalingGroup
         appName
         (Members asgAvailabilityZones)
@@ -98,9 +98,9 @@ update (names -> n@Names{..}) cool desired grace min max = do
         Nothing
         (Members asgTerminationPolicies)
         Nothing
-    log "Updated Auto Scaling Group {}" [appName]
+    say "Updated Auto Scaling Group {}" [appName]
 
 delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
     send_ $ DeleteAutoScalingGroup appName (Just True)
-    log "Delete of Auto Scaling Group {} in progress" [appName]
+    say "Delete of Auto Scaling Group {} in progress" [appName]

@@ -23,36 +23,33 @@ module Khan.Prelude.Log
 
 import           Control.Monad.IO.Class       (MonadIO, liftIO)
 import           Data.IORef
+import           Data.String
 import           Data.Text                    (Text)
-import           Data.Text.Buildable          as Build
+import           Data.Text.Buildable
 import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy               as LText
-import qualified Data.Text.Lazy.Builder       as LText
 import qualified Data.Text.Lazy.IO            as LText
 import           Network.AWS                  (AWS, whenDebug)
 import           Prelude                      hiding (log)
 import qualified System.IO                    as IO
 import           System.IO.Unsafe             (unsafePerformIO)
-import qualified Text.PrettyPrint.ANSI.Leijen as PP
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
+import           Text.PrettyPrint.ANSI.Leijen
 
 data Color where
-    Red   :: Pretty a => a -> Color
-    Green :: Pretty a => a -> Color
-    Bold  :: Pretty a => a -> Color
+    R :: Pretty a => a -> Color
+    G :: Pretty a => a -> Color
+    B :: Pretty a => a -> Color
+    P :: Pretty a => a -> Color
 
 instance Pretty Color where
-    pretty (Red   x) = red   (pretty x)
-    pretty (Green x) = green (pretty x)
-    pretty (Bold  x) = bold  (pretty x)
-
-    prettyList cs = "penis " PP.<$> indent 2 (vsep $ map item cs)
-      where
-        item x = char '-' <+> pretty x
+    pretty (R x) = red   (pretty x)
+    pretty (G x) = green (pretty x)
+    pretty (B x) = bold  (pretty x)
+    pretty (P x) = pretty x
 
 instance Buildable Color where
-    build = LText.fromString . show . pretty
+    build = fromString . show . pretty
 
 logger :: IORef (LText.Text -> IO ())
 logger = unsafePerformIO . newIORef . const $ return ()
@@ -69,7 +66,7 @@ enableLogging = liftIO $ do
     hd = IO.stdout
 
 say :: (MonadIO m, Pretty a) => Format -> [a] -> m ()
-say f = withLogger . format f . map Bold
+say f = withLogger . format f . map B
 
 log :: (MonadIO m, Params ps) => Format -> ps -> m ()
 log f = withLogger . format f

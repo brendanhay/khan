@@ -101,25 +101,25 @@ commands env = mconcat
 
 launch :: Common -> Launch -> AWS ()
 launch Common{..} l@Launch{..} = do
-    log "Looking for Images matching {}" [fromMaybe imageName lImage]
+    say "Looking for Images matching {}" [fromMaybe imageName lImage]
     a <- async . Image.find [] . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
 
-    log "Looking for IAM Profiles matching {}" [profileName]
+    say "Looking for IAM Profiles matching {}" [profileName]
     p <- async $ Role.find l <|> Role.update l lTrust lPolicy
 
     ami <- diritImageId <$> wait a
-    log "Using Image {}" [ami]
+    say "Using Image {}" [ami]
 
-    wait_ p <* log "Found IAM Profile {}" [profileName]
+    wait_ p <* say "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create lRKeys l cLKeys
     s <- async $ Security.sshGroup l
     g <- async $ Security.create groupName
 
-    wait_ k <* log "Found KeyPair {}" [keyName]
-    wait_ s <* log "Found SSH Group {}" [sshGroupName]
-    wait_ g <* log "Found Role Group {}" [groupName]
+    wait_ k <* say "Found KeyPair {}" [keyName]
+    wait_ s <* say "Found SSH Group {}" [sshGroupName]
+    wait_ g <* say "Found Role Group {}" [groupName]
 
     az <- randomShuffle lZones
     rs <- forM (take lNum $ cycle az) $ \z ->

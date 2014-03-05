@@ -54,12 +54,12 @@ paths (names -> Names{..}) (ConfigDir root) t p = Paths
 
 find :: Naming a => a -> AWS Role
 find (names -> Names{..}) = do
-    log "Finding IAM Role {}" [profileName]
+    say "Finding IAM Role {}" [profileName]
     grrRole . grrGetRoleResult <$> send (GetRole profileName)
 
 findPolicy :: Naming a => a -> AWS GetRolePolicyResult
 findPolicy (names -> Names{..}) = do
-    log "Finding IAM Policy for Role {}" [profileName]
+    say "Finding IAM Policy for Role {}" [profileName]
     grprGetRolePolicyResult <$> send (GetRolePolicy profileName profileName)
 
 update :: Naming a => a -> TrustPath -> PolicyPath -> AWS Role
@@ -78,7 +78,7 @@ update (names -> n@Names{..}) tpath ppath = do
     pr <- sendAsync $ PutRolePolicy (LText.toStrict p) profileName profileName
 
     wait ar >>= verifyIAM "LimitExceeded"
-    waitAsync_ pr <* log "Updated policy for Role {}" [profileName]
+    waitAsync_ pr <* say "Updated policy for Role {}" [profileName]
 
     find n
   where

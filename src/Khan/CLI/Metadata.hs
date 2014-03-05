@@ -51,7 +51,7 @@ commands = command "metadata" describe describeParser
 describe :: Common -> Describe -> AWS ()
 describe _ Describe{..} = do
     bs  <- liftEitherT $ Meta.dynamic Document
-    debug "Received dynamic document:\n{}" [bs]
+    debug "Received dynamic document:\n{}" [Text.decodeUtf8 bs]
 
     doc <- filtered <$> decode bs
     iid <- instanceId doc

@@ -34,15 +34,15 @@ import           Khan.Prelude
 import           Network.AWS
 
 data Output
-    = Changed   !LText.Text
-    | Unchanged !LText.Text
-    | Failed    !LText.Text
+    = Change   LText.Text
+    | NoChange LText.Text
+    | Fail     LText.Text
       deriving (Show)
 
 instance ToJSON Output where
-    toJSON (Changed   msg) = object ["changed" .= True,  "msg" .= msg]
-    toJSON (Unchanged msg) = object ["changed" .= False, "msg" .= msg]
-    toJSON (Failed    msg) = object ["failed"  .= True,  "msg" .= msg]
+    toJSON (Change   msg) = object ["changed" .= True,  "msg" .= msg]
+    toJSON (NoChange msg) = object ["changed" .= False, "msg" .= msg]
+    toJSON (Fail    msg) = object  ["failed"  .= True,  "msg" .= msg]
 
 data Inv a
     = Meta { unwrap :: a }

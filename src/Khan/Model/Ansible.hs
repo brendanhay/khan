@@ -20,11 +20,8 @@
 
 module Khan.Model.Ansible
     (
-    -- * Idempotence check
-      Modified   (..)
-
     -- * Capturing ansible output
-    , capture
+      capture
 
     -- * JSON output formatters
     , ImageInput (..)
@@ -56,26 +53,20 @@ import           Khan.Prelude
 import           Network.AWS
 import           System.Exit
 
-class Modified a where
-    modified :: a -> Bool
-
-instance Modified Bool where
-    modified = id
-
-capture :: (Params ps, Modified a)
+capture :: Params ps
         => Bool
         -> Common
         -> Format
         -> ps
-        -> AWS a
+        -> AWS (Modified a)
         -> AWS ()
 capture False _ _ _  aws = void aws
-capture True  c f ps aws = contextAWS c (aws >>= success . modified)
+capture True  c f ps aws = contextAWS c (aws >>= success)
     >>= either failure return
     >>= exit
   where
-    success True  = changed (f <> " changed.") ps
-    success False = unchanged (f <> " unchanged.") ps
+    success (Changed   _) = changed (f <> " changed.") ps
+    success (Unchanged _) = unchanged (f <> " unchanged.") ps
 
     failure (Err s)  = failed "{}" $ Only s
     failure (Ex  ex) = failure . toError $ show ex
@@ -83,12 +74,12 @@ capture True  c f ps aws = contextAWS c (aws >>= success . modified)
 
     exit o = liftIO $ LBS.putStrLn (Aeson.encodePretty o) >>
         case o of
-            Failed _ -> exitFailure
-            _        -> exitSuccess
+            Fail _ -> exitFailure
+            _      -> exitSuccess
 
-    changed   g = return . Changed   . format g
-    unchanged g = return . Unchanged . format g
-    failed    g = return . Failed    . format g
+    changed   g = return . Change   . format g
+    unchanged g = return . NoChange . format g
+    failed    g = return . Fail     . format g
 
 inventoryPath :: CacheDir -> Env -> AWS FilePath
 inventoryPath (CacheDir dir) env = do

@@ -20,6 +20,7 @@ import           Data.Conduit
 import qualified Data.Conduit.List           as Conduit
 import qualified Data.HashMap.Strict         as Map
 import           Data.SemVer
+import qualified Data.Text                   as Text
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
@@ -34,7 +35,7 @@ import qualified Khan.Model.Tag              as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling     hiding (Filter)
-import           Network.AWS.EC2
+import           Network.AWS.EC2             hiding (Filter)
 
 data Info = Info
     { iRole :: !Role
@@ -198,8 +199,8 @@ info Common{..} Info{..} = do
     is <- mapM annotate =<< Instance.findAll []
         [ Tag.filter Tag.role [r]
         , Tag.filter Tag.env  [e]
-        , Filter "instance-state-name" states
-        , Filter "tag-key" [groupTag]
+        , ec2Filter "instance-state-name" states
+        , ec2Filter "tag-key" [groupTag]
         ]
 
     let m  = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
@@ -220,15 +221,16 @@ info Common{..} Info{..} = do
 
     display m ks = ASG.findAll ks $$ Conduit.mapM_ $
         \g@AutoScalingGroup{..} -> do
-            xs <- noteAWS "Missing Auto Scaling Group entries: {}"
+            ag  <- Ann g <$> Tag.lookup (Tag.flatten g)
+            xs  <- noteAWS "Missing Auto Scaling Group entries: {}"
                 [B asgAutoScalingGroupName]
                 (Map.lookup asgAutoScalingGroupName m)
 
-            ln >> pp (title asgAutoScalingGroupName)
-            ppi 2 g  >> ln
-            ppi 2 (map weighted xs) >> ln
+            axs <- forM xs $ \i -> Ann i <$> Tag.lookup (Tag.flatten i)
 
-    weighted i = PI i (Tag.lookupWeight . Tag.flatten $ riitTagSet i)
+            ln >> pp (title asgAutoScalingGroupName)
+            ppi 2 ag  >> ln
+            ppi 2 axs >> ln
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = check >> create
@@ -270,7 +272,33 @@ scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 promote :: Common -> Cluster -> AWS ()
-promote _ c@Cluster{..} = return ()
+promote _ Cluster{..} = do
+    gs <- ASG.findAll []
+        $= Conduit.mapM (\g -> Ann g <$> Tag.lookup (Tag.flatten g))
+        $= Conduit.filter (matchTags . annTags)
+        $$ Conduit.consume
+
+    mapM_ pp gs
+  where
+    matchTags Tags{..} = tagEnv == cEnv
+        && _role cRole `Text.isPrefixOf` _role tagRole
+
+--     go []  = log_ "No Auto Scaling Groups found, exiting..."
+-- --    go [x] = SSH.exec x sUser key sArgs -- promote
+--     go xs = do
+--         forM_ xs (\(n, addr) -> log "{}) {}" [B n, P (Text.unpack addr)]) cs
+
+--         x <- choose
+--         a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
+--         SSH.exec a sUser key sArgs
+--       where
+--         cs = map (first ) $ zip ([1..] :: [Int]) xs
+
+--     choose = liftIO $ do
+--         hSetBuffering stdout NoBuffering
+--         putStr "Select the host to connect to: "
+--         getLine
+
     -- find all role clusters in the current region
 
     -- sort by their weight tags

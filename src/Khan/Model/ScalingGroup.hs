@@ -26,11 +26,13 @@ import qualified Data.Conduit.List       as Conduit
 import           Khan.Internal
 import qualified Khan.Model.Tag          as Tag
 import           Khan.Prelude            hiding (find, min, max)
-import           Network.AWS.AutoScaling hiding (Filter)
+import           Network.AWS.AutoScaling
 
 findAll :: [Text] -> Source AWS AutoScalingGroup
 findAll ns = do
-    say "Describing Auto Scaling Groups: {}" [ns]
+    if null ns
+        then log_ "Describing Auto Scaling Groups..."
+        else say  "Describing Auto Scaling Groups: {}" [ns]
     paginate (DescribeAutoScalingGroups (Members ns) Nothing Nothing)
         $= Conduit.map unwrap
         $= Conduit.concat
@@ -108,3 +110,4 @@ delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
     send_ $ DeleteAutoScalingGroup appName (Just True)
     say "Delete of Auto Scaling Group {} in progress" [appName]
+

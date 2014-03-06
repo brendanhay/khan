@@ -29,6 +29,7 @@ module Khan.Internal.Types
 
    -- * Types
    , Modified      (..)
+   , Ann           (..)
    , Tags          (..)
    , Names         (..)
    , RoutingPolicy (..)
@@ -121,6 +122,11 @@ instance ToEnv (Text, Text) where
 
 instance ToEnv (HashMap Text Text) where
     toEnv = id
+
+data Ann a = Ann
+    { annVal  :: a
+    , annTags :: Tags
+    }
 
 data Tags = Tags
     { tagRole    :: !Role

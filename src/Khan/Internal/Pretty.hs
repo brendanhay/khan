@@ -19,10 +19,10 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Pretty
-    ( Pretty     (..)
+    ( Pretty (..)
     , renderCompact
 
-    , PrettyInst (..)
+    , Ann    (..)
     , pp
     , ppi
     , ln
@@ -33,12 +33,14 @@ import           Data.Aeson
 import qualified Data.Aeson.Encode.Pretty     as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LBS
 import           Data.List                    (sort)
+import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
 import           Data.Text.Format             (Only(..))
 import           Data.Time                    (UTCTime)
 import qualified Filesystem.Path.CurrentOS    as Path
+import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
 import qualified Network.AWS.AutoScaling      as ASG
@@ -107,6 +109,9 @@ instance Pretty Region where
 instance Pretty FilePath where
     pretty = text . Path.encodeString
 
+instance Pretty Version where
+    pretty = pretty . showVersion
+
 instance Pretty IAM.Role where
     pretty IAM.Role{..} = vsep hs <-> policy
       where
@@ -125,26 +130,30 @@ instance Pretty IAM.GetRolePolicyResult where
     pretty IAM.GetRolePolicyResult{..} = fill 23 (bold "policy-document:") <+>
             (pretty . prettyJSON $ decodeURL grprPolicyDocument)
 
-instance Pretty ASG.AutoScalingGroup where
-    pretty ASG.AutoScalingGroup{..} = hcols w hs <-> hcols w bs
+instance Pretty (Ann ASG.AutoScalingGroup) where
+    pretty (Ann ASG.AutoScalingGroup{..} Tags{..}) =
+        hcols w hs <-> hcols w bs
       where
-        w  = 15
-        d  = w + 4
+        w  = 10
+        z  = 8
+        d  = 19
 
         hs = [ H "status:"
-             , H "zones:"
+             , H (D z "weight:")
+             , H "version:"
+             , H (D d "zones:")
              , H "cooldown:"
-             , H "min:"
-             , H "max:"
+             , H "[m..N]:"
              , H "desired:"
              , H (D d "created:")
              ]
 
         bs = [ C (maybe "OK" pretty asgStatus)
-             , C asgAvailabilityZones
+             , C (D z tagWeight)
+             , C tagVersion
+             , C (D d asgAvailabilityZones)
              , C asgDefaultCooldown
-             , C asgMinSize
-             , C asgMaxSize
+             , C (pretty asgMinSize <> ".." <> pretty asgMaxSize)
              , C asgDesiredCapacity
              , C (D d asgCreatedTime)
              ]
@@ -157,29 +166,28 @@ instance Pretty AvailabilityZone where
 
     prettyList []     = mempty
     prettyList [a]    = pretty a
-    prettyList (a:as) = pretty (azRegion a) <> prettyList (map azSuffix as)
+    prettyList (a:as) = pretty (azRegion a) <> char ':' <+>
+        hcat (punctuate comma $ map (char . azSuffix) as)
 
-data PrettyInst = PI EC2.RunningInstancesItemType Int
-
-instance Pretty PrettyInst where
-    pretty (PI EC2.RunningInstancesItemType{..} weight) = hcols 15
-        [ C (int weight)
+instance Pretty (Ann EC2.RunningInstancesItemType) where
+    pretty (Ann EC2.RunningInstancesItemType{..} Tags{..}) = hcols 15
+        [ C (EC2.istName riitInstanceState)
+        , C (D 9 tagWeight)
         , C riitInstanceId
         , C riitImageId
         , C (fromMaybe "" riitIpAddress)
         , C riitInstanceType
-        , C (EC2.istName riitInstanceState)
         , C (D 19 riitLaunchTime)
         ]
 
     prettyList is = hcols 15 hs <-> vsep (map pretty is)
       where
-        hs = [ H "weight:"
+        hs = [ H "state:"
+             , H (D 9 "weight:")
              , H "instance-id:"
              , H "image-id:"
              , H "public-ip:"
              , H "type:"
-             , H "state:"
              , H (D 19 "launched:")
              ]
 

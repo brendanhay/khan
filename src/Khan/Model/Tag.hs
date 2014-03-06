@@ -64,8 +64,14 @@ instance Tag a => Tag [a] where
 instance Tag a => Tag (Members a) where
     flatten = flatten . members
 
+instance Tag RunningInstancesItemType where
+    flatten = flatten . riitTagSet
+
 instance Tag ResourceTagSetItemType where
     flatten ResourceTagSetItemType{..} = Map.singleton rtsitKey rtsitValue
+
+instance Tag ASG.AutoScalingGroup where
+    flatten = flatten . ASG.asgTags
 
 instance Tag ASG.Tag where
     flatten ASG.Tag{..} = Map.singleton tKey (fromMaybe "" tValue)

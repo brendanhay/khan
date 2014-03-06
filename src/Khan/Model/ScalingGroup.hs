@@ -14,29 +14,33 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.ScalingGroup
-    ( find
-    , findAll
+    ( findAll
+    , find
     , create
     , update
     , delete
     ) where
 
+import           Data.Conduit
+import qualified Data.Conduit.List       as Conduit
 import           Khan.Internal
 import qualified Khan.Model.Tag          as Tag
 import           Khan.Prelude            hiding (find, min, max)
 import           Network.AWS.AutoScaling hiding (Filter)
 
-find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
-find (names -> Names{..}) = listToMaybe <$> findAll [appName]
-
--- FIXME: Add pagination (via underlying amazonka Pg)
-findAll :: [Text] -> AWS [AutoScalingGroup]
-findAll ns = unwrap <$>
-    send (DescribeAutoScalingGroups (Members ns) Nothing Nothing)
+findAll :: [Text] -> Source AWS AutoScalingGroup
+findAll ns = do
+    say "Describing Auto Scaling Groups: {}" [ns]
+    paginate (DescribeAutoScalingGroups (Members ns) Nothing Nothing)
+        $= Conduit.map unwrap
+        $= Conduit.concat
   where
     unwrap = members
         . dasgrAutoScalingGroups
         . dashrDescribeAutoScalingGroupsResult
+
+find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
+find (names -> Names{..}) = findAll [appName] $$ Conduit.head
 
 create :: Naming a
        => a

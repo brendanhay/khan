@@ -21,7 +21,7 @@
 module Khan.Model.Ansible
     ( module Khan.Model.Ansible
 
-    -- * Output
+    -- * Output wrappers
     , Inv  (..)
     , Host (..)
 

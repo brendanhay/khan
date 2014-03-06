@@ -21,14 +21,15 @@
 module Khan.Model.Ansible
     (
     -- * Idempotence check
-      Modified (..)
+      Modified   (..)
 
     -- * Running ansible
     , capture
 
-    -- * Output wrappers
-    , Inv  (..)
-    , Host (..)
+    -- * JSON output formatters
+    , ImageInput (..)
+    , Inv        (..)
+    , Host       (..)
 
     -- * Inventory
     , inventoryPath

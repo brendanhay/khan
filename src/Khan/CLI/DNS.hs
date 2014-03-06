@@ -123,12 +123,9 @@ info _ Info{..} = do
     ln
 
 update :: Common -> Record -> AWS ()
-update c@Common{..} r@Record{..}
-    | rAnsible  = capture c "dns record {}" [rName] f
-    | otherwise = void f
+update c@Common{..} r@Record{..} = capture rAnsible c "dns record {}" [rName] $
+    HZone.findId rZone >>= g rSet
   where
-    f = HZone.findId rZone >>= g rSet
-
     g p zid = do
         reg <- getRegion
         if p
@@ -136,20 +133,16 @@ update c@Common{..} r@Record{..}
             else RSet.update zid (single reg zid r)
 
 delete :: Common -> Record -> AWS ()
-delete c@Common{..} Record{..}
-    | rAnsible  = capture c "dns record {}" [rName] f
-    | otherwise = void f
+delete c@Common{..} Record{..} = capture rAnsible c "dns record {}" [rName] $ do
+    zid <- HZone.findId rZone
+    -- FIXME: won't work with multi value records, such as SRV
+    rrs <- RSet.findAll zid (g rSet) $$ Conduit.consume
+    if null rrs
+        then return False
+        else do
+            void . RSet.modify zid $ map (Change DeleteAction) rrs
+            return True
   where
-    f = do
-        zid <- HZone.findId rZone
-        -- FIXME: won't work with multi value records, such as SRV
-        rrs <- RSet.findAll zid (g rSet) $$ Conduit.consume
-        if null rrs
-            then return False
-            else do
-                void . RSet.modify zid $ map (Change DeleteAction) rrs
-                return True
-
     g True  = RSet.match name Nothing
     g False = (`elem` rValues) . fromMaybe "" . RSet.setId
 

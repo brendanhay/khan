@@ -80,16 +80,12 @@ info _ (names -> Names{..}) = do
           mg
 
 modify :: (Text -> AWS Bool) -> Common -> Group -> AWS ()
-modify f c g@Group{..}
-    | not gAnsible = void $ f groupName
-    | otherwise    = capture c "security group {}" [groupName] $ f groupName
-  where
-    Names{..} = names g
+modify f c g@Group{..} =
+    let name = groupName (names g)
+     in capture gAnsible c "security group {}" [name] (f name)
 
 update :: Common -> Update -> AWS ()
-update c u@Update{..}
-    | not uAnsible = void $ Security.update groupName uRules
-    | otherwise    = capture c "security group {}" [groupName] $
-        Security.update groupName uRules
-  where
-    Names{..} = names u
+update c u@Update{..} =
+    let name = groupName (names u)
+     in capture uAnsible c "security group {}" [name] $
+            Security.update name uRules

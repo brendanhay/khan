@@ -106,22 +106,16 @@ commands = group "artifact" "Manage S3 Artifacts." $ mconcat
     ]
 
 object :: (Text -> Text -> FilePath -> AWS Bool) -> Common -> Object -> AWS ()
-object g c Object{..}
-    | oAnsible  = capture c "object {}/{}" [oBucket, oKey] f
-    | otherwise = void f
-  where
-    f = g oBucket oKey oPath
+object g c Object{..} =
+    capture oAnsible c "object {}/{}" [oBucket, oKey] $
+        g oBucket oKey oPath
 
 sync :: Common -> Bucket -> AWS ()
-sync c Bucket{..}
-    | bAnsible  = capture c "bucket {}/{}" [bBucket, fromMaybe "" bPrefix] f
-    | otherwise = void f
-  where
-    f = Bucket.download bN bBucket bPrefix bDir
+sync c Bucket{..} =
+    capture bAnsible c "bucket {}/{}" [bBucket, fromMaybe "" bPrefix] $
+        Bucket.download bN bBucket bPrefix bDir
 
 prune :: Common -> Prune -> AWS ()
-prune c Prune{..}
-    | pAnsible  = capture c "bucket {}/{} {}" [pBucket, fromMaybe "" pPrefix, pArtifact] f
-    | otherwise = void f
-  where
-    f = Bucket.prune pCopies pBucket pPrefix pArtifact
+prune c Prune{..} =
+    capture pAnsible c "bucket {}/{} {}" [pBucket, fromMaybe "" pPrefix, pArtifact] $
+        Bucket.prune pCopies pBucket pPrefix pArtifact

@@ -16,7 +16,7 @@
 
 module Khan.Model.Tag
     (
-    -- * EC2 Filter
+    -- * Tag filters
       filter
 
     -- * Constants
@@ -44,18 +44,31 @@ module Khan.Model.Tag
     ) where
 
 import           Control.Monad.Error
-import qualified Data.Attoparsec.Text  as AText
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as Map
+import qualified Data.Attoparsec.Text    as AText
+import           Data.HashMap.Strict     (HashMap)
+import qualified Data.HashMap.Strict     as Map
 import           Data.SemVer
-import qualified Data.Text             as Text
+import qualified Data.Text               as Text
 import           Khan.Internal
-import           Khan.Prelude          hiding (filter, lookup)
+import           Khan.Prelude            hiding (filter, lookup)
 import           Network.AWS
+import qualified Network.AWS.AutoScaling as ASG
 import           Network.AWS.EC2
 
-filter :: Text -> [Text] -> Filter
-filter k = Filter ("tag:" <> k)
+class Tag a where
+    flatten :: a -> HashMap Text Text
+
+instance Tag a => Tag [a] where
+    flatten = Map.unions . map flatten
+
+instance Tag a => Tag (Members a) where
+    flatten = flatten . members
+
+instance Tag ResourceTagSetItemType where
+    flatten ResourceTagSetItemType{..} = Map.singleton rtsitKey rtsitValue
+
+instance Tag ASG.Tag where
+    flatten ASG.Tag{..} = Map.singleton tKey (fromMaybe "" tValue)
 
 env, role, domain, name, version, weight :: Text
 env     = "Env"
@@ -65,6 +78,9 @@ name    = "Name"
 version = "Version"
 weight  = "Weight"
 
+filter :: Text -> [Text] -> Filter
+filter k = ec2Filter ("tag:" <> k)
+
 defaults :: Names -> Text -> [(Text, Text)]
 defaults Names{..} dom =
     [ (role,   roleName)
@@ -73,10 +89,6 @@ defaults Names{..} dom =
     , (name,   appName)
     , (weight, "0")
     ] ++ maybe [] (\v -> [(version, v)]) versionName
-
-flatten :: [ResourceTagSetItemType] -> HashMap Text Text
-flatten = Map.fromList
-    . map (\ResourceTagSetItemType{..} -> (rtsitKey, rtsitValue))
 
 lookup :: (Applicative m, MonadError AWSError m) => HashMap Text Text -> m Tags
 lookup ts = Tags

@@ -27,15 +27,15 @@ module Khan.Model.RecordSet
     ) where
 
 import           Control.Arrow
-import           Control.Concurrent  (threadDelay)
+import           Control.Concurrent   (threadDelay)
 import           Control.Monad
 import           Data.Conduit
-import qualified Data.Conduit.List   as Conduit
-import           Data.List           (sort)
-import qualified Data.Text           as Text
-import           Data.Text.Format    (Shown(..))
-import           Khan.Prelude        hiding (find, min, max)
-import           Network.AWS.Route53 hiding (wait)
+import qualified Data.Conduit.List    as Conduit
+import           Data.List            (sort)
+import qualified Data.Text            as Text
+import           Khan.Internal        ()
+import           Khan.Prelude         hiding (find, min, max)
+import           Network.AWS.Route53  hiding (wait)
 
 findAll :: HostedZoneId
         -> (ResourceRecordSet -> Bool)
@@ -59,13 +59,13 @@ set zid name rrs = do
     let (cre, del) = join (***) sort $ diff rrs rrs'
         (cp,  dp)  = (null cre, null del)
 
-    unless dp $ log "Removing {} from {}..." [f del, name]
-    unless cp $ log "Adding {} to {}..." [f cre, name]
+    unless dp $ say "Removing {} from {}..." [f del, name]
+    unless cp $ say "Adding {} to {}..." [f cre, name]
 
     unless (cp && dp) $ do
         void . modify zid $
             map (Change DeleteAction) del ++ map (Change CreateAction) cre
-        log "Record set {} in zone {} updated." [name, unHostedZoneId zid]
+        say "Record set {} in zone {} updated." [name, unHostedZoneId zid]
 
     return $ any (not . null) [cre, del]
  where
@@ -88,11 +88,13 @@ modify zid cs = fmap crrsrChangeInfo . send $
 
 wait :: ChangeInfo -> AWS ()
 wait ChangeInfo{..} = case ciStatus of
-    INSYNC  -> log "{} INSYNC." [show ciId]
+    INSYNC  -> say "{} INSYNC." [cid]
     PENDING -> do
-        log "Waiting for {}" [Shown ciId]
+        say "Waiting for {}" [cid]
         liftIO . threadDelay $ 10 * 1000000
         send (GetChange ciId) >>= void . wait . gcrChangeInfo
+  where
+    cid = unChangeId ciId
 
 match :: Text -> Maybe Text -> ResourceRecordSet -> Bool
 match n Nothing x = n == rrsName x

@@ -16,24 +16,10 @@
 module Khan.Internal.Parsing where
 
 import           Data.Attoparsec.Text
-import           Data.List            (sort)
 import qualified Data.Text            as Text
 import           Data.Tuple
 import           Khan.Prelude
 import           Network.AWS.EC2
-
-showRules :: Foldable f => f IpPermissionType -> Text
-showRules = Text.intercalate ", " . map rule . toList
-  where
-    rule IpPermissionType{..} = Text.intercalate ":"
-        [ Text.pack $ show iptIpProtocol
-        , Text.pack $ show iptFromPort
-        , Text.pack $ show iptToPort
-        , Text.intercalate ","  . sort $ ranges ++ groups
-        ]
-      where
-        ranges = map irCidrIp $ toList iptIpRanges
-        groups = mapMaybe uigGroupName $ toList iptGroups
 
 parseRule :: String -> Either String IpPermissionType
 parseRule s = msg . parseOnly parser $ Text.pack s

@@ -17,77 +17,78 @@
 
 module Khan.CLI.Profile (commands) where
 
-import           Data.Aeson
-import qualified Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
 import           Khan.Internal
-import           Khan.Model.Profile         (Policy(..))
-import qualified Khan.Model.Profile         as Profile
+import           Khan.Model.Role (Paths(..))
+import qualified Khan.Model.Role as Role
 import           Khan.Prelude
-import           Network.AWS.IAM            hiding (Role)
-import           Network.HTTP.Types         (urlDecode)
+import           Network.AWS.IAM hiding (Role)
 
 default (Text)
 
-data Profile = Profile
-    { rRole   :: !Role
-    , rEnv    :: !Env
-    , rTrust  :: !TrustPath
-    , rPolicy :: !PolicyPath
+data Info = Info
+    { iRole   :: !Role
+    , iEnv    :: !Env
     } deriving (Show)
 
-profileParser :: EnvMap -> Parser Profile
-profileParser env = Profile
+infoParser :: EnvMap -> Parser Info
+infoParser env = Info
+    <$> roleOption
+    <*> envOption env
+
+instance Options Info where
+    validate Info{..} =
+        check iEnv "--env must be specified."
+
+instance Naming Info where
+    names Info{..} = unversioned iRole iEnv
+
+data Update = Update
+    { uRole   :: !Role
+    , uEnv    :: !Env
+    , uTrust  :: !TrustPath
+    , uPolicy :: !PolicyPath
+    } deriving (Show)
+
+updateParser :: EnvMap -> Parser Update
+updateParser env = Update
     <$> roleOption
     <*> envOption env
     <*> trustOption
     <*> policyOption
 
-instance Options Profile where
-    discover _ Common{..} r@Profile{..} = return $! r
-        { rTrust  = pTrustPath
-        , rPolicy = pPolicyPath
+instance Options Update where
+    discover _ Common{..} r@Update{..} = return $! r
+        { uTrust  = pTrustPath
+        , uPolicy = pPolicyPath
         }
       where
-        Policy{..} = Profile.policy r cConfig rTrust rPolicy
+        Paths{..} = Role.paths r cConfig uTrust uPolicy
 
-    validate Profile{..} = do
-        check rEnv "--env must be specified."
-        checkPath (_trust  rTrust)  " specified by --trust must exist."
-        checkPath (_policy rPolicy) " specified by --policy must exist."
+    validate Update{..} = do
+        check uEnv "--env must be specified."
+        checkPath (_trust  uTrust)  " specified by --trust must exist."
+        checkPath (_policy uPolicy) " specified by --policy must exist."
 
-instance Naming Profile where
-    names Profile{..} = unversioned rRole rEnv
+instance Naming Update where
+    names Update{..} = unversioned uRole uEnv
 
 commands :: EnvMap -> Mod CommandFields Command
-commands env = group "profile" "IAM Profiles and Roles." $ mconcat
-    [ command "info" info (profileParser env)
+commands env = group "profile" "IAM Updates and Roles." $ mconcat
+    [ command "info" info (infoParser env)
         "Display information about an IAM Role."
-    , command "update" update (profileParser env)
-        "Create or update IAM Role and associated Profile."
+    , command "update" update (updateParser env)
+        "Create or update IAM Role and associated Role."
     ]
 
-info :: Common -> Profile -> AWS ()
-info _ r = do
-    p <- Profile.find r
-    log_ . Text.unlines $
-        [ "Arn                  = " <> rArn p
-        , "RoleId               = " <> rRoleId p
-        , "RoleName             = " <> rRoleName p
-        , "CreateDate           = " <> Text.pack (show $ rCreateDate p)
-        , "Path                 = " <> rPath p
-        , "AssumePolicyDocument = " <> (Text.decodeUtf8
-            . LBS.toStrict
-            . maybe "" Aeson.encodePretty
-            . join
-            . fmap dec
-            $ rAssumeRolePolicyDocument p)
-        ]
-  where
-    dec :: Text -> Maybe Object
-    dec = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
+info :: Common -> Info -> AWS ()
+info _ i = do
+    ra <- async (Role.find i)
+    pa <- async (Role.findPolicy i)
 
-update :: Common -> Profile -> AWS ()
-update _ r = void $ Profile.update r (rTrust r) (rPolicy r)
+    r <- wait ra
+    p <- wait pa
+
+    ln >> pp (title $ rRoleName r) >> ppi 2 r >> ppi 2 p >> ln
+
+update :: Common -> Update -> AWS ()
+update _ u = void $ Role.update u (uTrust u) (uPolicy u)

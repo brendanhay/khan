@@ -19,7 +19,6 @@ import qualified Data.Aeson                  as Aeson
 import qualified Data.ByteString.Lazy.Char8  as LBS
 import           Data.SemVer
 import qualified Data.Text                   as Text
-import qualified Data.Text.Format            as Format
 import qualified Filesystem.Path.CurrentOS   as Path
 import           Khan.CLI.Ansible            (Ansible(..), playbook, which)
 import           Khan.Internal
@@ -28,7 +27,7 @@ import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.Profile          as Profile
+import qualified Khan.Model.Role          as Role
 import qualified Khan.Model.SSH              as SSH
 import qualified Khan.Model.SecurityGroup    as Security
 import           Khan.Prelude
@@ -99,43 +98,43 @@ image :: Common -> Image -> AWS ()
 image c@Common{..} d@Image{..} = do
     which "ansible-playbook"
 
-    log "Checking if target Image {} exists..." [imageName]
+    say "Checking if target Image {} exists..." [imageName]
     as <- Image.findAll [] [Filter "name" [imageName]]
 
     unless (null as) $
         throwAWS "Image {} already exists, exiting..." [imageName]
 
-    log "Looking for base Images matching {}" [iImage]
+    say "Looking for base Images matching {}" [iImage]
     a <- async $ Image.find [iImage] []
 
-    log "Looking for IAM Profile matching {}" [profileName]
-    i <- async $ Profile.find d
+    say "Looking for IAM Profile matching {}" [profileName]
+    i <- async $ Role.find d
 
     ami <- diritImageId <$> wait a
-    log "Found base Image {}" [ami]
+    say "Found base Image {}" [ami]
 
-    wait_ i <* log "Found IAM Profile {}" [profileName]
+    wait_ i <* say "Found IAM Profile {}" [profileName]
 
     g <- async $ Security.sshGroup d
     z <- async $ AZ.getSuffixes iZones
     k <- async $ Key.create iRKeys d cLKeys
 
-    wait_ g <* log "Found Role Group {}" [sshGroupName]
+    wait_ g <* say "Found Role Group {}" [sshGroupName]
 
     az  <- fmap (AZ cRegion) $ wait z >>= randomSelect
-    key <- wait k <* log "Found KeyPair {}" [keyName]
+    key <- wait k <* say "Found KeyPair {}" [keyName]
 
-    log "Using AvailabilityZone {}" [Format.Shown az]
+    say "Using AvailabilityZone {}" [az]
     mr  <- listToMaybe . map riitInstanceId <$>
         Instance.run d ami iType az 1 1 False
 
     iid <- noteAWS "Failed to launch any Instances using Image {}" [ami] mr
-    log "Launched Instance {}" [iid]
+    say "Launched Instance {}" [iid]
 
     Instance.wait [iid]
 
     e <- contextAWS c $ do
-        log "Finding public DNS for {}" [iid]
+        say "Finding public DNS for {}" [iid]
         mdns <- join . listToMaybe . map riitDnsName <$>
             Instance.findAll [iid] []
         dns  <- noteAWS "Failed to retrieve DNS for {}" [iid] mdns
@@ -143,7 +142,7 @@ image c@Common{..} d@Image{..} = do
         unlessM (SSH.wait iTimeout dns iUser key) $
             throwAWS "Failed to gain SSH connectivity for {}" [iid]
 
-        log "Running Playbook {}" [iPlaybook]
+        say "Running Playbook {}" [iPlaybook]
         playbook c $ Ansible "ami" iRKeys Nothing Nothing 36000 False $ iArgs ++
             [ "-i", Text.unpack $ dns <> ",localhost,"
             , "-e", encode $ ImageInput n cRegion dns
@@ -153,9 +152,9 @@ image c@Common{..} d@Image{..} = do
         void $ Image.create iid imageName (blockDevices iNDevices)
 
     if isLeft e && iPreserve
-        then log "Error creating Image, preserving base Instance {}" [iid]
+        then say "Error creating Image, preserving base Instance {}" [iid]
         else do
-            log_ "Terminating base instance"
+            log "Terminating base Instance {}" [iid]
             send_ $ TerminateInstances [iid]
 
     const () <$> hoistError e

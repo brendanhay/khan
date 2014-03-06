@@ -49,8 +49,7 @@ import           Data.HashMap.Strict   (HashMap)
 import qualified Data.HashMap.Strict   as Map
 import           Data.SemVer
 import qualified Data.Text             as Text
-import           Khan.Internal.Options
-import           Khan.Internal.Types
+import           Khan.Internal
 import           Khan.Prelude          hiding (filter, lookup)
 import           Network.AWS
 import           Network.AWS.EC2
@@ -111,7 +110,7 @@ lookupWeight = fromMaybe 0
 
 required :: Text -> AWS Tags
 required iid = do
-    log "Describing tags for instance-id {}..." [iid]
+    say "Describing tags for Instance {}..." [iid]
     send (DescribeTags [TagResourceId [iid]]) >>= lookup . tags
   where
     tags = Map.fromList

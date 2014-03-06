@@ -67,7 +67,7 @@ ssh Common{..} s@SSH{..} = do
     go _   []  = log_ "No hosts found, exiting..."
     go key [x] = SSH.exec x sUser key sArgs
     go key dns = do
-        mapM_ (\(n, addr) -> log "{}) {}" [n, Text.unpack addr]) cs
+        mapM_ (\(n, addr) -> log "{}) {}" [B n, P (Text.unpack addr)]) cs
         x <- choose
         a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
         SSH.exec a sUser key sArgs

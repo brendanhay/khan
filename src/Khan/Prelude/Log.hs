@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- Module      : Khan.Prelude.Log
@@ -11,28 +12,51 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Prelude.Log
-   ( enableLogging
+   ( Color (..)
+   , enableLogging
+   , say
    , log
    , log_
    , debug
    , debug_
    ) where
 
-import           Control.Monad.IO.Class  (MonadIO, liftIO)
+import           Control.Monad.IO.Class       (MonadIO, liftIO)
 import           Data.IORef
-import           Data.Text               (Text)
+import           Data.String
+import           Data.Text                    (Text)
+import           Data.Text.Buildable
 import           Data.Text.Format
 import           Data.Text.Format.Params
-import qualified Data.Text.Lazy          as LText
-import qualified Data.Text.Lazy.IO       as LText
-import           Network.AWS             (AWS, whenDebug)
-import           Prelude                 hiding (log)
-import qualified System.IO               as IO
-import           System.IO.Unsafe        (unsafePerformIO)
+import qualified Data.Text.Lazy               as LText
+import qualified Data.Text.Lazy.IO            as LText
+import           Network.AWS                  (AWS, whenDebug)
+import           Prelude                      hiding (log)
+import qualified System.IO                    as IO
+import           System.IO.Unsafe             (unsafePerformIO)
+import           Text.PrettyPrint.ANSI.Leijen
+
+data Color where
+    R :: Pretty a => a -> Color
+    G :: Pretty a => a -> Color
+    B :: Pretty a => a -> Color
+    P :: Pretty a => a -> Color
+
+instance Pretty Color where
+    pretty (R x) = red   (pretty x)
+    pretty (G x) = green (pretty x)
+    pretty (B x) = bold  (pretty x)
+    pretty (P x) = pretty x
+
+instance Buildable Color where
+    build = fromString . show . pretty
 
 logger :: IORef (LText.Text -> IO ())
 logger = unsafePerformIO . newIORef . const $ return ()
 {-# NOINLINE logger #-}
+
+withLogger :: MonadIO m => LText.Text -> m ()
+withLogger txt = liftIO $ readIORef logger >>= ($ txt)
 
 enableLogging :: MonadIO m => m ()
 enableLogging = liftIO $ do
@@ -41,8 +65,11 @@ enableLogging = liftIO $ do
   where
     hd = IO.stdout
 
+say :: (MonadIO m, Pretty a) => Format -> [a] -> m ()
+say f = withLogger . format f . map B
+
 log :: (MonadIO m, Params ps) => Format -> ps -> m ()
-log f ps = liftIO $ readIORef logger >>= ($ format f ps)
+log f = withLogger . format f
 
 log_ :: MonadIO m => Text -> m ()
 log_ = log "{}" . Only

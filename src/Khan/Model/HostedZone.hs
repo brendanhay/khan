@@ -26,7 +26,7 @@ import           Network.AWS.Route53 hiding (wait)
 
 findId :: Text -> AWS HostedZoneId
 findId name =
-    fmap hzId $ find name >>= noteAWS "Unable to find hosted zone: {}" [name]
+    fmap hzId $ find name >>= noteAWS "Unable to find hosted zone: {}" [B name]
 
 findAll :: (HostedZone -> Bool) -> Source AWS HostedZone
 findAll p = paginate (ListHostedZones Nothing $ Just 10)

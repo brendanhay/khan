@@ -38,7 +38,7 @@ create (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
     exist e = do
         verifyEC2 "InvalidKeyPair.Duplicate" (Left e)
         void $ path (RKeysBucket b) n (LKeysDir dir)
-        log "Key Pair {} exists, not updating." [keyName]
+        say "Key Pair {} exists, not updating." [keyName]
 
     write f k = do
         shell $ do
@@ -49,7 +49,7 @@ create (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
              Shell.mkdir_p $ Path.parent f
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
-        log "Wrote new Key Pair to {}" [f]
+        say "Wrote new Key Pair to {}" [f]
         void $ Object.upload b (Text.pack . Path.encodeString $ Path.filename f) f
 
 path :: Naming a => RKeysBucket -> a -> LKeysDir -> AWS FilePath

@@ -6,7 +6,7 @@
 
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
--- Module      : Khan.Model.Profile
+-- Module      : Khan.Model.Role
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -16,10 +16,11 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.Profile
-    ( Policy (..)
-    , policy
+module Khan.Model.Role
+    ( Paths (..)
+    , paths
     , find
+    , findPolicy
     , update
     ) where
 
@@ -32,18 +33,18 @@ import           Network.AWS.IAM
 
 default (Text)
 
-data Policy = Policy
+data Paths = Paths
     { pTrustPath  :: !TrustPath
     , pPolicyPath :: !PolicyPath
     }
 
-policy :: Naming a
-       => a
-       -> ConfigDir
-       -> TrustPath  -- ^ Trust template path
-       -> PolicyPath -- ^ Policy template path
-       -> Policy
-policy (names -> Names{..}) (ConfigDir root) t p = Policy
+paths :: Naming a
+      => a
+      -> ConfigDir
+      -> TrustPath  -- ^ Trust template path
+      -> PolicyPath -- ^ Policy template path
+      -> Paths
+paths (names -> Names{..}) (ConfigDir root) t p = Paths
     { pTrustPath  = TrustPath $ defaultPath (_trust t) tpath
     , pPolicyPath = PolicyPath $ defaultPath (_policy p) ppath
     }
@@ -52,7 +53,14 @@ policy (names -> Names{..}) (ConfigDir root) t p = Policy
     ppath = root </> "policies" </> Path.fromText roleName <.> "ede"
 
 find :: Naming a => a -> AWS Role
-find = fmap (grrRole . grrGetRoleResult) . send . GetRole . profileName . names
+find (names -> Names{..}) = do
+    say "Finding IAM Role {}" [profileName]
+    grrRole . grrGetRoleResult <$> send (GetRole profileName)
+
+findPolicy :: Naming a => a -> AWS GetRolePolicyResult
+findPolicy (names -> Names{..}) = do
+    say "Finding IAM Policy for Role {}" [profileName]
+    grprGetRolePolicyResult <$> send (GetRolePolicy profileName profileName)
 
 update :: Naming a => a -> TrustPath -> PolicyPath -> AWS Role
 update (names -> n@Names{..}) tpath ppath = do
@@ -70,7 +78,7 @@ update (names -> n@Names{..}) tpath ppath = do
     pr <- sendAsync $ PutRolePolicy (LText.toStrict p) profileName profileName
 
     wait ar >>= verifyIAM "LimitExceeded"
-    waitAsync_ pr <* log "Updated policy for Role {}" [profileName]
+    waitAsync_ pr <* say "Updated policy for Role {}" [profileName]
 
     find n
   where

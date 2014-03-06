@@ -21,6 +21,8 @@ module Khan.Prelude
     , NonEmpty (..)
 
     -- * Monadic
+    , (<=<)
+    , (>=>)
     , forever
     , join
     , when
@@ -56,7 +58,7 @@ module Khan.Prelude
 
 import Control.Applicative       as Applicative
 import Control.Error             as Error
-import Control.Monad             (forever, join, when, unless, void)
+import Control.Monad             ((<=<), (>=>), forever, join, when, unless, void)
 import Control.Monad.Error       (MonadError, throwError)
 import Control.Monad.IO.Class    as MonadIO
 import Control.Monad.Trans.Class (lift)

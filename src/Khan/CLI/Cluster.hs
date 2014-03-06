@@ -17,17 +17,15 @@ module Khan.CLI.Cluster (commands) where
 
 import           Control.Concurrent          (threadDelay)
 import qualified Data.HashMap.Strict         as Map
-import           Data.List                   (intersperse)
 import           Data.SemVer
-import qualified Data.Text                   as Text
-import           Khan.Internal               hiding (infoParser)
+import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
 import qualified Khan.Model.LaunchConfig     as Config
-import           Khan.Model.Profile          (Policy(..))
-import qualified Khan.Model.Profile          as Profile
+import           Khan.Model.Role             (Paths(..))
+import qualified Khan.Model.Role             as Role
 import qualified Khan.Model.ScalingGroup     as ASG
 import qualified Khan.Model.SecurityGroup    as Security
 import qualified Khan.Model.Tag              as Tag
@@ -35,7 +33,6 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling     hiding (Filter)
 import           Network.AWS.EC2
-import qualified Text.PrettyPrint.Boxes      as PP
 
 data Info = Info
     { iRole :: !Role
@@ -47,7 +44,9 @@ infoParser env = Info
     <$> roleOption
     <*> envOption env
 
-instance Options Info
+instance Options Info where
+    validate Info{..} =
+        check iEnv "--env must be specified."
 
 instance Naming Info where
     names Info{..} = unversioned iRole iEnv
@@ -104,7 +103,7 @@ instance Options Deploy where
             , dPolicy = pPolicyPath
             }
       where
-        Policy{..} = Profile.policy d cConfig dTrust dPolicy
+        Paths{..} = Role.paths d cConfig dTrust dPolicy
 
     validate Deploy{..} = do
         check dEnv   "--env must be specified."
@@ -149,6 +148,7 @@ scaleParser env = Scale
 
 instance Options Scale where
     validate Scale{..} = do
+        check sEnv "--env must be specified."
         check (sMin >= sMax)    "--min must be less than --max."
         check (sDesired < sMin) "--desired must be greater than or equal to --min."
         check (sDesired > sMax) "--desired must be less than or equal to --max."
@@ -189,58 +189,70 @@ commands env = group "cluster" "Auto Scaling Groups." $ mconcat
 
 info :: Common -> Info -> AWS ()
 info Common{..} Info{..} = do
-    log "Looking for Instances tagged Role:{} and Env:{}"
-        [_role iRole, _env iEnv]
+    let r = _role iRole
+        e = _env  iEnv
+
+    say "Looking for Instances tagged with {} and {}" [r, e]
     is <- mapM annotate =<< Instance.findAll []
-        [ Tag.filter Tag.role [_role iRole]
-        , Tag.filter Tag.env  [_env  iEnv]
+        [ Tag.filter Tag.role [r]
+        , Tag.filter Tag.env  [e]
+        , Filter "instance-state-name" ["pending", "running", "stopping", "shutting-down"]
         , Filter "tag-key" [groupTag]
         ]
 
-    let m = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
+    let m  = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
+        ks = Map.keys m
 
-    log "Describing Auto Scaling Groups: [{}]" [Map.keys m]
-    gs <- ASG.findAll $ Map.keys m
+    if null ks
+        then log_ "No Auto Scaling Groups found."
+        else do
+            say "Describing Auto Scaling Groups: {}" [ks]
+            gs <- ASG.findAll ks
 
-    log "Found {} matching Auto Scaling Groups\n" [length gs]
-    forM_ gs $ \g@AutoScalingGroup{..} -> do
-        xs <- noteAWS "Missing Auto Scaling Group entries: {}" [asgAutoScalingGroupName] $
-            Map.lookup asgAutoScalingGroupName m
-        prettyPrint $ PP g
-        prettyPrint $ PP xs
+            say "Found {} matching Auto Scaling Groups" [length gs]
+            forM_ gs $ \g@AutoScalingGroup{..} -> do
+                xs <- noteAWS "Missing Auto Scaling Group entries: {}"
+                    [B asgAutoScalingGroupName]
+                    (Map.lookup asgAutoScalingGroupName m)
+
+                ln >> pp (title asgAutoScalingGroupName)
+                ppi 2 g  >> ln
+                ppi 2 (map weighted xs) >> ln
   where
     annotate i@RunningInstancesItemType{..} = (,)
-        <$> noteAWS "No Auto Scaling Group for: {}" [riitInstanceId] (groupName riitTagSet)
+        <$> noteAWS "No Auto Scaling Group for: {}" [B riitInstanceId] (groupName riitTagSet)
         <*> pure i
 
     groupName = Map.lookup groupTag . Tag.flatten
     groupTag  = "aws:autoscaling:groupName"
+
+    weighted i = PI i (Tag.lookupWeight . Tag.flatten $ riitTagSet i)
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = do
     j <- ASG.find d
 
     when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
-        log "Waiting for previous deletion of Auto Scaling Group {}" [appName]
+        say "Waiting for previous deletion of Auto Scaling Group {}" [appName]
         liftIO . threadDelay $ 10 * 1000000
         deploy c d
 
     when (isJust j) $
-        throwAWS "Auto Scaling Group {} already exists." [appName]
+        throwAWS "Auto Scaling Group {} already exists." [B appName]
 
     k <- async $ Key.create dRKeys d cLKeys
-    p <- async $ Profile.find d <|> Profile.update d dTrust dPolicy
+    p <- async $ Role.find d <|> Role.update d dTrust dPolicy
     s <- async $ Security.sshGroup d
     g <- async $ Security.create groupName
     a <- async $ Image.find [] [Filter "name" [imageName]]
 
     wait_ k
-    wait_ p <* log "Found IAM Profile {}" [profileName]
-    wait_ s <* log "Found SSH Group {}"   [sshGroupName]
-    wait_ g <* log "Found App Group {}"   [groupName]
+    wait_ p <* say "Found IAM Profile {}" [profileName]
+    wait_ s <* say "Found SSH Group {}" [sshGroupName]
+    wait_ g <* say "Found App Group {}" [groupName]
 
     ami <- diritImageId <$> wait a
-    log "Found AMI {} named {}" [ami, imageName]
+    say "Found AMI {} named {}" [ami, imageName]
 
     Config.create d ami dType
 
@@ -254,62 +266,13 @@ scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 promote :: Common -> Cluster -> AWS ()
-promote _ _ = return ()
+promote _ c@Cluster{..} = return ()
+    -- find all role clusters in the current region
 
+    -- sort by their weight tags
+
+    -- present multiple choice
+
+-- FIXME: Ensure the cluster is not currently the only promoted one.
 retire :: Common -> Cluster -> AWS ()
 retire _ c = ASG.delete c >> Config.delete c
-
-newtype PP a = PP a
-
-instance Pretty (PP AutoScalingGroup) where
-    pretty (PP AutoScalingGroup{..}) = PP.text name PP.// layout [hs, vs]
-      where
-        name = "[" ++ Text.unpack asgAutoScalingGroupName ++ "] ->"
-
-        hs = [ "status:"
-             , "zones:"
-             , "cooldown:"
-             , "min:"
-             , "max:"
-             , "desired:"
-             , "created:"
-             ]
-
-        vs = [ maybe "OK" show asgStatus
-             , zones
-             , show asgDefaultCooldown
-             , show asgMinSize
-             , show asgMaxSize
-             , show asgDesiredCapacity
-             , formatUTC asgCreatedTime
-             ]
-
-        zones | null asgAvailabilityZones = ""
-              | otherwise = (show . azRegion $ head asgAvailabilityZones)
-                  ++ "["
-                  ++ intersperse ',' (map azSuffix asgAvailabilityZones)
-                  ++ "]"
-
-instance Pretty (PP [RunningInstancesItemType]) where
-    pretty (PP xs) = (layout . (hs :) $ map f xs) PP./+/ PP.nullBox
-      where
-        hs = [ "weight:"
-             , "instance-id:"
-             , "image-id:"
-             , "public-ip:"
-             , "type:"
-             , "launched:"
-             , "state:"
-             , "reason:"
-             ]
-
-        f RunningInstancesItemType{..} =
-            [ show . Tag.lookupWeight $ Tag.flatten riitTagSet
-            , Text.unpack riitInstanceId
-            , Text.unpack riitImageId
-            , Text.unpack . fromMaybe "" $ riitIpAddress
-            , show riitInstanceType
-            , formatUTC riitLaunchTime
-            , Text.unpack $ istName riitInstanceState
-            , maybe "" show riitStateReason
-            ]

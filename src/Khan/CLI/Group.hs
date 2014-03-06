@@ -15,7 +15,6 @@
 
 module Khan.CLI.Group (commands) where
 
-import qualified Data.Text                as Text
 import           Khan.Internal
 import           Khan.Internal.Ansible
 import qualified Khan.Model.SecurityGroup as Security
@@ -74,18 +73,11 @@ commands env = group "group" "Security Groups." $ mconcat
     ]
 
 info :: Common -> Group -> AWS ()
-info _ (names -> Names{..}) =
-    Security.find groupName >>= maybe (return ()) (log_ . format)
-  where
-    format SecurityGroupItemType{..} = Text.init . Text.unlines $
-        [ "OwnerId             = "  <> sgitOwnerId
-        , "GroupId             = "  <> sgitGroupId
-        , "GroupName           = "  <> sgitGroupName
-        , "GroupDescription    = "  <> sgitGroupDescription
-        , "VpcId               = "  <> fromMaybe "''" sgitVpcId
-        , "IpPermissionsEgress = [" <> showRules sgitIpPermissionsEgress <> "]"
-        , "IpPermissions       = [" <> showRules sgitIpPermissions <> "]"
-        ]
+info _ (names -> Names{..}) = do
+    mg <- Security.find groupName
+    maybe (log_ "No Security Groups found.")
+          (\g -> ln >> pp (title $ sgitGroupName g) >> ppi 2 g >> ln)
+          mg
 
 modify :: (Text -> AWS Bool) -> Common -> Group -> AWS ()
 modify f c g@Group{..}

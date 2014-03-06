@@ -16,6 +16,8 @@
 module Khan.CLI.Cluster (commands) where
 
 import           Control.Concurrent          (threadDelay)
+import           Data.Conduit
+import qualified Data.Conduit.List           as Conduit
 import qualified Data.HashMap.Strict         as Map
 import           Data.SemVer
 import           Khan.Internal
@@ -207,7 +209,7 @@ info Common{..} Info{..} = do
         then log_ "No Auto Scaling Groups found."
         else do
             say "Describing Auto Scaling Groups: {}" [ks]
-            gs <- ASG.findAll ks
+            gs <- ASG.findAll ks $$ Conduit.consume
 
             say "Found {} matching Auto Scaling Groups" [length gs]
             forM_ gs $ \g@AutoScalingGroup{..} -> do
@@ -275,6 +277,6 @@ promote _ c@Cluster{..} = return ()
 
     -- present multiple choice
 
--- FIXME: Ensure the cluster is not currently the only promoted one.
+-- FIXME: Ensure the cluster is not currently the _only_ promoted one.
 retire :: Common -> Cluster -> AWS ()
 retire _ c = ASG.delete c >> Config.delete c

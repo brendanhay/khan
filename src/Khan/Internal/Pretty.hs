@@ -245,16 +245,18 @@ instance Pretty R53.Failover where
 instance Pretty R53.HostedZone where
     pretty R53.HostedZone{..} = hcols w hs <-> hcols w bs
       where
-        w  = 30
+        w = 10
 
-        hs = [ H "id:"
-             , H "reference:"
+        wide = D 38
+
+        hs = [ wide (H "id:")
+             , wide (H "reference:")
              , H "config:"
              , H "record-count:"
              ]
 
-        bs = [ C hzId
-             , C hzCallerReference
+        bs = [ wide (C hzId)
+             , wide (C hzCallerReference)
              , C hzConfig
              , C hzResourceRecordSetCount
              ]

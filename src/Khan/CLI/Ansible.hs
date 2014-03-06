@@ -137,9 +137,25 @@ inventory Common{..} Inventory{..} = do
                 [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]
 
 playbook :: Common -> Ansible -> AWS ()
-playbook c@Common{..} a@Ansible{..} =
-    let Names{..} = names aEnv
-     in ansible c $ a { aBin = aBin `mplus` Just "ansible-playbook" }
+playbook c a@Ansible{..} = ansible c ans
+  where
+    Names{..} = names aEnv
+
+    ans = a { aBin = cmd, aArgs = aArgs ++ [extras] }
+
+    cmd = aBin `mplus` Just "ansible-playbook"
+    reg = cRegion c
+
+    extras = concat
+        [ "khan_region="
+        , show reg
+        , " khan_region_abbrev="
+        , Text.unpack $ abbreviate reg
+        , " khan_env="
+        , Text.unpack envName
+        , " khan_key="
+        , Text.unpack keyName
+        ]
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do

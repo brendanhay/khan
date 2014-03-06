@@ -141,13 +141,15 @@ playbook c a@Ansible{..} = ansible c ans
   where
     Names{..} = names aEnv
 
-    ans = a { aBin = cmd, aArgs = aArgs ++ [extras] }
+    ans = a { aBin = cmd, aArgs = extras : aArgs }
 
     cmd = aBin `mplus` Just "ansible-playbook"
     reg = cRegion c
 
     extras = concat
-        [ "khan_region="
+        [ "--extra-vars"
+        , " '"
+        , "khan_region="
         , show reg
         , " khan_region_abbrev="
         , Text.unpack $ abbreviate reg
@@ -155,6 +157,7 @@ playbook c a@Ansible{..} = ansible c ans
         , Text.unpack envName
         , " khan_key="
         , Text.unpack keyName
+        , "'"
         ]
 
 ansible :: Common -> Ansible -> AWS ()

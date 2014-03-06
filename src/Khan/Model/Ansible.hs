@@ -23,7 +23,7 @@ module Khan.Model.Ansible
     -- * Idempotence check
       Modified   (..)
 
-    -- * Running ansible
+    -- * Capturing ansible output
     , capture
 
     -- * JSON output formatters

@@ -28,6 +28,7 @@ module Khan.Internal.Types
    , Naming        (..)
 
    -- * Types
+   , Modified      (..)
    , Tags          (..)
    , Names         (..)
    , RoutingPolicy (..)
@@ -60,6 +61,11 @@ import           Text.Read
 import qualified Text.Read                    as Read
 
 type EnvMap = HashMap Text Text
+
+data Modified a
+    = Changed   { result :: !a }
+    | Unchanged { result :: !a }
+      deriving (Eq, Show)
 
 class Invalid a where
     invalid :: a -> Bool

@@ -163,7 +163,7 @@ instance Pretty PrettyInst where
         [ C (int weight)
         , C riitInstanceId
         , C riitImageId
-        , C (fromMaybe "" $ riitIpAddress)
+        , C (fromMaybe "" riitIpAddress)
         , C riitInstanceType
         , C (EC2.istName riitInstanceState)
         , C (D 19 riitLaunchTime)

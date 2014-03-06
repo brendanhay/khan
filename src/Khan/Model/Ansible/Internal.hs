@@ -7,7 +7,7 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TupleSections              #-}
 
--- Module      : Khan.Internal.Ansible
+-- Module      : Khan.Model.Ansible.Internal
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -17,88 +17,31 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Internal.Ansible where
+module Khan.Model.Ansible.Internal where
 
-import           Control.Monad.Error
-import           Data.Aeson                 as Aeson
-import qualified Data.Aeson.Encode.Pretty   as Aeson
-import qualified Data.Attoparsec.Text       as T
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import           Data.HashMap.Strict        (HashMap)
-import qualified Data.HashMap.Strict        as Map
-import           Data.List                  (intercalate)
-import           Data.Set                   (Set)
-import qualified Data.Set                   as Set
-import qualified Data.Text                  as Text
-import           Data.Text.Format
-import           Data.Text.Format.Params
-import qualified Data.Text.IO               as Text
-import qualified Data.Text.Lazy             as LText
-import qualified Filesystem.Path.CurrentOS  as Path
+import           Data.Aeson            as Aeson
+import           Data.HashMap.Strict   (HashMap)
+import qualified Data.HashMap.Strict   as Map
+import           Data.Set              (Set)
+import qualified Data.Set              as Set
+import qualified Data.Text             as Text
+import qualified Data.Text.Lazy        as LText
 import           Khan.Internal.AWS
-import           Khan.Internal.IO
 import           Khan.Internal.Options
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
-import           System.Exit
 
 data Output
-    = Changed !LText.Text
-    | Unchanged !LText.Text
-    | Failed !LText.Text
+    = Change   LText.Text
+    | NoChange LText.Text
+    | Fail     LText.Text
       deriving (Show)
 
 instance ToJSON Output where
-    toJSON (Changed   msg) = object ["changed" .= True,  "msg" .= msg]
-    toJSON (Unchanged msg) = object ["changed" .= False, "msg" .= msg]
-    toJSON (Failed    msg) = object ["failed"  .= True,  "msg" .= msg]
-
-changed, unchanged :: (Monad m, Params ps) => Format -> ps -> m Output
-changed   f = return . Changed . format f
-unchanged f = return . Unchanged . format f
-
-failed :: (Monad m, Params ps) => Format -> ps -> m Output
-failed f = return . Failed . format f
-
-capture :: Params ps => Common -> Format -> ps -> AWS Bool -> AWS ()
-capture c f ps aws = capture' c $ aws >>= success
-  where
-    success True  = changed (f <> " changed.") ps
-    success False = unchanged (f <> " unchanged.") ps
-
-capture' :: Common -> AWS Output -> AWS ()
-capture' c aws = contextAWS c aws
-     >>= either failure (return . id)
-     >>= exit
-  where
-    failure (Err s)  = failed "{}" $ Only s
-    failure (Ex  ex) = failure . toError $ show ex
-    failure (Ers es) = failure . toError . intercalate ", " $ map show es
-
-    exit o = liftIO $ LBS.putStrLn (Aeson.encodePretty o) >>
-        case o of
-            Failed _ -> exitFailure
-            _        -> exitSuccess
-
-parseArgsFile :: FilePath -> AWS [(Text, Text)]
-parseArgsFile path = do
-    line <- liftEitherT . sync . Text.readFile $ Path.encodeString path
-    hoistError . fmapL toError $ T.parseOnly kvs line
-  where
-    kvs = T.many1 $ (,)
-        <$> (T.skipSpace *> T.takeWhile (/= '=') <* T.char '=')
-        <*> (quoted '\'' <|> quoted '"' <|> spaced)
-
-    quoted c = T.char c *> T.takeWhile (/= c) <* T.char c
-    spaced   = T.takeWhile (not . end)
-
-    end c = T.isHorizontalSpace c || T.isEndOfLine c
-
-inventoryPath :: CacheDir -> Env -> AWS FilePath
-inventoryPath (CacheDir dir) env = do
-    r <- Text.pack . show <$> getRegion
-    return $ dir </> Path.fromText (Text.concat [r, "_", _env env])
+    toJSON (Change   msg) = object ["changed" .= True,  "msg" .= msg]
+    toJSON (NoChange msg) = object ["changed" .= False, "msg" .= msg]
+    toJSON (Fail    msg) = object  ["failed"  .= True,  "msg" .= msg]
 
 data Inv a
     = Meta { unwrap :: a }

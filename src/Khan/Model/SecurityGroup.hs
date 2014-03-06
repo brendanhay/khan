@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 
@@ -23,69 +24,71 @@ module Khan.Model.SecurityGroup
     , create
     , delete
     , update
+
+    -- * IP permission parsing
+    , parseRule
     ) where
 
-import Control.Monad
-import Data.List       (sort)
-import Khan.Internal
-import Khan.Prelude    hiding (find, min, max)
-import Network.AWS.EC2 hiding (Instance)
+import           Control.Monad
+import           Data.Attoparsec.Text
+import           Data.List            (sort)
+import qualified Data.Text            as Text
+import           Data.Tuple
+import           Khan.Internal
+import           Khan.Prelude         hiding (find, min, max)
+import           Network.AWS.EC2      hiding (Instance)
 
 sshGroup :: Naming a => a -> AWS Bool
-sshGroup = flip update rules . sshGroupName . names
-  where
-    rules = [ IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]
-            ]
+sshGroup (names -> Names{..}) = update sshGroupName
+    [ IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]
+    ]
 
 find :: Text -> AWS (Maybe SecurityGroupItemType)
 find name = do
     say "Searching for Security Group {}" [name]
-    mg <- fmap groupMay . sendCatch $ DescribeSecurityGroups [name] [] []
-    when (isNothing mg) $ say "Unable to find Security Group {}" [name]
+    mg <- groupMay <$> sendCatch (DescribeSecurityGroups [name] [] [])
+    when (isNothing mg) $
+         say "Unable to find Security Group {}" [name]
     return mg
   where
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
     groupMay (Left  _) = Nothing
 
-create :: Text -> AWS Bool
-create name = do
-    mg <- find name
-    maybe (do say "Security Group {} not found, creating..." [name]
-              gid <- fmap csgrGroupId . send $
-                  CreateSecurityGroup name name Nothing
-              say "Security Group {} created." [gid]
-              return True)
-          (const $ return False)
-          mg
+create :: Text -> AWS (Modified SecurityGroupItemType)
+create name = find name >>= maybe go (return . Unchanged)
+  where
+    go = do
+        say "Security Group {} not found, creating..." [name]
+        gid <- csgrGroupId <$> send (CreateSecurityGroup name name Nothing)
+        gs  <- dshrSecurityGroupInfo <$> send (DescribeSecurityGroups [] [gid] [])
+        grp <- noteAWS "Unable to find created Security Group {}" [B name] (headMay gs)
+        say "Security Group {}/{} created." [name, gid]
+        return $ Changed grp
 
 delete :: Text -> AWS Bool
-delete name = do
-    mg <- find name
-    maybe (return False)
-          (const $ do
-              say "Deleting Security Group {}..." [name]
-              send_ $ DeleteSecurityGroup (Just name) Nothing
-              log_ "Security Group deleted."
-              return True)
-          mg
+delete name = find name >>= maybe (return False) (const go)
+  where
+    go = do
+        say "Deleting Security Group {}..." [name]
+        send_ $ DeleteSecurityGroup (Just name) Nothing
+        log_ "Security Group deleted."
+        return True
 
 -- FIXME: diff causes rules to be revoked before re-adding, due to shallow diff
 -- which doesn't inspect the inner UserIdGroupPairs, this could potentially cause
 -- a brief netsplit.
 update :: Text -> [IpPermissionType] -> AWS Bool
 update name (sort -> rules) = do
-    _   <- create name
-    grp <- find name >>= noteAWS "Unable to find Security Group: {}" [B name]
+    SecurityGroupItemType{..} <- result <$> create name
 
-    let gid         = sgitGroupId grp
-        fs          = map (UserIdGroupPair Nothing Nothing . uigGroupName)
+    let fs          = map (UserIdGroupPair Nothing Nothing . uigGroupName)
         gs          = map (\p -> p { iptGroups = fs $ iptGroups p })
-        ps          = sort . gs $ sgitIpPermissions grp
+        ps          = sort (gs sgitIpPermissions)
         (auth, rev) = diff rules ps
 
     log "Updating Security Group {}..." [name]
 
-    liftM2 (||) (revoke gid rev) (authorise gid auth)
+    liftM2 (||) (revoke sgitGroupId rev) (authorise sgitGroupId auth)
         <* log "Security Group {} updated." [name]
   where
     revoke gid xs
@@ -102,3 +105,35 @@ update name (sort -> rules) = do
             es <- sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing xs)
             verifyEC2 "InvalidPermission.Duplicate" es
             return $ isRight es
+
+parseRule :: String -> Either String IpPermissionType
+parseRule s = msg . parseOnly parser $ Text.pack s
+  where
+    msg = fmapL . const $
+        "expected: tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...], got: " ++ s
+
+    parser = do
+        p <- protocol
+        f <- decimal <* char ':'
+        t <- decimal <* char ':'
+        g <- sepBy1 (eitherP range group') (char ',')
+        return . uncurry (IpPermissionType p f t) . swap $ partitionEithers g
+
+    range = do
+        a <- takeTill (== '.') <* char '.'
+        b <- takeTill (== '.') <* char '.'
+        c <- takeTill (== '.') <* char '.'
+        d <- text
+        return . IpRange $ Text.intercalate "." [a, b, c, d]
+
+    group' = UserIdGroupPair Nothing Nothing <$> (Just <$> text)
+
+    text = Text.pack <$> many1 (satisfy $ notInClass ":|,")
+
+    protocol = do
+        p <- takeTill (== ':') <* char ':'
+        case p of
+            "tcp"  -> return TCP
+            "udp"  -> return UDP
+            "icmp" -> return ICMP
+            _      -> fail ""

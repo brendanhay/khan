@@ -71,6 +71,8 @@ library
       , Khan.Internal.Pretty
       , Khan.Internal.Types
 
+      , Khan.Model.Ansible.Internal
+
       , Khan.Prelude.Log
 
     build-depends:

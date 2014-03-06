@@ -69,7 +69,6 @@ library
       , Khan.Internal.Orphans
       , Khan.Internal.Parsing
       , Khan.Internal.Pretty
-      , Khan.Internal.Text
       , Khan.Internal.Types
 
       , Khan.Prelude.Log

@@ -40,12 +40,12 @@ import           Network.AWS.Route53  hiding (wait)
 findAll :: HostedZoneId
         -> (ResourceRecordSet -> Bool)
         -> Source AWS ResourceRecordSet
-findAll zid p = paginate start
-    $= Conduit.map lrrsrResourceRecordSets
-    $= Conduit.concat
-    $= Conduit.filter p
-  where
-    start = ListResourceRecordSets zid Nothing Nothing Nothing Nothing
+findAll zid p = do
+    say "Searching for Record Sets in {}" [zid]
+    paginate (ListResourceRecordSets zid Nothing Nothing Nothing Nothing)
+        $= Conduit.map lrrsrResourceRecordSets
+        $= Conduit.concat
+        $= Conduit.filter p
 
 find :: HostedZoneId
      -> (ResourceRecordSet -> Bool)

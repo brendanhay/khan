@@ -152,12 +152,8 @@ data Names = Names
 instance ToJSON Names where
     toJSON = genericToJSON $ defaultOptions
         { fieldLabelModifier =
-            Text.unpack . (`mappend` "_name") . tstrip "Name" . Text.pack
+            Text.unpack . (`mappend` "_name") . stripText "Name" . Text.pack
         }
-      where
-        tstrip x y =
-            let z = fromMaybe y $ Text.stripPrefix x y
-            in  fromMaybe z $ Text.stripSuffix x z
 
 createNames :: Role -> Env -> Maybe Version -> Names
 createNames (_role -> role) (_env -> env) ver = Names
@@ -248,3 +244,8 @@ instance IsString Env where
 
 newEnv :: Text -> Env
 newEnv = Env
+
+stripText :: Text -> Text -> Text
+stripText x y =
+    let z = fromMaybe y $ Text.stripPrefix x y
+     in fromMaybe z $ Text.stripSuffix x z

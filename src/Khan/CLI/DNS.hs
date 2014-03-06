@@ -117,7 +117,7 @@ info _ Info{..} = do
     ln >> pp (title hzName)
     ppi 2 z >> ln
 
-    RSet.findAll hzId (maybe (const True) (\n x -> rrsName x == n) iName)
+    RSet.findAll hzId (maybe (const True) (\x -> Text.isPrefixOf x . rrsName) iName)
         $$ Conduit.mapM_ (\r -> ln >> ppi 2 r)
 
     ln

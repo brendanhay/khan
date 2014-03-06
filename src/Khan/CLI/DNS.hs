@@ -26,6 +26,24 @@ import           Khan.Prelude          hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
 
+data Info = Info
+    { iZone :: !Text
+    , iName :: Maybe Text
+    }
+
+infoParser :: Parser Info
+infoParser = Info
+    <$> textOption "zone" (short 'z')
+        "Name of the zone to query."
+    <*> optional (textOption "name" (short 'n')
+        "Name of the record set to lookup.")
+
+instance Options Info where
+    discover _ _ = return . validZone iZone (\i z -> i { iZone = z })
+
+    validate Info{..} =
+        check iZone "--zone must be specified."
+
 data Record = Record
     { rZone    :: !Text
     , rName    :: !Text
@@ -42,9 +60,9 @@ data Record = Record
 
 recordParser :: Parser Record
 recordParser = Record
-    <$> textOption "zone" mempty
+    <$> textOption "zone" (short 'z')
         "Name of the hosted zone to modify."
-    <*> textOption "name" mempty
+    <*> textOption "name" (short 'n')
         "Name of the record set to modify."
     <*> readOption "type" "TYPE" (value CNAME)
         "Record set type."
@@ -65,9 +83,7 @@ recordParser = Record
     <*> ansibleOption
 
 instance Options Record where
-    discover _ _ r@Record{..}
-        | invalid rZone = return r
-        | otherwise     = return $ r { rZone = tappend rZone "." }
+    discover _ _ = return . validZone rZone (\r z -> r { rZone = z })
 
     validate Record{..} = do
         check rZone   "--zone must be specified."
@@ -84,11 +100,27 @@ instance Options Record where
 
 commands :: Mod CommandFields Command
 commands = group "dns" "Manage DNS Records." $ mconcat
-    [ command "update" update recordParser
+    [ command "info" info infoParser
+        "Display information about a Record Set."
+    , command "update" update recordParser
         "Ensure the Record Set exists with the specified options."
     , command "delete" delete recordParser
         "Delete an existing Record Set."
     ]
+
+info :: Common -> Info -> AWS ()
+info _ Info{..} = do
+    z@HostedZone{..} <- HZone.find iZone >>=
+        noteAWS "Unable to find Hosted Zone {}" [B iZone]
+    say "Found Hosted Zone Id {}" [hzId]
+
+    ln >> pp (title hzName)
+    ppi 2 z >> ln
+
+    RSet.findAll hzId (maybe (const True) (\n x -> rrsName x == n) iName)
+        $$ Conduit.mapM_ (\r -> ln >> ppi 2 r)
+
+    ln
 
 update :: Common -> Record -> AWS ()
 update c@Common{..} r@Record{..}
@@ -157,3 +189,12 @@ recordSet reg zid Record{..} vs = mk rPolicy rAlias
 
 domainName :: Text -> Text -> Text
 domainName name zone = name <> "." <> zone
+
+validZone :: (a -> Text) -> (a -> Text -> a) -> a -> a
+validZone f g x
+    | invalid (f x) = x
+    | otherwise     = g x ("." `suffix` f x)
+  where
+    suffix a b
+        | a `Text.isSuffixOf` b = b
+        | otherwise             = b <> a

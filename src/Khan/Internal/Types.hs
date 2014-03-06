@@ -53,7 +53,6 @@ import qualified Data.Text                    as Text
 import qualified Data.Text.Lazy.Builder       as Build
 import qualified Filesystem.Path.CurrentOS    as Path
 import           GHC.Generics                 (Generic)
-import           Khan.Internal.Text
 import           Khan.Prelude
 import           Network.AWS                  (Region)
 import qualified Text.ParserCombinators.ReadP as ReadP
@@ -155,6 +154,10 @@ instance ToJSON Names where
         { fieldLabelModifier =
             Text.unpack . (`mappend` "_name") . tstrip "Name" . Text.pack
         }
+      where
+        tstrip x y =
+            let z = fromMaybe y $ Text.stripPrefix x y
+            in  fromMaybe z $ Text.stripSuffix x z
 
 createNames :: Role -> Env -> Maybe Version -> Names
 createNames (_role -> role) (_env -> env) ver = Names

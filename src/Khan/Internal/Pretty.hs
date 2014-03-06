@@ -44,6 +44,7 @@ import           Network.AWS
 import qualified Network.AWS.AutoScaling      as ASG
 import qualified Network.AWS.EC2              as EC2
 import qualified Network.AWS.IAM              as IAM
+import qualified Network.AWS.Route53          as R53
 import           Network.HTTP.Types           (urlDecode)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
@@ -53,19 +54,19 @@ default (Doc)
 data Column where
     H :: Pretty a => a -> Column
     C :: Pretty a => a -> Column
-    D :: Pretty a => a -> Column
+    D :: Pretty a => Int -> a -> Column
 
 instance Pretty Column where
-    pretty (H x) = pretty x
-    pretty (C x) = pretty x
-    pretty (D x) = pretty x
+    pretty (H   x) = bold (pretty x)
+    pretty (C   x) = pretty x
+    pretty (D n x) = fill n (pretty x)
 
 cols :: Int -> [Column] -> [Doc]
 cols w = map f
   where
-    f (H x) = fill w  (bold $ pretty x)
-    f (C x) = fill w  (pretty x)
-    f (D x) = fill 19 (pretty x)
+    f (H   x) = fill w (bold $ pretty x)
+    f (C   x) = fill w (pretty x)
+    f (D n x) = fill n (pretty x)
 
 hcols :: Int -> [Column] -> Doc
 hcols w = hsep . cols w
@@ -128,6 +129,7 @@ instance Pretty ASG.AutoScalingGroup where
     pretty ASG.AutoScalingGroup{..} = hcols w hs <-> hcols w bs
       where
         w  = 15
+        d  = w + 4
 
         hs = [ H "status:"
              , H "zones:"
@@ -135,7 +137,7 @@ instance Pretty ASG.AutoScalingGroup where
              , H "min:"
              , H "max:"
              , H "desired:"
-             , H (D "created:")
+             , H (D d "created:")
              ]
 
         bs = [ C (maybe "OK" pretty asgStatus)
@@ -144,7 +146,7 @@ instance Pretty ASG.AutoScalingGroup where
              , C asgMinSize
              , C asgMaxSize
              , C asgDesiredCapacity
-             , C (D asgCreatedTime)
+             , C (D d asgCreatedTime)
              ]
 
 instance Pretty AvailabilityZone where
@@ -164,7 +166,7 @@ instance Pretty PrettyInst where
         , C (fromMaybe "" $ riitIpAddress)
         , C riitInstanceType
         , C (EC2.istName riitInstanceState)
-        , C (D riitLaunchTime)
+        , C (D 19 riitLaunchTime)
         ]
 
     prettyList is = hcols 15 hs <-> vsep (map pretty is)
@@ -175,7 +177,7 @@ instance Pretty PrettyInst where
              , H "public-ip:"
              , H "type:"
              , H "state:"
-             , H (D "launched:")
+             , H (D 19 "launched:")
              ]
 
 instance Pretty EC2.InstanceType where
@@ -209,3 +211,165 @@ instance Pretty EC2.IpPermissionType where
 
 instance Pretty EC2.Protocol where
     pretty = text . show
+
+instance Pretty R53.CallerReference where
+    pretty = pretty . R53.unCallerReference
+
+instance Pretty R53.HostedZoneId where
+    pretty = pretty . R53.unHostedZoneId
+
+instance Pretty R53.HealthCheckId where
+    pretty = pretty . R53.unHealthCheckId
+
+instance Pretty R53.RecordType where
+    pretty = text . show
+
+instance Pretty R53.AliasTarget where
+    pretty R53.AliasTarget{..} = hcat
+        [ pretty atHostedZoneId
+        , "->"
+        , pretty atDNSName
+        , " health:"
+        , bool atEvaluateTargetHealth
+        ]
+
+instance Pretty R53.ResourceRecords where
+    pretty = pretty . R53.rrValues
+
+instance Pretty R53.Config where
+    pretty = pretty . fromMaybe "<blank>" . R53.cComment
+
+instance Pretty R53.Failover where
+    pretty = text . show
+
+instance Pretty R53.HostedZone where
+    pretty R53.HostedZone{..} = hcols w hs <-> hcols w bs
+      where
+        w  = 30
+
+        hs = [ H "id:"
+             , H "reference:"
+             , H "config:"
+             , H "record-count:"
+             ]
+
+        bs = [ C hzId
+             , C hzCallerReference
+             , C hzConfig
+             , C hzResourceRecordSetCount
+             ]
+
+instance Pretty R53.ResourceRecordSet where
+    pretty x = hcols w (heading ++ hs x) <-> hcols w (common ++ bs x)
+      where
+        w = 10
+
+        wide = D 36
+
+        heading =
+            [ wide (H "name:")
+            , H "type:"
+            ]
+
+        common =
+            [ wide (C . R . B $ R53.rrsName x)
+            , C (R53.rrsType x)
+            ]
+
+        hs R53.FailoverRecordSet{} =
+            [ H "failover:"
+            , H "ttl:"
+            , wide (H "set-id:")
+            , wide (H "values:")
+            ]
+
+        hs R53.FailoverAliasRecordSet{} =
+            [ H "failover:"
+            , wide (H "set-id:")
+            , H "alias-target:"
+            ]
+
+        hs R53.LatencyRecordSet{} =
+            [ H "ttl:"
+            , H "region:"
+            , wide (H "set-id:")
+            , wide (H "values:")
+            ]
+
+        hs R53.LatencyAliasRecordSet{} =
+            [ H "region:"
+            , wide (H "set-id:")
+            , H "alias-target:"
+            ]
+
+        hs R53.WeightedRecordSet{} =
+            [ H "ttl:"
+            , H "weight:"
+            , wide (H "set-id:")
+            ]
+
+        hs R53.WeightedAliasRecordSet{} =
+            [ H "weight:"
+            , wide (H "set-id:")
+            , H "alias-target:"
+            ]
+
+        hs R53.BasicRecordSet{} =
+            [ H "ttl:"
+            , wide (H "values:")
+            ]
+
+        hs R53.AliasRecordSet{} =
+            [ H "alias-target:"
+            ]
+
+        bs R53.FailoverRecordSet{..} =
+            [ C rrsFailover
+            , C rrsTTL
+            , setId
+            , values
+            ]
+
+        bs R53.FailoverAliasRecordSet{..} =
+            [ C rrsFailover
+            , setId
+            , alias
+            ]
+
+        bs R53.LatencyRecordSet{..} =
+            [ C rrsTTL
+            , C rrsRegion
+            , setId
+            , values
+            ]
+
+        bs R53.LatencyAliasRecordSet{..} =
+            [ C rrsRegion
+            , setId
+            , alias
+            ]
+
+        bs R53.WeightedRecordSet{..} =
+            [ C rrsTTL
+            , C rrsWeight
+            , setId
+            ]
+
+        bs R53.WeightedAliasRecordSet{..} =
+            [ C rrsWeight
+            , setId
+            , alias
+            ]
+
+        bs R53.BasicRecordSet{..} =
+            [ C rrsTTL
+            , values
+            ]
+
+        bs R53.AliasRecordSet{..} =
+            [ alias
+            ]
+
+        setId  = wide $ C (R53.rrsSetIdentifier x)
+        values = wide $ C (R53.rrsResourceRecords x)
+        alias  = wide $ C (R53.rrsAliasTarget x)

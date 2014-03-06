@@ -19,7 +19,7 @@ import qualified Data.Conduit.List     as Conduit
 import qualified Data.List.NonEmpty    as List
 import qualified Data.Text             as Text
 import           Khan.Internal
-import           Khan.Internal.Ansible
+import           Khan.Model.Ansible
 import qualified Khan.Model.HostedZone as HZone
 import qualified Khan.Model.RecordSet  as RSet
 import           Khan.Prelude          hiding (for)

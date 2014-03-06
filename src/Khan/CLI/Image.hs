@@ -22,7 +22,7 @@ import qualified Data.Text                   as Text
 import qualified Filesystem.Path.CurrentOS   as Path
 import           Khan.CLI.Ansible            (Ansible(..), playbook, which)
 import           Khan.Internal
-import           Khan.Internal.Ansible
+import           Khan.Model.Ansible
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance

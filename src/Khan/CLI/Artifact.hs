@@ -16,7 +16,7 @@
 module Khan.CLI.Artifact (commands) where
 
 import           Khan.Internal
-import           Khan.Internal.Ansible
+import           Khan.Model.Ansible
 import qualified Khan.Model.Bucket     as Bucket
 import qualified Khan.Model.Object     as Object
 import           Khan.Prelude          hiding (sync)

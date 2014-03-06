@@ -44,6 +44,7 @@ library
 
       , Khan.Internal
 
+      , Khan.Model.Ansible
       , Khan.Model.AvailabilityZone
       , Khan.Model.Bucket
       , Khan.Model.HostedZone
@@ -63,7 +64,6 @@ library
 
     other-modules:
         Khan.Internal.AWS
-      , Khan.Internal.Ansible
       , Khan.Internal.IO
       , Khan.Internal.Options
       , Khan.Internal.Orphans

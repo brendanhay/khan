@@ -33,7 +33,7 @@ import qualified Data.Text.Lazy.IO          as LText
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal
-import           Khan.Internal.Ansible
+import           Khan.Model.Ansible
 import qualified Khan.Model.Instance        as Instance
 import qualified Khan.Model.Key             as Key
 import qualified Khan.Model.Tag             as Tag
@@ -137,28 +137,10 @@ inventory Common{..} Inventory{..} = do
                 [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]
 
 playbook :: Common -> Ansible -> AWS ()
-playbook c a@Ansible{..} = ansible c ans
-  where
-    Names{..} = names aEnv
-
-    ans = a { aBin = cmd, aArgs = extras : aArgs }
-
-    cmd = aBin `mplus` Just "ansible-playbook"
-    reg = cRegion c
-
-    extras = concat
-        [ "--extra-vars"
-        , " '"
-        , "khan_region="
-        , show reg
-        , " khan_region_abbrev="
-        , Text.unpack $ abbreviate reg
-        , " khan_env="
-        , Text.unpack envName
-        , " khan_key="
-        , Text.unpack keyName
-        , "'"
-        ]
+playbook c a@Ansible{..} = ansible c $ a
+    { aBin  = aBin `mplus` Just "ansible-playbook"
+    , aArgs = extraVars a (cRegion c) aArgs
+    }
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
@@ -193,15 +175,10 @@ ansible c@Common{..} a@Ansible{..} = do
     log "{}" [cmd]
     liftEitherT . sync $ callCommand cmd
   where
-    args k s = aArgs ++ foldr' add []
+    args k s = aArgs +$+
         [ ("-i", s)
         , ("--private-key", Path.encodeString k)
         ]
-
-    add (k, v) xs =
-        if k `elem` aArgs
-            then xs
-            else k : v : xs
 
     exceeds i = liftIO $ do
         p <- doesFileExist i

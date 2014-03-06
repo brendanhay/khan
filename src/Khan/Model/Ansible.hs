@@ -6,8 +6,9 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE ViewPatterns               #-}
 
--- Module      : Khan.Internal.Ansible
+-- Module      : Khan.Model.Ansible
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -17,7 +18,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Internal.Ansible where
+module Khan.Model.Ansible where
 
 import           Control.Monad.Error
 import           Data.Aeson                 as Aeson
@@ -44,9 +45,9 @@ import           Network.AWS
 import           System.Exit
 
 data Output
-    = Changed !LText.Text
+    = Changed   !LText.Text
     | Unchanged !LText.Text
-    | Failed !LText.Text
+    | Failed    !LText.Text
       deriving (Show)
 
 instance ToJSON Output where
@@ -99,6 +100,30 @@ inventoryPath :: CacheDir -> Env -> AWS FilePath
 inventoryPath (CacheDir dir) env = do
     r <- Text.pack . show <$> getRegion
     return $ dir </> Path.fromText (Text.concat [r, "_", _env env])
+
+extraVars :: Naming a => a -> Region -> [String] -> [String]
+extraVars (names -> Names{..}) reg = (+$+ [("--extra-vars", vars)])
+  where
+    vars = concat
+        [ "'"
+        , "khan_region="
+        , show reg
+        , " khan_region_abbrev="
+        , Text.unpack (abbreviate reg)
+        , " khan_env="
+        , Text.unpack envName
+        , " khan_key="
+        , Text.unpack keyName
+        , "'"
+        ]
+
+(+$+) :: [String] -> [(String, String)] -> [String]
+(+$+) args extras = args ++ foldr' add [] extras
+  where
+    add (k, v) xs =
+        if k `elem` args
+            then xs
+            else k : v : xs
 
 data Inv a
     = Meta { unwrap :: a }

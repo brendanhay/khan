@@ -16,7 +16,7 @@
 module Khan.CLI.Group (commands) where
 
 import           Khan.Internal
-import           Khan.Internal.Ansible
+import           Khan.Model.Ansible
 import qualified Khan.Model.SecurityGroup as Security
 import           Khan.Prelude
 import           Network.AWS.EC2

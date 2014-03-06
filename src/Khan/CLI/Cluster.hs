@@ -198,7 +198,7 @@ info Common{..} Info{..} = do
     is <- mapM annotate =<< Instance.findAll []
         [ Tag.filter Tag.role [r]
         , Tag.filter Tag.env  [e]
-        , Filter "instance-state-name" ["pending", "running", "stopping", "shutting-down"]
+        , Filter "instance-state-name" states
         , Filter "tag-key" [groupTag]
         ]
 
@@ -207,26 +207,26 @@ info Common{..} Info{..} = do
 
     if null ks
         then log_ "No Auto Scaling Groups found."
-        else do
-            say "Describing Auto Scaling Groups: {}" [ks]
-            gs <- ASG.findAll ks $$ Conduit.consume
-
-            say "Found {} matching Auto Scaling Groups" [length gs]
-            forM_ gs $ \g@AutoScalingGroup{..} -> do
-                xs <- noteAWS "Missing Auto Scaling Group entries: {}"
-                    [B asgAutoScalingGroupName]
-                    (Map.lookup asgAutoScalingGroupName m)
-
-                ln >> pp (title asgAutoScalingGroupName)
-                ppi 2 g  >> ln
-                ppi 2 (map weighted xs) >> ln
+        else display m ks
   where
     annotate i@RunningInstancesItemType{..} = (,)
         <$> noteAWS "No Auto Scaling Group for: {}" [B riitInstanceId] (groupName riitTagSet)
         <*> pure i
 
+    states = ["pending", "running", "stopping", "shutting-down"]
+
     groupName = Map.lookup groupTag . Tag.flatten
     groupTag  = "aws:autoscaling:groupName"
+
+    display m ks = ASG.findAll ks $$ Conduit.mapM_ $
+        \g@AutoScalingGroup{..} -> do
+            xs <- noteAWS "Missing Auto Scaling Group entries: {}"
+                [B asgAutoScalingGroupName]
+                (Map.lookup asgAutoScalingGroupName m)
+
+            ln >> pp (title asgAutoScalingGroupName)
+            ppi 2 g  >> ln
+            ppi 2 (map weighted xs) >> ln
 
     weighted i = PI i (Tag.lookupWeight . Tag.flatten $ riitTagSet i)
 

@@ -67,7 +67,6 @@ library
       , Khan.Internal.IO
       , Khan.Internal.Options
       , Khan.Internal.Orphans
-      , Khan.Internal.Parsing
       , Khan.Internal.Pretty
       , Khan.Internal.Types
 

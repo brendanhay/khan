@@ -149,6 +149,9 @@ instance Pretty ASG.AutoScalingGroup where
              , C (D d asgCreatedTime)
              ]
 
+instance Pretty ASG.Filter where
+    pretty ASG.Filter{..} = pretty fName <> char ':' <> pretty fValues
+
 instance Pretty AvailabilityZone where
     pretty AZ{..} = pretty azRegion <> char azSuffix
 

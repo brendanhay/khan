@@ -51,7 +51,7 @@ updateParser :: EnvMap -> Parser Update
 updateParser env = Update
     <$> roleOption
     <*> envOption env
-    <*> many (customOption "rule" "RULE" parseRule mempty
+    <*> many (customOption "rule" "RULE" Security.parseRule mempty
         "tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...]")
     <*> ansibleOption
 
@@ -79,7 +79,7 @@ info _ (names -> Names{..}) = do
           (\g -> ln >> pp (title $ sgitGroupName g) >> ppi 2 g >> ln)
           mg
 
-modify :: (Text -> AWS Bool) -> Common -> Group -> AWS ()
+modify :: Changed a => (Text -> AWS a) -> Common -> Group -> AWS ()
 modify f c g@Group{..} =
     let name = groupName (names g)
      in capture gAnsible c "security group {}" [name] (f name)

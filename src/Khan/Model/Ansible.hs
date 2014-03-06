@@ -20,8 +20,11 @@
 
 module Khan.Model.Ansible
     (
+    -- * Idempotence predicate
+      Changed
+
     -- * Capturing ansible output
-      capture
+    , capture
 
     -- * JSON output formatters
     , ImageInput (..)
@@ -53,20 +56,30 @@ import           Khan.Prelude
 import           Network.AWS
 import           System.Exit
 
-capture :: Params ps
+class Changed a where
+    changed :: a -> Bool
+
+instance Changed Bool where
+    changed = id
+
+instance Changed (Modified a) where
+    changed (Changed   _) = True
+    changed (Unchanged _) = False
+
+capture :: (Params ps, Changed a)
         => Bool
         -> Common
         -> Format
         -> ps
-        -> AWS (Modified a)
+        -> AWS a
         -> AWS ()
 capture False _ _ _  aws = void aws
-capture True  c f ps aws = contextAWS c (aws >>= success)
+capture True  c f ps aws = contextAWS c (aws >>= success . changed)
     >>= either failure return
     >>= exit
   where
-    success (Changed   _) = changed (f <> " changed.") ps
-    success (Unchanged _) = unchanged (f <> " unchanged.") ps
+    success True  = changed' (f <> " changed.") ps
+    success False = unchanged (f <> " unchanged.") ps
 
     failure (Err s)  = failed "{}" $ Only s
     failure (Ex  ex) = failure . toError $ show ex
@@ -77,7 +90,7 @@ capture True  c f ps aws = contextAWS c (aws >>= success)
             Fail _ -> exitFailure
             _      -> exitSuccess
 
-    changed   g = return . Change   . format g
+    changed'   g = return . Change   . format g
     unchanged g = return . NoChange . format g
     failed    g = return . Fail     . format g
 

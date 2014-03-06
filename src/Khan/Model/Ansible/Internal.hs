@@ -6,7 +6,6 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 -- Module      : Khan.Model.Ansible.Internal
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>

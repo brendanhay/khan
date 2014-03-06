@@ -63,8 +63,9 @@ import qualified Text.Read                    as Read
 type EnvMap = HashMap Text Text
 
 data Modified a
-    = Changed   !a
-    | Unchanged !a
+    = Changed   { result :: !a }
+    | Unchanged { result :: !a }
+      deriving (Eq, Show)
 
 class Invalid a where
     invalid :: a -> Bool

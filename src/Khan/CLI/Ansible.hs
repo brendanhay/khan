@@ -19,7 +19,6 @@ module Khan.CLI.Ansible
     -- * Convenience exports for the Image CLI
     , Ansible (..)
     , playbook
-    , which
     ) where
 
 import           Control.Monad              (mplus)
@@ -40,7 +39,6 @@ import qualified Khan.Model.Tag             as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
-import qualified Shelly                     as Shell
 import           System.Directory
 import qualified System.IO                  as IO
 import qualified System.Posix.Files         as Posix
@@ -188,7 +186,3 @@ ansible c@Common{..} a@Ansible{..} = do
                 s  <- Posix.getFileStatus i
                 ts <- getPOSIXTime
                 return $ ts - Posix.modificationTimeHiRes s > fromIntegral aRetain
-
-which :: String -> AWS ()
-which cmd = shell (Shell.which $ Path.decodeString cmd) >>=
-    void . noteAWS "Command {} doesn't exist." ["ansible-playbook" :: Text]

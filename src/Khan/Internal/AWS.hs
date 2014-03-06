@@ -33,21 +33,27 @@ module Khan.Internal.AWS
     , verifyAS
     , verifyEC2
     , verifyIAM
+
+    -- * Shell
+    , which
     ) where
 
 import           Control.Monad.Error
-import qualified Data.Text.Encoding       as Text
-import           Data.Text.Format         (Format, format)
+import qualified Data.Text.Encoding        as Text
+import           Data.Text.Format          (Format, format)
 import           Data.Text.Format.Params
-import qualified Data.Text.Lazy           as LText
+import qualified Data.Text.Lazy            as LText
+import qualified Filesystem.Path.CurrentOS as Path
+import           Khan.Internal.IO
 import           Khan.Internal.Options
-import           Khan.Prelude             hiding (min, max)
+import           Khan.Prelude              hiding (min, max)
 import           Network.AWS
-import           Network.AWS.AutoScaling  hiding (DescribeTags)
-import           Network.AWS.EC2          as EC2
-import           Network.AWS.EC2.Metadata (Meta(..))
-import qualified Network.AWS.EC2.Metadata as Meta
+import           Network.AWS.AutoScaling   hiding (DescribeTags)
+import           Network.AWS.EC2           as EC2
+import           Network.AWS.EC2.Metadata  (Meta(..))
+import qualified Network.AWS.EC2.Metadata  as Meta
 import           Network.AWS.IAM
+import qualified Shelly                    as Shell
 
 meta :: (Functor m, MonadIO m) => Meta -> EitherT String m Text
 meta = fmap Text.decodeUtf8 . Meta.meta
@@ -94,3 +100,8 @@ verify k f = g
     g (Right _) = return ()
     g (Left  x) | k == f x  = return ()
                 | otherwise = throwError $ toError x
+
+-- FIXME: Move to IO module
+which :: String -> AWS ()
+which cmd = shell (Shell.which $ Path.decodeString cmd) >>=
+    void . noteAWS "Command {} doesn't exist." [B cmd]

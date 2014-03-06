@@ -20,7 +20,7 @@ import qualified Data.ByteString.Lazy.Char8  as LBS
 import           Data.SemVer
 import qualified Data.Text                   as Text
 import qualified Filesystem.Path.CurrentOS   as Path
-import           Khan.CLI.Ansible            (Ansible(..), playbook, which)
+import           Khan.CLI.Ansible            (Ansible(..), playbook)
 import           Khan.Internal
 import           Khan.Model.Ansible
 import qualified Khan.Model.AvailabilityZone as AZ

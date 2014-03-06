@@ -70,7 +70,7 @@ capture c f ps aws = capture' c $ aws >>= success
 
 capture' :: Common -> AWS Output -> AWS ()
 capture' c aws = contextAWS c aws
-     >>= either failure (return . id)
+     >>= either failure return
      >>= exit
   where
     failure (Err s)  = failed "{}" $ Only s

@@ -31,6 +31,7 @@ module Data.SemVer
 import           Control.Applicative
 import           Control.Error
 import           Control.Monad
+import           Data.Aeson
 import           Data.Attoparsec.Text
 import           Data.Char                  (isDigit)
 import           Data.Monoid
@@ -58,6 +59,9 @@ instance Ord Version where
             , versionRelease
             , versionMeta
             )
+
+instance ToJSON Version where
+    toJSON = toJSON . showVersion
 
 bumpMajor :: Version -> Version
 bumpMajor v = v { versionMajor = versionMajor v + 1 }

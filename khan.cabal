@@ -71,6 +71,7 @@ library
       , Khan.Internal.Types
 
       , Khan.Model.Ansible.Internal
+      , Khan.Model.Tag.Internal
 
       , Khan.Prelude.Log
 

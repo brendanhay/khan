@@ -15,7 +15,6 @@
 
 module Khan.CLI.Routing (commands) where
 
-import           Control.Arrow               ((&&&), (***))
 import           Data.Aeson
 import qualified Data.HashMap.Strict         as Map
 import           Data.String
@@ -86,20 +85,17 @@ commands env = command "routes" routes (routesParser env)
 routes :: Common -> Routes -> AWS ()
 routes Common{..} Routes{..} = do
     reg <- getRegion
-    is  <- filter include <$> Instance.findAll [] (filters reg)
+    is  <- mapM Tag.annotate =<< Instance.findAll [] (filters reg)
 
-    let xs = map mk $ filter (isJust . riitDnsName) is
+    let xs = [ mk a | a@Ann{..} <- is
+             , tagWeight annTags >= rWeight
+             , isJust (riitDnsName annValue)
+             ]
         ys = Map.fromListWith (<>) [(k, [v]) | (k, v) <- xs]
         zs = EDE.fromPairs ["roles" .= ys]
 
     renderTemplate zs rTemplate >>= liftIO . LText.putStrLn
   where
-    include = (>= rWeight)
-        . Tag.lookupWeight
-        . Map.fromList
-        . map ((rtsitKey *** rtsitValue) . join (,))
-        . riitTagSet
-
     filters reg = catMaybes
         [ Just . Filter "availability-zone" $ zones reg
         , Just $ Tag.filter Tag.env [_env rEnv]
@@ -110,24 +106,26 @@ routes Common{..} Routes{..} = do
     zones reg = map (Text.pack . show . AZ reg) rZones
 
     role | [] <- rRoles = Nothing
-         | otherwise    = Just $ Tag.filter Tag.role rRoles
+         | otherwise    = Just (Tag.filter Tag.role rRoles)
 
-    mk RunningInstancesItemType{..} = (name,) $ EDE.fromPairs
-        [ "instanceId"       .= riitInstanceId
-        , "imageId"          .= riitImageId
-        , "instanceState"    .= istName riitInstanceState
-        , "stateReason"      .= fmap srtMessage riitStateReason
-        , "instanceType"     .= riitInstanceType
-        , "dnsName"          .= riitDnsName
-        , "privateDnsName"   .= riitPrivateDnsName
-        , "ipAddress"        .= riitIpAddress
-        , "privateIpAddress" .= riitPrivateIpAddress
-        , "availabilityZone" .= pruAvailabilityZone riitPlacement
-        , "domain"           .= lookup Tag.domain tags
-        , "name"             .= lookup Tag.name tags
-        , "version"          .= lookup Tag.version tags
-        , "role"             .= name
-        ]
-      where
-        tags = map (rtsitKey &&& rtsitValue) riitTagSet
-        name = fromJust $ lookup Tag.role tags
+    mk Ann{..} =
+        let RunningInstancesItemType{..} = annValue
+            Tags{..}                     = annTags
+         in (_role tagRole,) $ EDE.fromPairs
+                [ "instanceId"       .= riitInstanceId
+                , "imageId"          .= riitImageId
+                , "instanceState"    .= istName riitInstanceState
+                , "stateReason"      .= fmap srtMessage riitStateReason
+                , "instanceType"     .= riitInstanceType
+                , "dnsName"          .= riitDnsName
+                , "privateDnsName"   .= riitPrivateDnsName
+                , "ipAddress"        .= riitIpAddress
+                , "privateIpAddress" .= riitPrivateIpAddress
+                , "availabilityZone" .= pruAvailabilityZone riitPlacement
+                , "env"              .= tagEnv
+                , "role"             .= tagRole
+                , "domain"           .= tagDomain
+                , "name"             .= tagName
+                , "version"          .= tagVersion
+                , "weight"           .= tagWeight
+                ]

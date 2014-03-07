@@ -15,6 +15,7 @@
 
 module Khan.CLI.Cluster (commands) where
 
+import           Control.Arrow
 import           Control.Concurrent          (threadDelay)
 import           Data.Conduit
 import qualified Data.Conduit.List           as Conduit
@@ -196,37 +197,32 @@ info Common{..} Info{..} = do
         e = _env  iEnv
 
     say "Looking for Instances tagged with {} and {}" [r, e]
-    is <- mapM annotate =<< Instance.findAll []
+    is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []
         [ Tag.filter Tag.role [r]
         , Tag.filter Tag.env  [e]
         , ec2Filter "instance-state-name" states
-        , ec2Filter "tag-key" [groupTag]
+        , ec2Filter "tag-key" [Tag.group]
         ]
 
-    let m  = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
+    let m  = Map.fromListWith (<>) [(k, [v]) | (Just k, v) <- is]
         ks = Map.keys m
 
     if null ks
         then log_ "No Auto Scaling Groups found."
         else display m ks
   where
-    annotate i@RunningInstancesItemType{..} = (,)
-        <$> noteAWS "No Auto Scaling Group for: {}" [B riitInstanceId] (groupName riitTagSet)
-        <*> pure i
-
     states = ["pending", "running", "stopping", "shutting-down"]
 
-    groupName = Map.lookup groupTag . Tag.flatten
-    groupTag  = "aws:autoscaling:groupName"
+    unwrap = (tagGroup . annTags *** annValue) . join (,)
 
     display m ks = ASG.findAll ks $$ Conduit.mapM_ $
         \g@AutoScalingGroup{..} -> do
-            ag  <- Ann g <$> Tag.lookup (Tag.flatten g)
+            ag  <- Tag.annotate g
             xs  <- noteAWS "Missing Auto Scaling Group entries: {}"
                 [B asgAutoScalingGroupName]
                 (Map.lookup asgAutoScalingGroupName m)
 
-            axs <- forM xs $ \i -> Ann i <$> Tag.lookup (Tag.flatten i)
+            axs <- mapM Tag.annotate xs
 
             ln >> pp (title asgAutoScalingGroupName)
             ppi 2 ag  >> ln
@@ -274,7 +270,7 @@ scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 promote :: Common -> Cluster -> AWS ()
 promote _ Cluster{..} = do
     gs <- ASG.findAll []
-        $= Conduit.mapM (\g -> Ann g <$> Tag.lookup (Tag.flatten g))
+        $= Conduit.mapM (\g -> Ann g <$> Tag.parse g)
         $= Conduit.filter (matchTags . annTags)
         $$ Conduit.consume
 

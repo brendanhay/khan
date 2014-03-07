@@ -35,14 +35,14 @@ module Khan.Internal.Types
    , RoutingPolicy (..)
    , TrustPath     (..)
    , PolicyPath    (..)
-   , Role          (_role)
    , Env           (_env)
+   , Role          (_role)
 
    -- * Smart constructors
    , versioned
    , unversioned
-   , newRole
    , newEnv
+   , newRole
    ) where
 
 import           Data.Aeson
@@ -124,8 +124,8 @@ instance ToEnv (HashMap Text Text) where
     toEnv = id
 
 data Ann a = Ann
-    { annVal  :: a
-    , annTags :: Tags
+    { annValue :: a
+    , annTags  :: Tags
     }
 
 data Tags = Tags
@@ -135,6 +135,7 @@ data Tags = Tags
     , tagName    :: Maybe Text
     , tagVersion :: Maybe Version
     , tagWeight  :: !Int
+    , tagGroup   :: Maybe Text
     } deriving (Eq, Ord, Show)
 
 instance ToEnv Tags where
@@ -237,26 +238,32 @@ newtype TrustPath = TrustPath { _trust :: FilePath }
 newtype PolicyPath = PolicyPath { _policy :: FilePath }
     deriving (Eq, Show, IsString)
 
-newtype Role = Role { _role :: Text }
-    deriving (Eq, Ord, Show, Invalid, Naming)
-
-instance IsString Role where
-    fromString = newRole . fromString
-
-newRole :: Text -> Role
-newRole = Role . Text.map f
-  where
-    f '-' = '_'
-    f c   = c
-
 newtype Env = Env { _env :: Text }
     deriving (Eq, Ord, Show, Invalid, Naming)
 
 instance IsString Env where
     fromString = newEnv . fromString
 
+instance ToJSON Env where
+    toJSON = toJSON . _env
+
 newEnv :: Text -> Env
 newEnv = Env
+
+newtype Role = Role { _role :: Text }
+    deriving (Eq, Ord, Show, Invalid, Naming)
+
+instance IsString Role where
+    fromString = newRole . fromString
+
+instance ToJSON Role where
+    toJSON = toJSON . _role
+
+newRole :: Text -> Role
+newRole = Role . Text.map f
+  where
+    f '-' = '_'
+    f c   = c
 
 stripText :: Text -> Text -> Text
 stripText x y =

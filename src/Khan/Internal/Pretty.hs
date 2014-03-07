@@ -56,19 +56,18 @@ default (Doc)
 data Column where
     H :: Pretty a => a -> Column
     C :: Pretty a => a -> Column
-    D :: Pretty a => Int -> a -> Column
+    W :: Int -> Column -> Column
 
 instance Pretty Column where
     pretty (H   x) = bold (pretty x)
     pretty (C   x) = pretty x
-    pretty (D n x) = fill n (pretty x)
+    pretty (W n x) = fill n (pretty x)
 
 cols :: Int -> [Column] -> [Doc]
 cols w = map f
   where
-    f (H   x) = fill w (bold $ pretty x)
-    f (C   x) = fill w (pretty x)
-    f (D n x) = fill n (pretty x)
+    f x@W{} = pretty x
+    f x     = fill w (pretty x)
 
 hcols :: Int -> [Column] -> Doc
 hcols w = hsep . cols w
@@ -138,24 +137,24 @@ instance Pretty (Ann ASG.AutoScalingGroup) where
         z  = 8
         d  = 19
 
-        hs = [ H "status:"
-             , H (D z "weight:")
+        hs = [ W z (H "status:")
+             , W z (H "weight:")
              , H "version:"
-             , H (D d "zones:")
+             , W d (H "zones:")
              , H "cooldown:"
              , H "[m..N]:"
              , H "desired:"
-             , H (D d "created:")
+             , W d (H "created:")
              ]
 
-        bs = [ C (maybe "OK" pretty asgStatus)
-             , C (D z tagWeight)
+        bs = [ W z (C $ maybe "OK" pretty asgStatus)
+             , W z (C tagWeight)
              , C tagVersion
-             , C (D d asgAvailabilityZones)
+             , W d (C asgAvailabilityZones)
              , C asgDefaultCooldown
              , C (pretty asgMinSize <> ".." <> pretty asgMaxSize)
              , C asgDesiredCapacity
-             , C (D d asgCreatedTime)
+             , W d (C asgCreatedTime)
              ]
 
 instance Pretty ASG.Filter where
@@ -171,24 +170,24 @@ instance Pretty AvailabilityZone where
 
 instance Pretty (Ann EC2.RunningInstancesItemType) where
     pretty (Ann EC2.RunningInstancesItemType{..} Tags{..}) = hcols 15
-        [ C (EC2.istName riitInstanceState)
-        , C (D 9 tagWeight)
+        [ W 8 (C $ EC2.istName riitInstanceState)
+        , W 8 (C tagWeight)
         , C riitInstanceId
         , C riitImageId
         , C (fromMaybe "" riitIpAddress)
         , C riitInstanceType
-        , C (D 19 riitLaunchTime)
+        , W 19 (C riitLaunchTime)
         ]
 
     prettyList is = hcols 15 hs <-> vsep (map pretty is)
       where
-        hs = [ H "state:"
-             , H (D 9 "weight:")
+        hs = [ W 8 (H "state:")
+             , W 8 (H "weight:")
              , H "instance-id:"
              , H "image-id:"
              , H "public-ip:"
              , H "type:"
-             , H (D 19 "launched:")
+             , W 19 (H "launched:")
              ]
 
 instance Pretty EC2.InstanceType where
@@ -196,15 +195,15 @@ instance Pretty EC2.InstanceType where
 
 instance Pretty EC2.SecurityGroupItemType where
     pretty EC2.SecurityGroupItemType{..} = vsep
-        [ vrow w "owner-id:"              <+> pretty sgitOwnerId
-        , vrow w "group-id:"              <+> pretty sgitGroupId
-        , vrow w "group-description:"     <+> pretty sgitGroupDescription
-        , vrow w "vpc-id:"                <+> pretty (fromMaybe "<blank>" sgitVpcId)
-        , vrow w "ip-permissions-egress:" <+> pretty sgitIpPermissionsEgress
-        , vrow w "ip-permissions:"        <+> pretty sgitIpPermissions
+        [ w "owner-id:"              <+> pretty sgitOwnerId
+        , w "group-id:"              <+> pretty sgitGroupId
+        , w "group-description:"     <+> pretty sgitGroupDescription
+        , w "vpc-id:"                <+> pretty (fromMaybe "<blank>" sgitVpcId)
+        , w "ip-permissions-egress:" <+> pretty sgitIpPermissionsEgress
+        , w "ip-permissions:"        <+> pretty sgitIpPermissions
         ]
       where
-        w = 24
+        w = vrow 24
 
 instance Pretty EC2.IpPermissionType where
     pretty EC2.IpPermissionType{..} = hcat
@@ -258,7 +257,7 @@ instance Pretty R53.HostedZone where
       where
         w = 10
 
-        wide = D 38
+        wide = W 38
 
         hs = [ wide (H "id:")
              , wide (H "reference:")
@@ -277,7 +276,7 @@ instance Pretty R53.ResourceRecordSet where
       where
         w = 10
 
-        wide = D 36
+        wide = W 36
 
         heading =
             [ wide (H "name:")

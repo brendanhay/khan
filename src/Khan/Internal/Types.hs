@@ -141,6 +141,7 @@ instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
         [ ("KHAN_ROLE",    _role tagRole)
         , ("KHAN_ENV",     _env tagEnv)
+        , ("KHAN_DOMAIN",  tagDomain)
         , ("KHAN_WEIGHT",  Text.pack $ show tagWeight)
         ] ++ maybeToList (("KHAN_VERSION",) . showVersion <$> tagVersion)
           ++ maybeToList (("KHAN_NAME",) <$> tagName)

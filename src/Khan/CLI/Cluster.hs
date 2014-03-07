@@ -217,16 +217,11 @@ info Common{..} Info{..} = do
 
     display m ks = ASG.findAll ks $$ Conduit.mapM_ $
         \g@AutoScalingGroup{..} -> do
-            ag  <- Tag.annotate g
-            xs  <- noteAWS "Missing Auto Scaling Group entries: {}"
+            ag <- Tag.annotate g
+            xs <- noteAWS "Missing Auto Scaling Group entries: {}"
                 [B asgAutoScalingGroupName]
                 (Map.lookup asgAutoScalingGroupName m)
-
-            axs <- mapM Tag.annotate xs
-
-            ln >> pp (title asgAutoScalingGroupName)
-            ppi 2 ag  >> ln
-            ppi 2 axs >> ln
+            ppHeader ag >> ppBody ag >> mapM_ (ppBody <=< Tag.annotate) xs
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = check >> create
@@ -270,11 +265,11 @@ scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 promote :: Common -> Cluster -> AWS ()
 promote _ Cluster{..} = do
     gs <- ASG.findAll []
-        $= Conduit.mapM (\g -> Ann g <$> Tag.parse g)
+        $= Conduit.mapM Tag.annotate
         $= Conduit.filter (matchTags . annTags)
         $$ Conduit.consume
 
-    mapM_ pp gs
+    ppBody gs
   where
     matchTags Tags{..} = tagEnv == cEnv
         && _role cRole `Text.isPrefixOf` _role tagRole

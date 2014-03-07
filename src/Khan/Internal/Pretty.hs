@@ -1,4 +1,5 @@
 {-# LANGUAGE ExtendedDefaultRules       #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
@@ -19,14 +20,18 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Pretty
-    ( Pretty (..)
-    , renderCompact
+    (
+    -- * Wrappers
+    --   Header (..)
+    -- , Row    (..)
 
-    , Ann    (..)
-    , pp
-    , ppi
-    , ln
-    , title
+      ppHeader
+    , ppBody
+
+    -- , pp
+    -- , ppi
+    -- , ln
+    -- , title
     ) where
 
 import           Data.Aeson
@@ -53,6 +58,10 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 default (Doc)
 
+newtype Header a = Header a
+
+newtype Body a = Body a
+
 data Column where
     H :: Pretty a => a -> Column
     C :: Pretty a => a -> Column
@@ -62,6 +71,27 @@ instance Pretty Column where
     pretty (H   x) = bold (pretty x)
     pretty (C   x) = pretty x
     pretty (W n x) = fill n (pretty x)
+
+ppHeader :: (MonadIO m, Pretty (Header a)) => a -> m ()
+ppHeader = ppLog bold . Header
+
+ppBody :: (MonadIO m, Pretty (Body a)) => a -> m ()
+ppBody = ppLog (indent 2) . Body
+
+ppLog :: (MonadIO m, Pretty a) => (Doc -> Doc) -> a -> m ()
+ppLog f = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100 . f . pretty
+
+-- pp :: (MonadIO m, Pretty a) => a -> m ()
+-- pp = ppi 0
+
+-- ppi :: (MonadIO m, Pretty a) => Int -> a -> m ()
+-- ppi i = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100 . indent i . pretty
+
+-- ln :: MonadIO m => m ()
+-- ln = liftIO (putStrLn "")
+
+title :: Pretty a => a -> Doc
+title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
 
 cols :: Int -> [Column] -> [Doc]
 cols w = map f
@@ -74,18 +104,6 @@ hcols w = hsep . cols w
 
 vrow :: Pretty a => Int -> a -> Doc
 vrow w = fill w . bold . pretty
-
-title :: Pretty a => a -> Doc
-title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
-
-pp :: (MonadIO m, Pretty a) => a -> m ()
-pp = ppi 0
-
-ppi :: (MonadIO m, Pretty a) => Int -> a -> m ()
-ppi i = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100 . indent i . pretty
-
-ln :: MonadIO m => m ()
-ln = liftIO (putStrLn "")
 
 (<->) :: Doc -> Doc -> Doc
 (<->) = (PP.<$>)

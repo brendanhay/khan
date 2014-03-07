@@ -113,14 +113,9 @@ info _ Info{..} = do
     z@HostedZone{..} <- HZone.find iZone >>=
         noteAWS "Unable to find Hosted Zone {}" [B iZone]
     say "Found Hosted Zone Id {}" [hzId]
-
-    ln >> pp (title hzName)
-    ppi 2 z >> ln
-
+    ppHeader z >> ppBody z
     RSet.findAll hzId (maybe (const True) (\x -> Text.isPrefixOf x . rrsName) iName)
-        $$ Conduit.mapM_ (\r -> ln >> ppi 2 r)
-
-    ln
+        $$ Conduit.mapM_ ppBody
 
 update :: Common -> Record -> AWS ()
 update c@Common{..} r@Record{..} = capture rAnsible c "dns record {}" [rName] $

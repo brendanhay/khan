@@ -84,11 +84,9 @@ info :: Common -> Info -> AWS ()
 info _ i = do
     ra <- async (Role.find i)
     pa <- async (Role.findPolicy i)
-
-    r <- wait ra
-    p <- wait pa
-
-    ln >> pp (title $ rRoleName r) >> ppi 2 r >> ppi 2 p >> ln
+    r  <- wait ra
+    p  <- wait pa
+    ppHeader r >> ppBody r >> ppBody p
 
 update :: Common -> Update -> AWS ()
 update _ u = void $ Role.update u (uTrust u) (uPolicy u)

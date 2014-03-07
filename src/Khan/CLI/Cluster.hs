@@ -19,6 +19,7 @@ import           Control.Arrow
 import           Control.Concurrent          (threadDelay)
 import           Data.Conduit
 import qualified Data.Conduit.List           as Conduit
+import qualified Data.Conduit.Util           as Conduit
 import qualified Data.HashMap.Strict         as Map
 import           Data.SemVer
 import qualified Data.Text                   as Text
@@ -222,10 +223,13 @@ info Common{..} Info{..} = do
                 noteAWS "Missing Auto Scaling Group entries: {}"
                     [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
-            ppGroup ag
-            maybe (log_ "No Auto Scaling Instances found.")
-                  (\i -> ppHead i >> mapM_ ppBody xs)
-                  (listToMaybe xs)
+
+            pprint (overview ag)
+
+            if null xs
+               then log_ "No Auto Scaling Instances found."
+               else pprint $ header (Proxy :: Proxy RunningInstancesItemType)
+                         <-> body xs
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = check >> create
@@ -268,13 +272,15 @@ scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 promote :: Common -> Cluster -> AWS ()
 promote _ Cluster{..} = do
-    gs <- ASG.findAll []
+    Conduit.zipSources indicies groups
+       $$ Conduit.mapM_ $ \(i, g) -> liftIO $ putStr (show i) -- >> ppBody g
+  where
+    indicies = Conduit.sourceList [1..]
+
+    groups = ASG.findAll []
         $= Conduit.mapM Tag.annotate
         $= Conduit.filter (matchTags . annTags)
-        $$ Conduit.consume
 
-    mapM_ ppBody gs
-  where
     matchTags Tags{..} = tagEnv == cEnv
         && _role cRole `Text.isPrefixOf` _role tagRole
 

@@ -99,6 +99,7 @@ library
       , semigroups
       , shelly
       , system-filepath      >= 0.4.9
+      , tagged
       , text                 >= 1.0
       , text-format
       , time

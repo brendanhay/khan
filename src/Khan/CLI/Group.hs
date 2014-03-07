@@ -73,8 +73,11 @@ commands env = group "group" "Security Groups." $ mconcat
     ]
 
 info :: Common -> Group -> AWS ()
-info _ (names -> Names{..}) =
-    Security.find groupName >>= maybe (log_ "No Security Groups found.") ppGroup
+info _ (names -> Names{..}) = do
+    mg <- Security.find groupName
+    maybe (log_ "No Security Groups found.")
+          (\g -> pprint $ title g <-> body g)
+          mg
 
 modify :: Changed a => (Text -> AWS a) -> Common -> Group -> AWS ()
 modify f c g@Group{..} =

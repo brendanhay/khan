@@ -5,6 +5,7 @@
 {-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans       #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
@@ -20,16 +21,29 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Pretty
-    ( ppHead
-    , ppBody
-    , ppGroup
-    , ppLine
+    (
+    -- * IO
+      pprint
+
+    -- * Documents
+    , title
+    , header
+    , body
+    , overview
+
+    -- * Proxy
+    , Proxy (..)
+
+    -- * Combinators
+    , (<->)
+    , vsep
     ) where
 
 import           Data.Aeson
 import qualified Data.Aeson.Encode.Pretty     as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LBS
 import           Data.List                    (sort)
+import           Data.Proxy
 import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
@@ -50,40 +64,50 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 default (Doc)
 
-newtype Head a = Head { unHead :: a }
-newtype Body a = Body a
+pprint :: MonadIO m => Doc -> m ()
+pprint = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100
 
 data Column where
     H :: Pretty a => a -> Column
     C :: Pretty a => a -> Column
     W :: Int -> Column -> Column
+    Z :: Column
 
 instance Pretty Column where
     pretty (H   x) = bold (pretty x)
     pretty (C   x) = pretty x
     pretty (W n x) = fill n (pretty x)
+    pretty Z       = mempty
 
-ppHead :: (MonadIO m, Pretty (Head a)) => a -> m ()
-ppHead = ppLog bold . Head
+class Title a where
+    title :: a -> Doc
 
-ppBody :: (MonadIO m, Pretty (Body a)) => a -> m ()
-ppBody = ppLog id . Body
+instance Title a => Title (Ann a) where
+    title = title . annValue
 
-ppGroup :: (MonadIO m, Pretty (Head a), Pretty (Body a)) => a -> m ()
-ppGroup x = ppHead x >> ppBody x >> ppLine
+instance Title Text where
+    title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
 
-ppLine :: MonadIO m => m ()
-ppLine = ppLog id ""
+class Header a where
+    header :: Proxy a -> Doc
 
-ppLog :: (MonadIO m, Pretty a) => (Doc -> Doc) -> a -> m ()
-ppLog f = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100 . f . pretty
+instance Header a => Header (Ann a) where
+    header x = header (reproxy x :: Proxy a)
 
-title :: Pretty a => a -> Doc
-title n = ("" <->) . after $
-    lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
+instance Header a => Header [a] where
+    header _ = header (Proxy :: Proxy a)
 
-after :: Doc -> Doc
-after = (<-> "")
+class Body a where
+    body :: a -> Doc
+
+instance Body a => Body [a] where
+    body = vsep . map body
+
+overview :: forall a. (Title a, Header a, Body a) => a -> Doc
+overview x = title x <-> header (Proxy :: Proxy a) <-> body x
+
+(<->) :: Doc -> Doc -> Doc
+(<->) = (PP.<$>)
 
 cols :: Int -> [Column] -> [Doc]
 cols w = map f
@@ -97,14 +121,163 @@ hcols w = indent 2 . hsep . cols w
 vrow :: Pretty a => Int -> a -> Doc
 vrow w = indent 2 . fill w . bold . pretty
 
-(<->) :: Doc -> Doc -> Doc
-(<->) = (PP.<$>)
+instance Title ASG.AutoScalingGroup where
+    title ASG.AutoScalingGroup{..} = title asgAutoScalingGroupName
 
-prettyJSON :: ToJSON a => Maybe a -> Text
-prettyJSON = Text.decodeUtf8 . LBS.toStrict . maybe "" Aeson.encodePretty
+instance Header ASG.AutoScalingGroup where
+    header _ = hcols 10
+        [ W 8 (H "status:")
+        , W 8 (H "weight:")
+        , H "version:"
+        , W 19 (H "zones:")
+        , H "cooldown:"
+        , H "[m..N]:"
+        , H "desired:"
+        , W 19 (H "created:")
+        ]
 
-decodeURL :: Text -> Maybe Object
-decodeURL = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
+instance Body (Ann ASG.AutoScalingGroup) where
+    body (Ann ASG.AutoScalingGroup{..} Tags{..}) = hcols 10
+        [ W 8 (C $ maybe "OK" pretty asgStatus)
+        , W 8 (C tagWeight)
+        , C tagVersion
+        , W 19 (C asgAvailabilityZones)
+        , C asgDefaultCooldown
+        , C (pretty asgMinSize <> ".." <> pretty asgMaxSize)
+        , C asgDesiredCapacity
+        , W 19 (C asgCreatedTime)
+        ]
+
+instance Header EC2.RunningInstancesItemType where
+    header _ = hcols 15
+        [ W 8 (H "state:")
+        , W 8 (H "weight:")
+        , H "instance-id:"
+        , H "image-id:"
+        , H "public-ip:"
+        , H "type:"
+        , W 19 (H "launched:")
+        ]
+
+instance Body (Ann EC2.RunningInstancesItemType) where
+    body (Ann EC2.RunningInstancesItemType{..} Tags{..}) = hcols 15
+        [ W 8 (C $ EC2.istName riitInstanceState)
+        , W 8 (C tagWeight)
+        , C riitInstanceId
+        , C riitImageId
+        , C (fromMaybe "" riitIpAddress)
+        , C riitInstanceType
+        , W 19 (C riitLaunchTime)
+        ]
+
+instance Title EC2.SecurityGroupItemType where
+    title = title . EC2.sgitGroupName
+
+instance Body EC2.SecurityGroupItemType where
+    body EC2.SecurityGroupItemType{..} = vsep
+        [ w "owner-id:"              <+> pretty sgitOwnerId
+        , w "group-id:"              <+> pretty sgitGroupId
+        , w "group-description:"     <+> pretty sgitGroupDescription
+        , w "vpc-id:"                <+> pretty (fromMaybe "<blank>" sgitVpcId)
+        , w "ip-permissions-egress:" <+> pretty sgitIpPermissionsEgress
+        , w "ip-permissions:"        <+> pretty sgitIpPermissions
+        ]
+      where
+        w = vrow 24
+
+instance Title IAM.Role where
+    title = title . IAM.rRoleName
+
+instance Body IAM.Role where
+    body IAM.Role{..} = vsep hs <-> policy
+      where
+        w  = vrow 23
+
+        hs = [ w "arn:"         <+> pretty rArn
+             , w "role-id:"     <+> pretty rRoleId
+             , w "path:"        <+> pretty rPath
+             , w "create-date:" <+> pretty rCreateDate
+             ]
+
+        policy = w "assume-policy-document:" <+>
+            (pretty . prettyJSON $ decodeURL <$> rAssumeRolePolicyDocument)
+
+instance Body IAM.GetRolePolicyResult where
+    body IAM.GetRolePolicyResult{..} = vrow 23 "policy-document:" <+>
+        (pretty . prettyJSON $ decodeURL grprPolicyDocument)
+
+instance Title R53.HostedZone where
+    title R53.HostedZone{..} = title hzName
+
+instance Header R53.HostedZone where
+    header _ = hcols 10
+        [ W 38 (H "id:")
+        , W 38 (H "reference:")
+        , H "config:"
+        , H "record-count:"
+        ]
+
+instance Body R53.HostedZone where
+    body R53.HostedZone{..} = hcols 10
+        [ W 38 (C hzId)
+        , W 38 (C hzCallerReference)
+        , C hzConfig
+        , C hzResourceRecordSetCount
+        ]
+
+instance Header R53.ResourceRecordSet where
+    header _ = hcols 9
+        [ W 36 (H "name:")
+        , H "type:"
+        , H "region:"
+        , W 7 (H "ttl:")
+        , W 7 (H "weight:")
+        , H "failover:"
+        , W 32 (H "set-id:")
+        , W 36 (H "value:")
+        ]
+
+instance Body R53.ResourceRecordSet where
+    body x = hcols 9
+        [ W 36 . C . R . B $ R53.rrsName x
+        , W 7 . C $ R53.rrsType x
+        , region x
+        , W 7 (ttl x)
+        , W 7 (weight x)
+        , failover x
+        , W 32 (set x)
+        , W 36 (value x)
+        ]
+      where
+        region R53.LatencyRecordSet      {..} = C rrsRegion
+        region R53.LatencyAliasRecordSet {..} = C rrsRegion
+        region _                              = Z
+
+        ttl R53.FailoverRecordSet {..} = C rrsTTL
+        ttl R53.LatencyRecordSet  {..} = C rrsTTL
+        ttl R53.WeightedRecordSet {..} = C rrsTTL
+        ttl R53.BasicRecordSet    {..} = C rrsTTL
+        ttl _                          = Z
+
+        weight R53.WeightedRecordSet      {..} = C rrsWeight
+        weight R53.WeightedAliasRecordSet {..} = C rrsWeight
+        weight _                               = Z
+
+        failover R53.FailoverRecordSet      {..} = C rrsFailover
+        failover R53.FailoverAliasRecordSet {..} = C rrsFailover
+        failover _                               = Z
+
+        set R53.BasicRecordSet{} = Z
+        set R53.AliasRecordSet{} = Z
+        set _ = C $ strip (R53.rrsSetIdentifier x)
+
+        value R53.FailoverAliasRecordSet {..} = C rrsAliasTarget
+        value R53.LatencyAliasRecordSet  {..} = C rrsAliasTarget
+        value R53.WeightedAliasRecordSet {..} = C rrsAliasTarget
+        value R53.AliasRecordSet         {..} = C rrsAliasTarget
+        value _ = C (map strip . R53.rrValues $ R53.rrsResourceRecords x)
+
+        strip = stripText ".compute" . stripText ".amazonaws.com"
 
 instance Pretty Text where
     pretty = text . Text.unpack
@@ -121,55 +294,6 @@ instance Pretty FilePath where
 instance Pretty Version where
     pretty = pretty . showVersion
 
-instance Pretty (Head IAM.Role) where
-    pretty = title . IAM.rRoleName . unHead
-
-instance Pretty (Body IAM.Role) where
-    pretty (Body IAM.Role{..}) = vsep hs <-> policy
-      where
-        w  = vrow 23
-
-        hs = [ w "arn:"         <+> pretty rArn
-             , w "role-id:"     <+> pretty rRoleId
-             , w "path:"        <+> pretty rPath
-             , w "create-date:" <+> pretty rCreateDate
-             ]
-
-        policy = w "assume-policy-document:" <+>
-            (pretty . prettyJSON $ decodeURL <$> rAssumeRolePolicyDocument)
-
-instance Pretty (Body IAM.GetRolePolicyResult) where
-    pretty (Body IAM.GetRolePolicyResult{..}) = vrow 23 "policy-document:" <+>
-        (pretty . prettyJSON $ decodeURL grprPolicyDocument)
-
-instance Pretty (Head (Ann ASG.AutoScalingGroup)) where
-    pretty (Head (Ann ASG.AutoScalingGroup{..} Tags{..})) =
-        title asgAutoScalingGroupName <-> hcols 10
-            [ W 8 (H "status:")
-            , W 8 (H "weight:")
-            , H "version:"
-            , W 19 (H "zones:")
-            , H "cooldown:"
-            , H "[m..N]:"
-            , H "desired:"
-            , W 19 (H "created:")
-            ]
-
-instance Pretty (Body (Ann ASG.AutoScalingGroup)) where
-    pretty (Body (Ann ASG.AutoScalingGroup{..} Tags{..})) = hcols 10
-        [ W 8 (C $ maybe "OK" pretty asgStatus)
-        , W 8 (C tagWeight)
-        , C tagVersion
-        , W 19 (C asgAvailabilityZones)
-        , C asgDefaultCooldown
-        , C (pretty asgMinSize <> ".." <> pretty asgMaxSize)
-        , C asgDesiredCapacity
-        , W 19 (C asgCreatedTime)
-        ]
-
-instance Pretty ASG.Filter where
-    pretty ASG.Filter{..} = pretty fName <> char ':' <> pretty fValues
-
 instance Pretty AvailabilityZone where
     pretty AZ{..} = pretty azRegion <> char azSuffix
 
@@ -178,45 +302,11 @@ instance Pretty AvailabilityZone where
     prettyList (a:as) = pretty (azRegion a) <> char ':' <+>
         hcat (punctuate comma $ map (char . azSuffix) as)
 
-instance Pretty (Head (Ann EC2.RunningInstancesItemType)) where
-    pretty (Head _) = hcols 15
-        [ W 8 (H "state:")
-        , W 8 (H "weight:")
-        , H "instance-id:"
-        , H "image-id:"
-        , H "public-ip:"
-        , H "type:"
-        , W 19 (H "launched:")
-        ]
-
-instance Pretty (Body (Ann EC2.RunningInstancesItemType)) where
-    pretty (Body (Ann EC2.RunningInstancesItemType{..} Tags{..})) = hcols 15
-        [ W 8 (C $ EC2.istName riitInstanceState)
-        , W 8 (C tagWeight)
-        , C riitInstanceId
-        , C riitImageId
-        , C (fromMaybe "" riitIpAddress)
-        , C riitInstanceType
-        , W 19 (C riitLaunchTime)
-        ]
+instance Pretty ASG.Filter where
+    pretty ASG.Filter{..} = pretty fName <> char ':' <> pretty fValues
 
 instance Pretty EC2.InstanceType where
     pretty = fromString . show
-
-instance Pretty (Head EC2.SecurityGroupItemType) where
-    pretty = title . EC2.sgitGroupName . unHead
-
-instance Pretty (Body EC2.SecurityGroupItemType) where
-    pretty (Body EC2.SecurityGroupItemType{..}) = vsep
-        [ w "owner-id:"              <+> pretty sgitOwnerId
-        , w "group-id:"              <+> pretty sgitGroupId
-        , w "group-description:"     <+> pretty sgitGroupDescription
-        , w "vpc-id:"                <+> pretty (fromMaybe "<blank>" sgitVpcId)
-        , w "ip-permissions-egress:" <+> pretty sgitIpPermissionsEgress
-        , w "ip-permissions:"        <+> pretty sgitIpPermissions
-        ]
-      where
-        w = vrow 24
 
 instance Pretty EC2.IpPermissionType where
     pretty EC2.IpPermissionType{..} = hcat
@@ -265,134 +355,8 @@ instance Pretty R53.Config where
 instance Pretty R53.Failover where
     pretty = text . show
 
-instance Pretty (Head R53.HostedZone) where
-    pretty (Head R53.HostedZone{..}) = title hzName <-> hcols 10
-        [ W 38 (H "id:")
-        , W 38 (H "reference:")
-        , H "config:"
-        , H "record-count:"
-        ]
+prettyJSON :: ToJSON a => Maybe a -> Text
+prettyJSON = Text.decodeUtf8 . LBS.toStrict . maybe "" Aeson.encodePretty
 
-instance Pretty (Body R53.HostedZone) where
-    pretty (Body R53.HostedZone{..}) = hcols 10
-        [ W 38 (C hzId)
-        , W 38 (C hzCallerReference)
-        , C hzConfig
-        , C hzResourceRecordSetCount
-        ]
-
-instance Pretty (Body R53.ResourceRecordSet) where
-    pretty (Body x) = after $
-        hcols w (heading ++ hs x) <-> hcols w (common ++ bs x)
-      where
-        w = 10
-
-        wide = W 36
-
-        heading =
-            [ wide (H "name:")
-            , H "type:"
-            ]
-
-        common =
-            [ wide (C . R . B $ R53.rrsName x)
-            , C (R53.rrsType x)
-            ]
-
-        hs R53.FailoverRecordSet{} =
-            [ H "failover:"
-            , H "ttl:"
-            , wide (H "set-id:")
-            , wide (H "values:")
-            ]
-
-        hs R53.FailoverAliasRecordSet{} =
-            [ H "failover:"
-            , wide (H "set-id:")
-            , H "alias-target:"
-            ]
-
-        hs R53.LatencyRecordSet{} =
-            [ H "ttl:"
-            , H "region:"
-            , wide (H "set-id:")
-            , wide (H "values:")
-            ]
-
-        hs R53.LatencyAliasRecordSet{} =
-            [ H "region:"
-            , wide (H "set-id:")
-            , H "alias-target:"
-            ]
-
-        hs R53.WeightedRecordSet{} =
-            [ H "ttl:"
-            , H "weight:"
-            , wide (H "set-id:")
-            ]
-
-        hs R53.WeightedAliasRecordSet{} =
-            [ H "weight:"
-            , wide (H "set-id:")
-            , H "alias-target:"
-            ]
-
-        hs R53.BasicRecordSet{} =
-            [ H "ttl:"
-            , wide (H "values:")
-            ]
-
-        hs R53.AliasRecordSet{} =
-            [ H "alias-target:"
-            ]
-
-        bs R53.FailoverRecordSet{..} =
-            [ C rrsFailover
-            , C rrsTTL
-            , setId
-            , values
-            ]
-
-        bs R53.FailoverAliasRecordSet{..} =
-            [ C rrsFailover
-            , setId
-            , alias
-            ]
-
-        bs R53.LatencyRecordSet{..} =
-            [ C rrsTTL
-            , C rrsRegion
-            , setId
-            , values
-            ]
-
-        bs R53.LatencyAliasRecordSet{..} =
-            [ C rrsRegion
-            , setId
-            , alias
-            ]
-
-        bs R53.WeightedRecordSet{..} =
-            [ C rrsTTL
-            , C rrsWeight
-            , setId
-            ]
-
-        bs R53.WeightedAliasRecordSet{..} =
-            [ C rrsWeight
-            , setId
-            , alias
-            ]
-
-        bs R53.BasicRecordSet{..} =
-            [ C rrsTTL
-            , values
-            ]
-
-        bs R53.AliasRecordSet{..} =
-            [ alias
-            ]
-
-        setId  = wide $ C (R53.rrsSetIdentifier x)
-        values = wide $ C (R53.rrsResourceRecords x)
-        alias  = wide $ C (R53.rrsAliasTarget x)
+decodeURL :: Text -> Maybe Object
+decodeURL = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8

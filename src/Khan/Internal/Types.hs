@@ -43,6 +43,9 @@ module Khan.Internal.Types
    , unversioned
    , newEnv
    , newRole
+
+   -- * Text helpers
+   , stripText
    ) where
 
 import           Data.Aeson

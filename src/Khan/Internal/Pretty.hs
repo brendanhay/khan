@@ -20,18 +20,10 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Pretty
-    (
-    -- * Wrappers
-    --   Header (..)
-    -- , Row    (..)
-
-      ppHeader
+    ( ppHead
     , ppBody
-
-    -- , pp
-    -- , ppi
-    -- , ln
-    -- , title
+    , ppGroup
+    , ppLine
     ) where
 
 import           Data.Aeson
@@ -58,8 +50,7 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 default (Doc)
 
-newtype Header a = Header a
-
+newtype Head a = Head { unHead :: a }
 newtype Body a = Body a
 
 data Column where
@@ -72,26 +63,27 @@ instance Pretty Column where
     pretty (C   x) = pretty x
     pretty (W n x) = fill n (pretty x)
 
-ppHeader :: (MonadIO m, Pretty (Header a)) => a -> m ()
-ppHeader = ppLog bold . Header
+ppHead :: (MonadIO m, Pretty (Head a)) => a -> m ()
+ppHead = ppLog bold . Head
 
 ppBody :: (MonadIO m, Pretty (Body a)) => a -> m ()
-ppBody = ppLog (indent 2) . Body
+ppBody = ppLog id . Body
+
+ppGroup :: (MonadIO m, Pretty (Head a), Pretty (Body a)) => a -> m ()
+ppGroup x = ppHead x >> ppBody x >> ppLine
+
+ppLine :: MonadIO m => m ()
+ppLine = ppLog id ""
 
 ppLog :: (MonadIO m, Pretty a) => (Doc -> Doc) -> a -> m ()
 ppLog f = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100 . f . pretty
 
--- pp :: (MonadIO m, Pretty a) => a -> m ()
--- pp = ppi 0
-
--- ppi :: (MonadIO m, Pretty a) => Int -> a -> m ()
--- ppi i = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100 . indent i . pretty
-
--- ln :: MonadIO m => m ()
--- ln = liftIO (putStrLn "")
-
 title :: Pretty a => a -> Doc
-title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
+title n = ("" <->) . after $
+    lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
+
+after :: Doc -> Doc
+after = (<-> "")
 
 cols :: Int -> [Column] -> [Doc]
 cols w = map f
@@ -100,10 +92,10 @@ cols w = map f
     f x     = fill w (pretty x)
 
 hcols :: Int -> [Column] -> Doc
-hcols w = hsep . cols w
+hcols w = indent 2 . hsep . cols w
 
 vrow :: Pretty a => Int -> a -> Doc
-vrow w = fill w . bold . pretty
+vrow w = indent 2 . fill w . bold . pretty
 
 (<->) :: Doc -> Doc -> Doc
 (<->) = (PP.<$>)
@@ -129,51 +121,51 @@ instance Pretty FilePath where
 instance Pretty Version where
     pretty = pretty . showVersion
 
-instance Pretty IAM.Role where
-    pretty IAM.Role{..} = vsep hs <-> policy
-      where
-        w  = 23
+instance Pretty (Head IAM.Role) where
+    pretty = title . IAM.rRoleName . unHead
 
-        hs = [ vrow w "arn:"         <+> pretty rArn
-             , vrow w "role-id:"     <+> pretty rRoleId
-             , vrow w "path:"        <+> pretty rPath
-             , vrow w "create-date:" <+> pretty rCreateDate
+instance Pretty (Body IAM.Role) where
+    pretty (Body IAM.Role{..}) = vsep hs <-> policy
+      where
+        w  = vrow 23
+
+        hs = [ w "arn:"         <+> pretty rArn
+             , w "role-id:"     <+> pretty rRoleId
+             , w "path:"        <+> pretty rPath
+             , w "create-date:" <+> pretty rCreateDate
              ]
 
-        policy = vrow w "assume-policy-document:" <+>
+        policy = w "assume-policy-document:" <+>
             (pretty . prettyJSON $ decodeURL <$> rAssumeRolePolicyDocument)
 
-instance Pretty IAM.GetRolePolicyResult where
-    pretty IAM.GetRolePolicyResult{..} = fill 23 (bold "policy-document:") <+>
-            (pretty . prettyJSON $ decodeURL grprPolicyDocument)
+instance Pretty (Body IAM.GetRolePolicyResult) where
+    pretty (Body IAM.GetRolePolicyResult{..}) = vrow 23 "policy-document:" <+>
+        (pretty . prettyJSON $ decodeURL grprPolicyDocument)
 
-instance Pretty (Ann ASG.AutoScalingGroup) where
-    pretty (Ann ASG.AutoScalingGroup{..} Tags{..}) =
-        hcols w hs <-> hcols w bs
-      where
-        w  = 10
-        z  = 8
-        d  = 19
+instance Pretty (Head (Ann ASG.AutoScalingGroup)) where
+    pretty (Head (Ann ASG.AutoScalingGroup{..} Tags{..})) =
+        title asgAutoScalingGroupName <-> hcols 10
+            [ W 8 (H "status:")
+            , W 8 (H "weight:")
+            , H "version:"
+            , W 19 (H "zones:")
+            , H "cooldown:"
+            , H "[m..N]:"
+            , H "desired:"
+            , W 19 (H "created:")
+            ]
 
-        hs = [ W z (H "status:")
-             , W z (H "weight:")
-             , H "version:"
-             , W d (H "zones:")
-             , H "cooldown:"
-             , H "[m..N]:"
-             , H "desired:"
-             , W d (H "created:")
-             ]
-
-        bs = [ W z (C $ maybe "OK" pretty asgStatus)
-             , W z (C tagWeight)
-             , C tagVersion
-             , W d (C asgAvailabilityZones)
-             , C asgDefaultCooldown
-             , C (pretty asgMinSize <> ".." <> pretty asgMaxSize)
-             , C asgDesiredCapacity
-             , W d (C asgCreatedTime)
-             ]
+instance Pretty (Body (Ann ASG.AutoScalingGroup)) where
+    pretty (Body (Ann ASG.AutoScalingGroup{..} Tags{..})) = hcols 10
+        [ W 8 (C $ maybe "OK" pretty asgStatus)
+        , W 8 (C tagWeight)
+        , C tagVersion
+        , W 19 (C asgAvailabilityZones)
+        , C asgDefaultCooldown
+        , C (pretty asgMinSize <> ".." <> pretty asgMaxSize)
+        , C asgDesiredCapacity
+        , W 19 (C asgCreatedTime)
+        ]
 
 instance Pretty ASG.Filter where
     pretty ASG.Filter{..} = pretty fName <> char ':' <> pretty fValues
@@ -186,8 +178,19 @@ instance Pretty AvailabilityZone where
     prettyList (a:as) = pretty (azRegion a) <> char ':' <+>
         hcat (punctuate comma $ map (char . azSuffix) as)
 
-instance Pretty (Ann EC2.RunningInstancesItemType) where
-    pretty (Ann EC2.RunningInstancesItemType{..} Tags{..}) = hcols 15
+instance Pretty (Head (Ann EC2.RunningInstancesItemType)) where
+    pretty (Head _) = hcols 15
+        [ W 8 (H "state:")
+        , W 8 (H "weight:")
+        , H "instance-id:"
+        , H "image-id:"
+        , H "public-ip:"
+        , H "type:"
+        , W 19 (H "launched:")
+        ]
+
+instance Pretty (Body (Ann EC2.RunningInstancesItemType)) where
+    pretty (Body (Ann EC2.RunningInstancesItemType{..} Tags{..})) = hcols 15
         [ W 8 (C $ EC2.istName riitInstanceState)
         , W 8 (C tagWeight)
         , C riitInstanceId
@@ -197,22 +200,14 @@ instance Pretty (Ann EC2.RunningInstancesItemType) where
         , W 19 (C riitLaunchTime)
         ]
 
-    prettyList is = hcols 15 hs <-> vsep (map pretty is)
-      where
-        hs = [ W 8 (H "state:")
-             , W 8 (H "weight:")
-             , H "instance-id:"
-             , H "image-id:"
-             , H "public-ip:"
-             , H "type:"
-             , W 19 (H "launched:")
-             ]
-
 instance Pretty EC2.InstanceType where
     pretty = fromString . show
 
-instance Pretty EC2.SecurityGroupItemType where
-    pretty EC2.SecurityGroupItemType{..} = vsep
+instance Pretty (Head EC2.SecurityGroupItemType) where
+    pretty = title . EC2.sgitGroupName . unHead
+
+instance Pretty (Body EC2.SecurityGroupItemType) where
+    pretty (Body EC2.SecurityGroupItemType{..}) = vsep
         [ w "owner-id:"              <+> pretty sgitOwnerId
         , w "group-id:"              <+> pretty sgitGroupId
         , w "group-description:"     <+> pretty sgitGroupDescription
@@ -270,27 +265,25 @@ instance Pretty R53.Config where
 instance Pretty R53.Failover where
     pretty = text . show
 
-instance Pretty R53.HostedZone where
-    pretty R53.HostedZone{..} = hcols w hs <-> hcols w bs
-      where
-        w = 10
+instance Pretty (Head R53.HostedZone) where
+    pretty (Head R53.HostedZone{..}) = title hzName <-> hcols 10
+        [ W 38 (H "id:")
+        , W 38 (H "reference:")
+        , H "config:"
+        , H "record-count:"
+        ]
 
-        wide = W 38
+instance Pretty (Body R53.HostedZone) where
+    pretty (Body R53.HostedZone{..}) = hcols 10
+        [ W 38 (C hzId)
+        , W 38 (C hzCallerReference)
+        , C hzConfig
+        , C hzResourceRecordSetCount
+        ]
 
-        hs = [ wide (H "id:")
-             , wide (H "reference:")
-             , H "config:"
-             , H "record-count:"
-             ]
-
-        bs = [ wide (C hzId)
-             , wide (C hzCallerReference)
-             , C hzConfig
-             , C hzResourceRecordSetCount
-             ]
-
-instance Pretty R53.ResourceRecordSet where
-    pretty x = hcols w (heading ++ hs x) <-> hcols w (common ++ bs x)
+instance Pretty (Body R53.ResourceRecordSet) where
+    pretty (Body x) = after $
+        hcols w (heading ++ hs x) <-> hcols w (common ++ bs x)
       where
         w = 10
 
@@ -403,3 +396,4 @@ instance Pretty R53.ResourceRecordSet where
         setId  = wide $ C (R53.rrsSetIdentifier x)
         values = wide $ C (R53.rrsResourceRecords x)
         alias  = wide $ C (R53.rrsAliasTarget x)
+ 

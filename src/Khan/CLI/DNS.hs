@@ -113,7 +113,7 @@ info _ Info{..} = do
     z@HostedZone{..} <- HZone.find iZone >>=
         noteAWS "Unable to find Hosted Zone {}" [B iZone]
     say "Found Hosted Zone Id {}" [hzId]
-    ppHeader z >> ppBody z
+    ppGroup z
     RSet.findAll hzId (maybe (const True) (\x -> Text.isPrefixOf x . rrsName) iName)
         $$ Conduit.mapM_ ppBody
 

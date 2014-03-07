@@ -218,10 +218,14 @@ info Common{..} Info{..} = do
     display m ks = ASG.findAll ks $$ Conduit.mapM_ $
         \g@AutoScalingGroup{..} -> do
             ag <- Tag.annotate g
-            xs <- noteAWS "Missing Auto Scaling Group entries: {}"
-                [B asgAutoScalingGroupName]
-                (Map.lookup asgAutoScalingGroupName m)
-            ppHeader ag >> ppBody ag >> mapM_ (ppBody <=< Tag.annotate) xs
+            xs <- mapM Tag.annotate =<<
+                noteAWS "Missing Auto Scaling Group entries: {}"
+                    [B asgAutoScalingGroupName]
+                    (Map.lookup asgAutoScalingGroupName m)
+            ppGroup ag
+            maybe (log_ "No Auto Scaling Instances found.")
+                  (\i -> ppHead i >> mapM_ ppBody xs)
+                  (listToMaybe xs)
 
 deploy :: Common -> Deploy -> AWS ()
 deploy c@Common{..} d@Deploy{..} = check >> create
@@ -269,7 +273,7 @@ promote _ Cluster{..} = do
         $= Conduit.filter (matchTags . annTags)
         $$ Conduit.consume
 
-    ppBody gs
+    mapM_ ppBody gs
   where
     matchTags Tags{..} = tagEnv == cEnv
         && _role cRole `Text.isPrefixOf` _role tagRole

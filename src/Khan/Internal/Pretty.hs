@@ -396,4 +396,3 @@ instance Pretty (Body R53.ResourceRecordSet) where
         setId  = wide $ C (R53.rrsSetIdentifier x)
         values = wide $ C (R53.rrsResourceRecords x)
         alias  = wide $ C (R53.rrsAliasTarget x)
- 

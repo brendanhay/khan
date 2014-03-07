@@ -36,7 +36,6 @@ module Khan.Internal.Pretty
 
     -- * Combinators
     , (<->)
-    , vsep
     ) where
 
 import           Data.Aeson
@@ -59,13 +58,16 @@ import qualified Network.AWS.EC2              as EC2
 import qualified Network.AWS.IAM              as IAM
 import qualified Network.AWS.Route53          as R53
 import           Network.HTTP.Types           (urlDecode)
-import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 default (Doc)
 
 pprint :: MonadIO m => Doc -> m ()
-pprint = log "{}" . Only . ($ "") . displayS . renderPretty 0.4 100
+pprint = log "{}"
+     . Only
+     . ($ "")
+     . displayS
+     . renderPretty 0.4 100
 
 data Column where
     H :: Pretty a => a -> Column
@@ -86,7 +88,7 @@ instance Title a => Title (Ann a) where
     title = title . annValue
 
 instance Title Text where
-    title n = lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
+    title n = after $ lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
 
 class Header a where
     header :: Proxy a -> Doc
@@ -104,10 +106,15 @@ instance Body a => Body [a] where
     body = vsep . map body
 
 overview :: forall a. (Title a, Header a, Body a) => a -> Doc
-overview x = title x <-> header (Proxy :: Proxy a) <-> body x
+overview x = after $ title x <-> header (Proxy :: Proxy a) <-> body x
+
+after :: Doc -> Doc
+after = (<> line)
+
+infixr 5 <->
 
 (<->) :: Doc -> Doc -> Doc
-(<->) = (PP.<$>)
+a <-> b = a <> line <> b
 
 cols :: Int -> [Column] -> [Doc]
 cols w = map f
@@ -226,9 +233,9 @@ instance Body R53.HostedZone where
         ]
 
 instance Header R53.ResourceRecordSet where
-    header _ = hcols 9
+    header _ = hcols 10
         [ W 36 (H "name:")
-        , H "type:"
+        , W 7 (H "type:")
         , H "region:"
         , W 7 (H "ttl:")
         , W 7 (H "weight:")
@@ -238,7 +245,7 @@ instance Header R53.ResourceRecordSet where
         ]
 
 instance Body R53.ResourceRecordSet where
-    body x = hcols 9
+    body x = hcols 10
         [ W 36 . C . R . B $ R53.rrsName x
         , W 7 . C $ R53.rrsType x
         , region x

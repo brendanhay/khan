@@ -201,7 +201,7 @@ info Common{..} Info{..} = do
     let r  = _role iRole
         e  = _env  iEnv
 
-    when iAll $ images r
+    when iAll (images r)
 
     say "Looking for Instances tagged with {} and {}" [r, e]
     is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []

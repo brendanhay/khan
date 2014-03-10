@@ -326,7 +326,7 @@ promote _ c@Cluster{..} = do
 
     demote prev = do
         say "Demoting Auto Scaling Groups {}"
-                [L $ map (asgAutoScalingGroupName . annValue) prev]
+            [L $ map (asgAutoScalingGroupName . annValue) prev]
         ag <- sendAsync . CreateOrUpdateTags $
             Members (map (reweight demoted) prev)
 
@@ -335,6 +335,7 @@ promote _ c@Cluster{..} = do
             is <- map riitInstanceId <$> Instance.findAll []
                 [ Tag.filter Tag.group [asgAutoScalingGroupName]
                 ]
+
             say "Demoting Instances {}" [L is]
             send_ $ CreateTags is [ResourceTagSetItemType Tag.weight demoted]
 
@@ -347,7 +348,6 @@ promote _ c@Cluster{..} = do
     demoted  = "0"
 
     Names{..} = names c
-
 
 -- FIXME: Ensure the cluster is not currently the _only_ promoted one.
 retire :: Common -> Cluster -> AWS ()

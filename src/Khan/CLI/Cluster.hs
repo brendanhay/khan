@@ -287,46 +287,28 @@ promote _ c@Cluster{..} = do
         $= Conduit.filter (matchTags . annTags)
         $$ Conduit.consume
 
-    (new, old) <- targets gs
+    (next, prev) <- targets gs
 
-    say "Looking for Instances tagged with {}" [asgAutoScalingGroupName $ annValue new]
-    ns <- Instance.findAll []
-        [ Tag.filter Tag.group [asgAutoScalingGroupName $ annValue new]
-        ]
+    let name = asgAutoScalingGroupName (annValue next)
 
-    say "Promoting Auto Scaling Group {}" [asgAutoScalingGroupName $ annValue new]
-    newt <- sendAsync $ CreateOrUpdateTags (Members [reweight "100" new])
+    say "Looking for Instances tagged with {}" [name]
+    is <- map riitInstanceId <$>
+        Instance.findAll [] [Tag.filter Tag.group [name]]
 
-    say "Promoting Instances {}" [map riitInstanceId ns]
-    newi <- sendAsync $ CreateTags (map riitInstanceId ns)
-        [ ResourceTagSetItemType Tag.weight "100"
-        ]
+    say "Promoting Auto Scaling Group {}" [name]
+    ag <- sendAsync $ CreateOrUpdateTags (Members [reweight "100" next])
 
-    wait_ newt
-    wait_ newi
+    say "Promoting Instances {}" [is]
+    ai <- sendAsync $ CreateTags is [ResourceTagSetItemType Tag.weight "100"]
 
-    if null old
+    wait_ ag
+    wait_ ai
+
+    if null prev
         then log_ "No previous Group or Instances to demote."
-        else do
-            say "Demoting Auto Scaling Groups {}"
-                [L $ map (asgAutoScalingGroupName . annValue) old]
-            oldt <- sendAsync $ CreateOrUpdateTags (Members $ map (reweight "0") old)
+        else demote prev
 
-            as <- forM old $ \(Ann og _) -> async $ do
-                say "Looking for Instances tagged with {}" [asgAutoScalingGroupName og]
-                os <- Instance.findAll []
-                    [ Tag.filter Tag.group [asgAutoScalingGroupName og]
-                    ]
-
-                say "Demoting Instances {}" [L $ map riitInstanceId os]
-                send_ $ CreateTags (map riitInstanceId os)
-                    [ ResourceTagSetItemType Tag.weight "0"
-                    ]
-
-            wait_ oldt
-            mapM_ wait_ as
-
-    say "Successfully promoted {}" [asgAutoScalingGroupName $ annValue new]
+    say "Successfully promoted {}" [name]
   where
     Names{..} = names c
 
@@ -335,10 +317,29 @@ promote _ c@Cluster{..} = do
 
     targets gs =
         case partition ((Just cVersion ==) . tagVersion . annTags) gs of
-            ([],   _)  -> throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
             (x:xs, ys) -> return (x, xs ++ ys)
+            ([],   _)  -> throwAWS "Unable to find Auto Scaling Group Version {}."
+                              [cVersion]
 
     reweight w a = ASG.tag (asgAutoScalingGroupName $ annValue a) Tag.weight w
+
+    demote prev = do
+        say "Demoting Auto Scaling Groups {}"
+                [L $ map (asgAutoScalingGroupName . annValue) prev]
+        ag <- sendAsync $ CreateOrUpdateTags (Members $ map (reweight "0") prev)
+
+        as <- forM prev $ \(Ann AutoScalingGroup{..} _) -> async $ do
+            say "Looking for Instances tagged with {}" [asgAutoScalingGroupName]
+            is <- map riitInstanceId <$> Instance.findAll []
+                [ Tag.filter Tag.group [asgAutoScalingGroupName]
+                ]
+
+            say "Demoting Instances {}" [L is]
+            send_ $ CreateTags is [ResourceTagSetItemType Tag.weight "0"]
+
+        wait_ ag
+        mapM_ wait_ as
+
 
 -- FIXME: Ensure the cluster is not currently the _only_ promoted one.
 retire :: Common -> Cluster -> AWS ()

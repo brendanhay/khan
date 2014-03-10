@@ -243,7 +243,7 @@ deploy c@Common{..} d@Deploy{..} = ensure >> create
             say "Waiting for previous deletion of Auto Scaling Group {}"
                 [appName]
             liftIO . threadDelay $ 10 * 1000000
-            check
+            ensure
         when (isJust g) $
             throwAWS "Auto Scaling Group {} already exists." [B appName]
 

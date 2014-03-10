@@ -15,12 +15,13 @@
 
 module Khan.CLI.Cluster (commands) where
 
+
 import           Control.Arrow
 import           Control.Concurrent          (threadDelay)
 import           Data.Conduit
 import qualified Data.Conduit.List           as Conduit
-import qualified Data.Conduit.Util           as Conduit
 import qualified Data.HashMap.Strict         as Map
+import           Data.List                   (partition)
 import           Data.SemVer
 import qualified Data.Text                   as Text
 import           Khan.Internal
@@ -223,9 +224,7 @@ info Common{..} Info{..} = do
                 noteAWS "Missing Auto Scaling Group entries: {}"
                     [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
-
             pprint (overview ag)
-
             if null xs
                then log_ "No Auto Scaling Instances found."
                else pprint $ header (Proxy :: Proxy RunningInstancesItemType)
@@ -271,40 +270,74 @@ scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 promote :: Common -> Cluster -> AWS ()
-promote _ Cluster{..} = do
-    Conduit.zipSources indicies groups
-       $$ Conduit.mapM_ $ \(i, g) -> liftIO $ putStr (show i) -- >> ppBody g
-  where
-    indicies = Conduit.sourceList [1..]
-
-    groups = ASG.findAll []
+promote _ c@Cluster{..} = do
+    gs <- ASG.findAll []
         $= Conduit.mapM Tag.annotate
         $= Conduit.filter (matchTags . annTags)
+        $$ Conduit.consume
 
+    (new, old) <- targets gs
+
+    let r = _role cRole
+        e = _env cEnv
+        v = showVersion cVersion
+
+    say "Looking for Instances tagged with {}, {}, and {}" [r, e, v]
+    ns <- mapM Tag.annotate =<< Instance.findAll []
+        [ Tag.filter Tag.role    [r]
+        , Tag.filter Tag.env     [e]
+        , Tag.filter Tag.version [v]
+        , ec2Filter "tag-key" [Tag.group]
+        ]
+
+    log_ "Promoting the following Auto Scaling Group..."
+    pprint $ overview new
+         <-> header (Proxy :: Proxy RunningInstancesItemType)
+         <-> body ns
+
+    say "Promoting Auto Scaling Group {}" [asgAutoScalingGroupName $ annValue new]
+    newt <- sendAsync $ CreateOrUpdateTags (Members [reweight "100" new])
+
+    say "Promoting Instances {}" [map (riitInstanceId . annValue) ns]
+    newi <- sendAsync $ CreateTags (map (riitInstanceId . annValue) ns)
+        [ ResourceTagSetItemType Tag.weight "100"
+        ]
+
+    wait_ newt
+    wait_ newi
+
+    if null old
+        then log_ "No previous Group or Instances to demote."
+        else do
+            say "Demoting Auto Scaling Groups {}" [map (asgAutoScalingGroupName . annValue) old]
+            oldt <- sendAsync $ CreateOrUpdateTags (Members $ map (reweight "0") old)
+
+            as <- forM old $ \(Ann og _) -> async $ do
+                say "Looking for Instances tagged with {}, {}, and {}" [r, e, asgAutoScalingGroupName og]
+                os <- Instance.findAll []
+                    [ Tag.filter Tag.role    [r]
+                    , Tag.filter Tag.env     [e]
+                    , Tag.filter Tag.group   [asgAutoScalingGroupName og]
+                    ]
+
+                say "Demoting Instances {}" [map riitInstanceId os]
+                send_ $ CreateTags (map riitInstanceId os)
+                    [ ResourceTagSetItemType Tag.weight "0"
+                    ]
+
+            mapM_ wait_ as
+
+    say "Successfully promoted {}" [asgAutoScalingGroupName $ annValue new]
+  where
     matchTags Tags{..} = tagEnv == cEnv
         && _role cRole `Text.isPrefixOf` _role tagRole
 
---     go []  = log_ "No Auto Scaling Groups found, exiting..."
--- --    go [x] = SSH.exec x sUser key sArgs -- promote
---     go xs = do
---         forM_ xs (\(n, addr) -> log "{}) {}" [B n, P (Text.unpack addr)]) cs
+    targets gs =
+        case partition ((Just cVersion ==) . tagVersion . annTags) gs of
+            ([],   _)  -> throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
+            (x:xs, ys) -> return (x, xs ++ ys)
 
---         x <- choose
---         a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
---         SSH.exec a sUser key sArgs
---       where
---         cs = map (first ) $ zip ([1..] :: [Int]) xs
-
---     choose = liftIO $ do
---         hSetBuffering stdout NoBuffering
---         putStr "Select the host to connect to: "
---         getLine
-
-    -- find all role clusters in the current region
-
-    -- sort by their weight tags
-
-    -- present multiple choice
+    reweight w a = ASG.tag (asgAutoScalingGroupName $ annValue a) Tag.weight w
 
 -- FIXME: Ensure the cluster is not currently the _only_ promoted one.
 retire :: Common -> Cluster -> AWS ()

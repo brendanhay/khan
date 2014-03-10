@@ -60,11 +60,11 @@ upload b k (Path.encodeString -> f) = do
 
 latest :: Text -> Text -> FilePath -> AWS Bool
 latest b p f = do
-    say "Paginating bucket {} contents" [b]
+    say "Paginating Bucket {} contents" [b]
     mk <- paginate start
         $= Conduit.concatMap contents
         $$ Conduit.fold max' Nothing
-    maybe (throwAWS "No semantically versioned keys in bucket {}" [B b])
+    maybe (throwAWS "No semantically versioned keys in Bucket {}" [B b])
           (\(k, _) -> download b k f)
           mk
   where

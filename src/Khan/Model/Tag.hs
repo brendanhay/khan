@@ -109,10 +109,6 @@ required iid = do
     say "Describing tags for Instance {}..." [iid]
     send (DescribeTags [TagResourceId [iid]]) >>= parse
 
-    -- tags = Map.fromList
-    --     . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
-    --     . dtagsrTagSet
-
 apply :: Naming a => a -> Text -> [Text] -> AWS ()
 apply (names -> n) dom ids = do
     log_ "Tagging instances..."

@@ -26,6 +26,7 @@ module Khan.Internal.Pretty
       pprint
 
     -- * Documents
+    , pretty
     , title
     , header
     , body
@@ -36,6 +37,7 @@ module Khan.Internal.Pretty
 
     -- * Combinators
     , (<->)
+    , indent
     ) where
 
 import           Data.Aeson
@@ -48,6 +50,9 @@ import           Data.String
 import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
 import           Data.Text.Format             (Only(..))
+import qualified Data.Text.Lazy               as LText
+import           Data.Text.Lazy.Builder       (Builder)
+import qualified Data.Text.Lazy.Builder       as LText
 import           Data.Time                    (UTCTime)
 import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Internal.Types
@@ -88,7 +93,7 @@ instance Title a => Title (Ann a) where
     title = title . annValue
 
 instance Title Text where
-    title n = after $ lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
+    title n = line <> lbracket <> bold (green $ pretty n) <> rbracket <+> "->"
 
 class Header a where
     header :: Proxy a -> Doc
@@ -106,10 +111,7 @@ instance Body a => Body [a] where
     body = vsep . map body
 
 overview :: forall a. (Title a, Header a, Body a) => a -> Doc
-overview x = after $ title x <-> header (Proxy :: Proxy a) <-> body x
-
-after :: Doc -> Doc
-after = (<> line)
+overview x = title x <-> header (Proxy :: Proxy a) <-> body x <> line
 
 infixr 5 <->
 
@@ -285,6 +287,9 @@ instance Body R53.ResourceRecordSet where
         value _ = C (map strip . R53.rrValues $ R53.rrsResourceRecords x)
 
         strip = stripText ".compute" . stripText ".amazonaws.com"
+
+instance Pretty Builder where
+    pretty = pretty . LText.toStrict . LText.toLazyText
 
 instance Pretty Text where
     pretty = text . Text.unpack

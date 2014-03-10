@@ -19,13 +19,14 @@ module Khan.Model.ScalingGroup
     , create
     , update
     , delete
+    , tag
     ) where
 
 import           Data.Conduit
-import qualified Data.Conduit.List       as Conduit
+import qualified Data.Conduit.List           as Conduit
 import           Khan.Internal
-import qualified Khan.Model.Tag          as Tag
-import           Khan.Prelude            hiding (find, min, max)
+import qualified Khan.Model.Tag              as Tag
+import           Khan.Prelude                hiding (find, min, max)
 import           Network.AWS.AutoScaling
 
 findAll :: [Text] -> Source AWS AutoScalingGroup
@@ -67,18 +68,12 @@ create (names -> n@Names{..}) dom zones cool desired grace min max = do
         max
         min
         Nothing
-        (Members . map (uncurry tag) $ Tag.defaults n dom) -- Tags
+        (Members $ map (uncurry (tag appName)) (Tag.defaults n dom))
         (Members [])
         Nothing
     say "Created Auto Scaling Group {}" [appName]
     -- Create and update level2 'name' DNS SRV record
     -- Health checks, monitoring, statistics
-  where
-    tag k v = Tag k
-       (Just True)
-       (Just appName)
-       (Just "auto-scaling-group")
-       (Just v)
 
 update :: Naming a
        => a
@@ -111,3 +106,5 @@ delete (names -> Names{..}) = do
     send_ $ DeleteAutoScalingGroup appName (Just True)
     say "Delete of Auto Scaling Group {} in progress" [appName]
 
+tag :: Text -> Text -> Text -> Tag
+tag grp k v = Tag k (Just True) (Just grp) (Just "auto-scaling-group") (Just v)

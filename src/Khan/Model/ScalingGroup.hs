@@ -33,7 +33,7 @@ findAll :: [Text] -> Source AWS AutoScalingGroup
 findAll ns = do
     if null ns
         then log_ "Describing Auto Scaling Groups..."
-        else say  "Describing Auto Scaling Groups: {}" [ns]
+        else say  "Describing Auto Scaling Groups: {}" [L ns]
     paginate (DescribeAutoScalingGroups (Members ns) Nothing Nothing)
         $= Conduit.map unwrap
         $= Conduit.concat

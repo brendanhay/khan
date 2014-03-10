@@ -211,7 +211,7 @@ info Common{..} Info{..} = do
 
     if null ks
         then log_ "No Auto Scaling Groups found."
-        else display m ks
+        else display m ks >> pLn
   where
     states = ["pending", "running", "stopping", "shutting-down"]
 
@@ -224,10 +224,10 @@ info Common{..} Info{..} = do
                 noteAWS "Missing Auto Scaling Group entries: {}"
                     [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
-            pprint (overview ag)
+            pPrint (overview ag)
             if null xs
                then log_ "No Auto Scaling Instances found."
-               else pprint $ header (Proxy :: Proxy RunningInstancesItemType)
+               else pPrint $ header (Proxy :: Proxy RunningInstancesItemType)
                          <-> body xs
 
 deploy :: Common -> Deploy -> AWS ()
@@ -278,28 +278,16 @@ promote _ c@Cluster{..} = do
 
     (new, old) <- targets gs
 
-    let r = _role cRole
-        e = _env cEnv
-        v = showVersion cVersion
-
-    say "Looking for Instances tagged with {}, {}, and {}" [r, e, v]
-    ns <- mapM Tag.annotate =<< Instance.findAll []
-        [ Tag.filter Tag.role    [r]
-        , Tag.filter Tag.env     [e]
-        , Tag.filter Tag.version [v]
-        , ec2Filter "tag-key" [Tag.group]
+    say "Looking for Instances tagged with {}" [asgAutoScalingGroupName $ annValue new]
+    ns <- Instance.findAll []
+        [ Tag.filter Tag.group [asgAutoScalingGroupName $ annValue new]
         ]
-
-    log_ "Promoting the following Auto Scaling Group..."
-    pprint $ overview new
-         <-> header (Proxy :: Proxy RunningInstancesItemType)
-         <-> body ns
 
     say "Promoting Auto Scaling Group {}" [asgAutoScalingGroupName $ annValue new]
     newt <- sendAsync $ CreateOrUpdateTags (Members [reweight "100" new])
 
-    say "Promoting Instances {}" [map (riitInstanceId . annValue) ns]
-    newi <- sendAsync $ CreateTags (map (riitInstanceId . annValue) ns)
+    say "Promoting Instances {}" [map riitInstanceId ns]
+    newi <- sendAsync $ CreateTags (map riitInstanceId ns)
         [ ResourceTagSetItemType Tag.weight "100"
         ]
 
@@ -309,26 +297,28 @@ promote _ c@Cluster{..} = do
     if null old
         then log_ "No previous Group or Instances to demote."
         else do
-            say "Demoting Auto Scaling Groups {}" [map (asgAutoScalingGroupName . annValue) old]
+            say "Demoting Auto Scaling Groups {}"
+                [L $ map (asgAutoScalingGroupName . annValue) old]
             oldt <- sendAsync $ CreateOrUpdateTags (Members $ map (reweight "0") old)
 
             as <- forM old $ \(Ann og _) -> async $ do
-                say "Looking for Instances tagged with {}, {}, and {}" [r, e, asgAutoScalingGroupName og]
+                say "Looking for Instances tagged with {}" [asgAutoScalingGroupName og]
                 os <- Instance.findAll []
-                    [ Tag.filter Tag.role    [r]
-                    , Tag.filter Tag.env     [e]
-                    , Tag.filter Tag.group   [asgAutoScalingGroupName og]
+                    [ Tag.filter Tag.group [asgAutoScalingGroupName og]
                     ]
 
-                say "Demoting Instances {}" [map riitInstanceId os]
+                say "Demoting Instances {}" [L $ map riitInstanceId os]
                 send_ $ CreateTags (map riitInstanceId os)
                     [ ResourceTagSetItemType Tag.weight "0"
                     ]
 
+            wait_ oldt
             mapM_ wait_ as
 
     say "Successfully promoted {}" [asgAutoScalingGroupName $ annValue new]
   where
+    Names{..} = names c
+
     matchTags Tags{..} = tagEnv == cEnv
         && _role cRole `Text.isPrefixOf` _role tagRole
 

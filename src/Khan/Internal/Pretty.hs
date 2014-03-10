@@ -23,7 +23,9 @@
 module Khan.Internal.Pretty
     (
     -- * IO
-      pprint
+      pPrint
+    , pPrintLn
+    , pLn
 
     -- * Documents
     , pretty
@@ -31,6 +33,7 @@ module Khan.Internal.Pretty
     , header
     , body
     , overview
+    , line
 
     -- * Proxy
     , Proxy (..)
@@ -67,12 +70,18 @@ import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
 
 default (Doc)
 
-pprint :: MonadIO m => Doc -> m ()
-pprint = log "{}"
+pPrint :: MonadIO m => Doc -> m ()
+pPrint = log "{}"
      . Only
      . ($ "")
      . displayS
      . renderPretty 0.4 100
+
+pPrintLn :: MonadIO m => Doc -> m ()
+pPrintLn = pPrint . (<> line)
+
+pLn :: MonadIO m => m ()
+pLn = log_ ""
 
 data Column where
     H :: Pretty a => a -> Column
@@ -125,10 +134,10 @@ cols w = map f
     f x     = fill w (pretty x)
 
 hcols :: Int -> [Column] -> Doc
-hcols w = indent 2 . hsep . cols w
+hcols w = indent 1 . hsep . cols w
 
 vrow :: Pretty a => Int -> a -> Doc
-vrow w = indent 2 . fill w . bold . pretty
+vrow w = indent 1 . fill w . bold . pretty
 
 instance Title ASG.AutoScalingGroup where
     title ASG.AutoScalingGroup{..} = title asgAutoScalingGroupName

@@ -235,11 +235,11 @@ info Common{..} Info{..} = do
                          <-> body xs
 
 deploy :: Common -> Deploy -> AWS ()
-deploy c@Common{..} d@Deploy{..} = check >> create
+deploy c@Common{..} d@Deploy{..} = ensure >> create
   where
-    check = do
+    ensure = do
         g <- ASG.find d
-        when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
+        when (Just "Delete in progress" == join (asgStatus <$> g)) $ do
             say "Waiting for previous deletion of Auto Scaling Group {}"
                 [appName]
             liftIO . threadDelay $ 10 * 1000000
@@ -252,7 +252,7 @@ deploy c@Common{..} d@Deploy{..} = check >> create
         p <- async $ Role.find d <|> Role.update d dTrust dPolicy
         s <- async $ Security.sshGroup d
         g <- async $ Security.create groupName
-        a <- async $ Image.find [] [Filter "name" [imageName]]
+        a <- async $ Image.find [] [ec2Filter "name" [imageName]]
 
         wait_ k
         wait_ p <* say "Found IAM Profile {}" [profileName]

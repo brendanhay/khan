@@ -1,5 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.Model.Image
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -22,6 +24,7 @@ import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import qualified Data.Text          as Text
 import           Khan.Internal
+import qualified Khan.Model.Tag     as Tag
 import           Khan.Prelude       hiding (find, min, max)
 import           Network.AWS.EC2    hiding (Instance, wait)
 
@@ -39,13 +42,12 @@ findAllCatch :: [Text]
 findAllCatch ids fs = either Left (Right . djImagesSet) <$>
     sendCatch (DescribeImages [] ids [] fs)
 
-create :: Text -> Text -> [BlockDeviceMappingItemType] -> AWS Text
-create i n bs = do
-    say "Creating Image {} from {}" [n, i]
-    img <- cjImageId <$> send (CreateImage i n Nothing Nothing bs)
+create :: Naming a => a -> Text -> [BlockDeviceMappingItemType] -> AWS Text
+create (names -> n@Names{..}) i bs = do
+    say "Creating Image {} from {}" [imageName, i]
+    img <- cjImageId <$> send (CreateImage i imageName Nothing Nothing bs)
     wait limit img
-    say "Tagging Image {}" [img]
-    send_ $ CreateTags [img] [ResourceTagSetItemType "Name" n]
+    Tag.images n [img]
     return img
   where
     wait 0 img = throwAWS "Image creation failed: {}" [B img]

@@ -29,15 +29,14 @@ module Khan.Model.Tag
     , weight
     , group
 
-    -- * Defaults
-    , defaults
-
-    -- * Tag filters
+    -- * Filters
     , filter
 
-    -- * API calls
+    -- * Tags
     , required
-    , apply
+    , instances
+    , images
+    , defaults
     ) where
 
 import           Control.Monad.Error
@@ -49,6 +48,7 @@ import           Khan.Internal           hiding (group)
 import           Khan.Model.Tag.Internal
 import           Khan.Prelude            hiding (filter)
 import           Network.AWS
+import qualified Network.AWS.AutoScaling as ASG
 import           Network.AWS.EC2
 
 annotate :: (Applicative m, MonadError AWSError m, Tagged a) => a -> m (Ann a)
@@ -92,15 +92,6 @@ version = "Version"
 weight  = "Weight"
 group   = "aws:autoscaling:groupName"
 
-defaults :: Names -> Text -> [(Text, Text)]
-defaults Names{..} dom =
-    [ (role,   roleName)
-    , (env,    envName)
-    , (domain, dom)
-    , (name,   appName)
-    , (weight, "0")
-    ] ++ maybe [] (\v -> [(version, v)]) versionName
-
 filter :: Text -> [Text] -> Filter
 filter k = ec2Filter ("tag:" <> k)
 
@@ -109,9 +100,26 @@ required iid = do
     say "Describing tags for Instance {}..." [iid]
     send (DescribeTags [TagResourceId [iid]]) >>= parse
 
-apply :: Naming a => a -> Text -> [Text] -> AWS ()
-apply (names -> n) dom ids = do
-    log_ "Tagging instances..."
+instances :: Naming a => a -> Text -> [Text] -> AWS ()
+instances n dom ids = do
+    say "Tagging {}" [L ids]
     send_ . CreateTags ids
-          . map (uncurry ResourceTagSetItemType)
-          $ defaults n dom
+          $ map (uncurry ResourceTagSetItemType) (defaults n dom)
+
+images :: Naming a => a -> [Text] -> AWS ()
+images (names -> Names{..}) ids = do
+    say "Tagging {}" [L ids]
+    send_ $ CreateTags ids
+        [ ResourceTagSetItemType role roleName
+        , ResourceTagSetItemType version (fromMaybe "" versionName)
+        , ResourceTagSetItemType name imageName
+        ]
+
+defaults :: Naming a => a -> Text -> [(Text, Text)]
+defaults (names -> Names{..}) dom =
+    [ (role,   roleName)
+    , (env,    envName)
+    , (domain, dom)
+    , (name,   appName)
+    , (weight, "0")
+    ] ++ maybe [] (\v -> [(version, v)]) versionName

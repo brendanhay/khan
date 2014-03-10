@@ -1,15 +1,12 @@
 SHELL        := /usr/bin/env bash
 NAME         := khan
-VERSION      ?= 0.2.4
+VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
 BUILD_NUMBER ?= 0
 DEPS         := vendor/amazonka vendor/ede
 DEB          := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
 BIN          := dist/build/khan/khan
 
 all: install dist
-
-build:
-	cabal build
 
 install: $(DEPS) cabal.sandbox.config add-sources
 	cabal install -j --disable-documentation --disable-library-coverage

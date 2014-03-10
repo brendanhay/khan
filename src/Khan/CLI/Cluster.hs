@@ -196,37 +196,32 @@ commands env = group "cluster" "Auto Scaling Groups." $ mconcat
 
 info :: Common -> Info -> AWS ()
 info Common{..} Info{..} = do
-    let r  = _role iRole
-        e  = _env  iEnv
-
-    when iAll (images r)
-
-    say "Looking for Instances tagged with {} and {}" [r, e]
-    is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []
-        [ Tag.filter Tag.role [r]
-        , Tag.filter Tag.env  [e]
-        , ec2Filter "instance-state-name" states
-        , ec2Filter "tag-key" [Tag.group]
-        ]
-
-    let m  = Map.fromListWith (<>) [(k, [v]) | (Just k, v) <- is]
-        ks = Map.keys m
-
-    if null ks
+    when iAll images
+    m <- instances
+    if null (Map.keys m)
         then log_ "No Auto Scaling Groups found."
-        else instances m ks >> pLn
+        else groups m >> pLn
   where
-    states = ["pending", "running", "stopping", "shutting-down"]
-
-    unwrap = (tagGroup . annTags *** annValue) . join (,)
-
-    images r = do
-        say  "Looking for Images tagged with {}" [r]
+    images = do
+        say  "Looking for Images tagged with {}" [iRole]
         mapM_ (pPrint . overview) =<< Image.findAll []
-            [ Tag.filter Tag.role [r]
+            [ Tag.filter Tag.role [_role iRole]
             ]
 
-    instances m ks = ASG.findAll ks $$ Conduit.mapM_ $
+    instances = do
+        say "Looking for Instances tagged with {} and {}" [B iRole, B iEnv]
+        is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []
+            [ Tag.filter Tag.role [_role iRole]
+            , Tag.filter Tag.env  [_env  iEnv]
+            , ec2Filter "instance-state-name" states
+            , ec2Filter "tag-key" [Tag.group]
+            ]
+        return $ Map.fromListWith (<>) [(k, [v]) | (Just k, v) <- is]
+
+    states = ["pending", "running", "stopping", "shutting-down"]
+    unwrap = (tagGroup . annTags *** annValue) . join (,)
+
+    groups m = ASG.findAll (Map.keys m) $$ Conduit.mapM_ $
         \g@AutoScalingGroup{..} -> do
             ag <- Tag.annotate g
             xs <- mapM Tag.annotate =<<

@@ -402,6 +402,12 @@ instance Pretty R53.Config where
 instance Pretty R53.Failover where
     pretty = text . show
 
+instance Pretty Env where
+    pretty = pretty . _env
+
+instance Pretty Role where
+    pretty = pretty . _role
+
 prettyJSON :: ToJSON a => Maybe a -> Text
 prettyJSON = Text.decodeUtf8 . LBS.toStrict . maybe "" Aeson.encodePretty
 

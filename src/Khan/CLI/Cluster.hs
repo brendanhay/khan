@@ -22,7 +22,6 @@ import qualified Data.Conduit.List           as Conduit
 import qualified Data.HashMap.Strict         as Map
 import           Data.List                   (partition)
 import           Data.SemVer
-import qualified Data.Text                   as Text
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
@@ -295,8 +294,7 @@ promote _ c@Cluster{..} = do
 
     say "Successfully promoted {}" [name]
   where
-    matchTags Tags{..} = tagEnv == cEnv
-        && _role cRole `Text.isPrefixOf` _role tagRole
+    matchTags Tags{..} = tagEnv == cEnv && cRole == tagRole
 
     targets gs
         | (x:xs, ys) <- partition ((Just cVersion ==) . tagVersion . annTags) gs

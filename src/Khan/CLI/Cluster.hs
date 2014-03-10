@@ -311,18 +311,16 @@ promote _ c@Cluster{..} = do
             Instance.findAll [] [Tag.filter Tag.group [name]]
 
         say "Promoting Auto Scaling Group {}" [name]
-        ag <- sendAsync . CreateOrUpdateTags $
-            Members [reweight promoted next]
+        ag <- sendAsync . CreateOrUpdateTags $ Members [reweight promoted next]
 
-        say "Promoting Instances {}" [is]
-        ai <- sendAsync $ CreateTags is
-            [ResourceTagSetItemType Tag.weight promoted]
+        say "Promoting Instances: {}" [L is]
+        ai <- sendAsync $ CreateTags is [ResourceTagSetItemType Tag.weight promoted]
 
         wait_ ag
         wait_ ai
 
     demote prev = do
-        say "Demoting Auto Scaling Groups {}"
+        say "Demoting Auto Scaling Groups: {}"
             [L $ map (asgAutoScalingGroupName . annValue) prev]
         ag <- sendAsync . CreateOrUpdateTags $
             Members (map (reweight demoted) prev)
@@ -333,7 +331,7 @@ promote _ c@Cluster{..} = do
                 [ Tag.filter Tag.group [asgAutoScalingGroupName]
                 ]
 
-            say "Demoting Instances {}" [L is]
+            say "Demoting Instances: {}" [L is]
             send_ $ CreateTags is [ResourceTagSetItemType Tag.weight demoted]
 
         wait_ ag

@@ -101,13 +101,13 @@ required iid = do
 
 instances :: Naming a => a -> Text -> [Text] -> AWS ()
 instances n dom ids = do
-    say "Tagging {}" [L ids]
+    say "Tagging: {}" [L ids]
     send_ . CreateTags ids
           $ map (uncurry ResourceTagSetItemType) (defaults n dom)
 
 images :: Naming a => a -> [Text] -> AWS ()
 images (names -> Names{..}) ids = do
-    say "Tagging {}" [L ids]
+    say "Tagging: {}" [L ids]
     send_ $ CreateTags ids
         [ ResourceTagSetItemType role roleName
         , ResourceTagSetItemType version (fromMaybe "" versionName)

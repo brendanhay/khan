@@ -43,12 +43,15 @@ import           Network.AWS.EC2             hiding (Filter)
 data Info = Info
     { iRole :: !Role
     , iEnv  :: !Env
+    , iAll  :: !Bool
     }
 
 infoParser :: EnvMap -> Parser Info
 infoParser env = Info
     <$> roleOption
     <*> envOption env
+    <*> switchOption "all" False
+        "Show all available versions, even if they are not deployed."
 
 instance Options Info where
     validate Info{..} =
@@ -195,8 +198,10 @@ commands env = group "cluster" "Auto Scaling Groups." $ mconcat
 
 info :: Common -> Info -> AWS ()
 info Common{..} Info{..} = do
-    let r = _role iRole
-        e = _env  iEnv
+    let r  = _role iRole
+        e  = _env  iEnv
+
+    when iAll $ images r
 
     say "Looking for Instances tagged with {} and {}" [r, e]
     is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []
@@ -211,13 +216,19 @@ info Common{..} Info{..} = do
 
     if null ks
         then log_ "No Auto Scaling Groups found."
-        else display m ks >> pLn
+        else instances m ks >> pLn
   where
     states = ["pending", "running", "stopping", "shutting-down"]
 
     unwrap = (tagGroup . annTags *** annValue) . join (,)
 
-    display m ks = ASG.findAll ks $$ Conduit.mapM_ $
+    images r = do
+        say  "Looking for Images tagged with {}" [r]
+        mapM_ (pPrint . overview) =<< Image.findAll []
+            [ Tag.filter Tag.role [r]
+            ]
+
+    instances m ks = ASG.findAll ks $$ Conduit.mapM_ $
         \g@AutoScalingGroup{..} -> do
             ag <- Tag.annotate g
             xs <- mapM Tag.annotate =<<

@@ -166,6 +166,32 @@ instance Body (Ann ASG.AutoScalingGroup) where
         , W 19 (C asgCreatedTime)
         ]
 
+instance Title EC2.DescribeImagesResponseItemType where
+    title = title . EC2.diritName
+
+instance Header EC2.DescribeImagesResponseItemType where
+    header _ = hcols 14
+        [ H "image-id:"
+        , H "owner-id:"
+        , H "state:"
+        , H "public:"
+        , H "root-device:"
+        , W 30 (H "block-devices:")
+        ]
+
+instance Body EC2.DescribeImagesResponseItemType where
+    body EC2.DescribeImagesResponseItemType{..} = hcols 14
+        [ C diritImageId
+        , C diritImageOwnerId
+        , C diritImageState
+        , C diritIsPublic
+        , C diritRootDeviceType
+        , W 30 (C devices)
+        ]
+      where
+        devices = hsep $ map (pretty . EC2.bdmitDeviceName)
+            diritBlockDeviceMapping
+
 instance Header EC2.RunningInstancesItemType where
     header _ = hcols 15
         [ W 8 (H "state:")

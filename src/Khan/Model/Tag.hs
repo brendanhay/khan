@@ -48,7 +48,6 @@ import           Khan.Internal           hiding (group)
 import           Khan.Model.Tag.Internal
 import           Khan.Prelude            hiding (filter)
 import           Network.AWS
-import qualified Network.AWS.AutoScaling as ASG
 import           Network.AWS.EC2
 
 annotate :: (Applicative m, MonadError AWSError m, Tagged a) => a -> m (Ann a)

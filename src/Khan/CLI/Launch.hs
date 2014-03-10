@@ -19,6 +19,7 @@ import qualified Khan.Model.AvailabilityZone as AZ
 import qualified Khan.Model.Image            as Image
 import qualified Khan.Model.Instance         as Instance
 import qualified Khan.Model.Key              as Key
+import           Khan.Model.Ansible
 import           Khan.Model.Role             (Paths(..))
 import qualified Khan.Model.Role             as Role
 import qualified Khan.Model.SecurityGroup    as Security
@@ -47,6 +48,7 @@ data Launch = Launch
     , lZones     :: !String
     , lTrust     :: !TrustPath
     , lPolicy    :: !PolicyPath
+    , lAnsible   :: !Bool
     }
 
 launchParser :: EnvMap -> Parser Launch
@@ -70,6 +72,7 @@ launchParser env = Launch
         "Availability zones suffixes to provision into."
     <*> trustOption
     <*> policyOption
+    <*> ansibleOption
 
 instance Options Launch where
     discover _ Common{..} l@Launch{..} = do
@@ -100,7 +103,7 @@ commands env = mconcat
     ]
 
 launch :: Common -> Launch -> AWS ()
-launch Common{..} l@Launch{..} = do
+launch c@Common{..} l@Launch{..} = capture lAnsible c "launch {}" [show lType] $ do
     say "Looking for Images matching {}" [fromMaybe imageName lImage]
     a <- async . Image.find [] . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
@@ -129,5 +132,6 @@ launch Common{..} l@Launch{..} = do
 
     Tag.apply l lDomain ids
     Instance.wait ids
+    return True
   where
     Names{..} = names l

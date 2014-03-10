@@ -229,35 +229,37 @@ info Common{..} Info{..} = do
     weighted i = PI i (Tag.lookupWeight . Tag.flatten $ riitTagSet i)
 
 deploy :: Common -> Deploy -> AWS ()
-deploy c@Common{..} d@Deploy{..} = do
-    j <- ASG.find d
-
-    when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
-        say "Waiting for previous deletion of Auto Scaling Group {}" [appName]
-        liftIO . threadDelay $ 10 * 1000000
-        deploy c d
-
-    when (isJust j) $
-        throwAWS "Auto Scaling Group {} already exists." [B appName]
-
-    k <- async $ Key.create dRKeys d cLKeys
-    p <- async $ Role.find d <|> Role.update d dTrust dPolicy
-    s <- async $ Security.sshGroup d
-    g <- async $ Security.create groupName
-    a <- async $ Image.find [] [Filter "name" [imageName]]
-
-    wait_ k
-    wait_ p <* say "Found IAM Profile {}" [profileName]
-    wait_ s <* say "Found SSH Group {}" [sshGroupName]
-    wait_ g <* say "Found App Group {}" [groupName]
-
-    ami <- diritImageId <$> wait a
-    say "Found AMI {} named {}" [ami, imageName]
-
-    Config.create d ami dType
-
-    ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax
+deploy c@Common{..} d@Deploy{..} = check >> create
   where
+    check = do
+        g <- ASG.find d
+        when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
+            say "Waiting for previous deletion of Auto Scaling Group {}"
+                [appName]
+            liftIO . threadDelay $ 10 * 1000000
+            check
+        when (isJust g) $
+            throwAWS "Auto Scaling Group {} already exists." [B appName]
+
+    create = do
+        k <- async $ Key.create dRKeys d cLKeys
+        p <- async $ Role.find d <|> Role.update d dTrust dPolicy
+        s <- async $ Security.sshGroup d
+        g <- async $ Security.create groupName
+        a <- async $ Image.find [] [Filter "name" [imageName]]
+
+        wait_ k
+        wait_ p <* say "Found IAM Profile {}" [profileName]
+        wait_ s <* say "Found SSH Group {}" [sshGroupName]
+        wait_ g <* say "Found App Group {}" [groupName]
+
+        ami <- diritImageId <$> wait a
+        say "Found AMI {} named {}" [ami, imageName]
+
+        Config.create d ami dType
+
+        ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax
+
     Names{..} = names d
 
     zones = map (AZ cRegion) dZones

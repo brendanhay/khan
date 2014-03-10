@@ -14,29 +14,36 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.ScalingGroup
-    ( find
-    , findAll
+    ( findAll
+    , find
     , create
     , update
     , delete
+    , tag
     ) where
 
+import           Data.Conduit
+import qualified Data.Conduit.List           as Conduit
 import           Khan.Internal
-import qualified Khan.Model.Tag          as Tag
-import           Khan.Prelude            hiding (find, min, max)
-import           Network.AWS.AutoScaling hiding (Filter)
+import qualified Khan.Model.Tag              as Tag
+import           Khan.Prelude                hiding (find, min, max)
+import           Network.AWS.AutoScaling
 
-find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
-find (names -> Names{..}) = listToMaybe <$> findAll [appName]
-
--- FIXME: Add pagination (via underlying amazonka Pg)
-findAll :: [Text] -> AWS [AutoScalingGroup]
-findAll ns = unwrap <$>
-    send (DescribeAutoScalingGroups (Members ns) Nothing Nothing)
+findAll :: [Text] -> Source AWS AutoScalingGroup
+findAll ns = do
+    if null ns
+        then log_ "Describing Auto Scaling Groups..."
+        else say  "Describing Auto Scaling Groups: {}" [L ns]
+    paginate (DescribeAutoScalingGroups (Members ns) Nothing Nothing)
+        $= Conduit.map unwrap
+        $= Conduit.concat
   where
     unwrap = members
         . dasgrAutoScalingGroups
         . dashrDescribeAutoScalingGroupsResult
+
+find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
+find (names -> Names{..}) = findAll [appName] $$ Conduit.head
 
 create :: Naming a
        => a
@@ -61,18 +68,12 @@ create (names -> n@Names{..}) dom zones cool desired grace min max = do
         max
         min
         Nothing
-        (Members . map (uncurry tag) $ Tag.defaults n dom) -- Tags
+        (Members $ map (uncurry (tag appName)) (Tag.defaults n dom))
         (Members [])
         Nothing
     say "Created Auto Scaling Group {}" [appName]
     -- Create and update level2 'name' DNS SRV record
     -- Health checks, monitoring, statistics
-  where
-    tag k v = Tag k
-       (Just True)
-       (Just appName)
-       (Just "auto-scaling-group")
-       (Just v)
 
 update :: Naming a
        => a
@@ -104,3 +105,6 @@ delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
     send_ $ DeleteAutoScalingGroup appName (Just True)
     say "Delete of Auto Scaling Group {} in progress" [appName]
+
+tag :: Text -> Text -> Text -> Tag
+tag grp k v = Tag k (Just True) (Just grp) (Just "auto-scaling-group") (Just v)

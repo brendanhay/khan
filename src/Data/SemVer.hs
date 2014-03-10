@@ -31,11 +31,13 @@ module Data.SemVer
 import           Control.Applicative
 import           Control.Error
 import           Control.Monad
+import           Data.Aeson
 import           Data.Attoparsec.Text
 import           Data.Char                  (isDigit)
 import           Data.Monoid
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
+import           Data.Text.Buildable
 import qualified Data.Text.Lazy             as LText
 import qualified Data.Text.Lazy.Builder     as Build
 import qualified Data.Text.Lazy.Builder.Int as Build
@@ -59,6 +61,22 @@ instance Ord Version where
             , versionMeta
             )
 
+instance ToJSON Version where
+    toJSON = toJSON . showVersion
+
+instance Buildable Version where
+    build Version{..} = mconcat
+        [ Build.decimal versionMajor
+        , Build.singleton '.'
+        , Build.decimal versionMinor
+        , Build.singleton '.'
+        , Build.decimal versionPatch
+        , f '-' versionRelease
+        , f '+' versionMeta
+        ]
+      where
+        f c = maybe mempty (mappend (Build.singleton c) . Build.fromText)
+
 bumpMajor :: Version -> Version
 bumpMajor v = v { versionMajor = versionMajor v + 1 }
 
@@ -72,17 +90,7 @@ newVersion :: Int -> Int -> Int -> Version
 newVersion ma mi p = Version ma mi p Nothing Nothing
 
 showVersion :: Version -> Text
-showVersion Version{..} = LText.toStrict . Build.toLazyText $ mconcat
-    [ Build.decimal versionMajor
-    , Build.singleton '.'
-    , Build.decimal versionMinor
-    , Build.singleton '.'
-    , Build.decimal versionPatch
-    , f '-' versionRelease
-    , f '+' versionMeta
-    ]
-  where
-    f c = maybe mempty (mappend (Build.singleton c) . Build.fromText)
+showVersion = LText.toStrict . Build.toLazyText . build
 
 parseVersion :: Text -> Either String Version
 parseVersion = parseOnly version

@@ -130,7 +130,7 @@ launch c@Common{..} l@Launch{..} = capture lAnsible c "launch {}" [show lType] $
 
     let ids = concatMap (map riitInstanceId) rs
 
-    Tag.apply l lDomain ids
+    Tag.instances l lDomain ids
     Instance.wait ids
     return True
   where

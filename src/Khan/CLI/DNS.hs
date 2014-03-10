@@ -1,3 +1,4 @@
+
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -113,14 +114,10 @@ info _ Info{..} = do
     z@HostedZone{..} <- HZone.find iZone >>=
         noteAWS "Unable to find Hosted Zone {}" [B iZone]
     say "Found Hosted Zone Id {}" [hzId]
-
-    ln >> pp (title hzName)
-    ppi 2 z >> ln
-
+    pPrint (overview z <-> header (Proxy :: Proxy ResourceRecordSet))
     RSet.findAll hzId (maybe (const True) (\x -> Text.isPrefixOf x . rrsName) iName)
-        $$ Conduit.mapM_ (\r -> ln >> ppi 2 r)
-
-    ln
+        $$ Conduit.mapM_ (pPrint . body)
+    pLn
 
 update :: Common -> Record -> AWS ()
 update c@Common{..} r@Record{..} = capture rAnsible c "dns record {}" [rName] $

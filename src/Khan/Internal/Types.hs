@@ -29,19 +29,23 @@ module Khan.Internal.Types
 
    -- * Types
    , Modified      (..)
+   , Ann           (..)
    , Tags          (..)
    , Names         (..)
    , RoutingPolicy (..)
    , TrustPath     (..)
    , PolicyPath    (..)
-   , Role          (_role)
    , Env           (_env)
+   , Role          (_role)
 
    -- * Smart constructors
    , versioned
    , unversioned
-   , newRole
    , newEnv
+   , newRole
+
+   -- * Text helpers
+   , stripText
    ) where
 
 import           Data.Aeson
@@ -122,6 +126,11 @@ instance ToEnv (Text, Text) where
 instance ToEnv (HashMap Text Text) where
     toEnv = id
 
+data Ann a = Ann
+    { annValue :: a
+    , annTags  :: Tags
+    }
+
 data Tags = Tags
     { tagRole    :: !Role
     , tagEnv     :: !Env
@@ -129,12 +138,14 @@ data Tags = Tags
     , tagName    :: Maybe Text
     , tagVersion :: Maybe Version
     , tagWeight  :: !Int
+    , tagGroup   :: Maybe Text
     } deriving (Eq, Ord, Show)
 
 instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
         [ ("KHAN_ROLE",    _role tagRole)
         , ("KHAN_ENV",     _env tagEnv)
+        , ("KHAN_DOMAIN",  tagDomain)
         , ("KHAN_WEIGHT",  Text.pack $ show tagWeight)
         ] ++ maybeToList (("KHAN_VERSION",) . showVersion <$> tagVersion)
           ++ maybeToList (("KHAN_NAME",) <$> tagName)
@@ -230,26 +241,32 @@ newtype TrustPath = TrustPath { _trust :: FilePath }
 newtype PolicyPath = PolicyPath { _policy :: FilePath }
     deriving (Eq, Show, IsString)
 
-newtype Role = Role { _role :: Text }
-    deriving (Eq, Ord, Show, Invalid, Naming)
-
-instance IsString Role where
-    fromString = newRole . fromString
-
-newRole :: Text -> Role
-newRole = Role . Text.map f
-  where
-    f '-' = '_'
-    f c   = c
-
 newtype Env = Env { _env :: Text }
     deriving (Eq, Ord, Show, Invalid, Naming)
 
 instance IsString Env where
     fromString = newEnv . fromString
 
+instance ToJSON Env where
+    toJSON = toJSON . _env
+
 newEnv :: Text -> Env
 newEnv = Env
+
+newtype Role = Role { _role :: Text }
+    deriving (Eq, Ord, Show, Invalid, Naming)
+
+instance IsString Role where
+    fromString = newRole . fromString
+
+instance ToJSON Role where
+    toJSON = toJSON . _role
+
+newRole :: Text -> Role
+newRole = Role . Text.map f
+  where
+    f '-' = '_'
+    f c   = c
 
 stripText :: Text -> Text -> Text
 stripText x y =

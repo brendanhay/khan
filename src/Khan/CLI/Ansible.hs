@@ -125,7 +125,7 @@ inventory Common{..} Inventory{..} = do
     hosts m RunningInstancesItemType{..} = case riitDnsName of
         Nothing   -> return m
         Just fqdn -> do
-            t@Tags{..} <- Tag.lookup $ Tag.flatten riitTagSet
+            t@Tags{..} <- Tag.parse riitTagSet
 
             let n@Names{..} = names t
                 host        = Host fqdn tagDomain n cRegion

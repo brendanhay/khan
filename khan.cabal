@@ -71,13 +71,14 @@ library
       , Khan.Internal.Types
 
       , Khan.Model.Ansible.Internal
+      , Khan.Model.Tag.Internal
 
       , Khan.Prelude.Log
 
     build-depends:
         aeson                >= 0.7
       , aeson-pretty
-      , amazonka             >= 0.1.4
+      , amazonka             >= 0.1.6
       , ansi-wl-pprint
       , attoparsec
       , base                 >= 4.6 && < 5
@@ -98,6 +99,7 @@ library
       , semigroups
       , shelly
       , system-filepath      >= 0.4.9
+      , tagged
       , text                 >= 1.0
       , text-format
       , time

@@ -16,8 +16,9 @@
 
 module Khan.Model.Tag
     (
-    -- * EC2 Filter
-      filter
+    -- * From EC2/ASG
+      annotate
+    , parse
 
     -- * Constants
     , env
@@ -26,66 +27,41 @@ module Khan.Model.Tag
     , name
     , version
     , weight
+    , group
 
-    -- * Defaults
-    , defaults
+    -- * Filters
+    , filter
 
-    -- * From EC2 instance
-    , flatten
-
-    -- * Lookup from HashMap
-    , lookup
-    , lookupVersion
-    , lookupWeight
-
-    -- * API calls
+    -- * Tags
     , required
-    , apply
+    , instances
+    , images
+    , defaults
     ) where
 
 import           Control.Monad.Error
-import qualified Data.Attoparsec.Text  as AText
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as Map
+import qualified Data.Attoparsec.Text    as AText
+import qualified Data.HashMap.Strict     as Map
 import           Data.SemVer
-import qualified Data.Text             as Text
-import           Khan.Internal
-import           Khan.Prelude          hiding (filter, lookup)
+import qualified Data.Text               as Text
+import           Khan.Internal           hiding (group)
+import           Khan.Model.Tag.Internal
+import           Khan.Prelude            hiding (filter)
 import           Network.AWS
 import           Network.AWS.EC2
 
-filter :: Text -> [Text] -> Filter
-filter k = Filter ("tag:" <> k)
+annotate :: (Applicative m, MonadError AWSError m, Tagged a) => a -> m (Ann a)
+annotate x = Ann x <$> parse x
 
-env, role, domain, name, version, weight :: Text
-env     = "Env"
-role    = "Role"
-domain  = "Domain"
-name    = "Name"
-version = "Version"
-weight  = "Weight"
-
-defaults :: Names -> Text -> [(Text, Text)]
-defaults Names{..} dom =
-    [ (role,   roleName)
-    , (env,    envName)
-    , (domain, dom)
-    , (name,   appName)
-    , (weight, "0")
-    ] ++ maybe [] (\v -> [(version, v)]) versionName
-
-flatten :: [ResourceTagSetItemType] -> HashMap Text Text
-flatten = Map.fromList
-    . map (\ResourceTagSetItemType{..} -> (rtsitKey, rtsitValue))
-
-lookup :: (Applicative m, MonadError AWSError m) => HashMap Text Text -> m Tags
-lookup ts = Tags
+parse :: (Applicative m, MonadError AWSError m, Tagged a) => a -> m Tags
+parse (tags -> ts) = Tags
     <$> (newRole <$> require role ts)
     <*> (newEnv  <$> require env ts)
     <*> require domain ts
     <*> pure (Map.lookup name ts)
     <*> pure (lookupVersion ts)
     <*> pure (lookupWeight ts)
+    <*> pure (Map.lookup group ts)
   where
     require k m = hoistError . note (missing k m) $ Map.lookup k m
 
@@ -97,29 +73,52 @@ lookup ts = Tags
         . map (\(k, v) -> Text.concat [k, "=", v])
         . Map.toList
 
-lookupVersion :: HashMap Text Text -> Maybe Version
-lookupVersion = join
-    . fmap (hush . parseVersion)
-    . Map.lookup version
+    lookupVersion = join
+        . fmap (hush . parseVersion)
+        . Map.lookup version
 
-lookupWeight :: HashMap Text Text -> Int
-lookupWeight = fromMaybe 0
-    . join
-    . fmap (hush . AText.parseOnly AText.decimal)
-    . Map.lookup weight
+    lookupWeight = fromMaybe 0
+        . join
+        . fmap (hush . AText.parseOnly AText.decimal)
+        . Map.lookup weight
+
+env, role, domain, name, version, weight, group :: Text
+env     = "Env"
+role    = "Role"
+domain  = "Domain"
+name    = "Name"
+version = "Version"
+weight  = "Weight"
+group   = "aws:autoscaling:groupName"
+
+filter :: Text -> [Text] -> Filter
+filter k = ec2Filter ("tag:" <> k)
 
 required :: Text -> AWS Tags
 required iid = do
     say "Describing tags for Instance {}..." [iid]
-    send (DescribeTags [TagResourceId [iid]]) >>= lookup . tags
-  where
-    tags = Map.fromList
-        . map (\TagSetItemType{..} -> (tsitKey, tsitValue))
-        . dtagsrTagSet
+    send (DescribeTags [TagResourceId [iid]]) >>= parse
 
-apply :: Naming a => a -> Text -> [Text] -> AWS ()
-apply (names -> n) dom ids = do
-    log_ "Tagging instances..."
+instances :: Naming a => a -> Text -> [Text] -> AWS ()
+instances n dom ids = do
+    say "Tagging: {}" [L ids]
     send_ . CreateTags ids
-          . map (uncurry ResourceTagSetItemType)
-          $ defaults n dom
+          $ map (uncurry ResourceTagSetItemType) (defaults n dom)
+
+images :: Naming a => a -> [Text] -> AWS ()
+images (names -> Names{..}) ids = do
+    say "Tagging: {}" [L ids]
+    send_ $ CreateTags ids
+        [ ResourceTagSetItemType role roleName
+        , ResourceTagSetItemType version (fromMaybe "" versionName)
+        , ResourceTagSetItemType name imageName
+        ]
+
+defaults :: Naming a => a -> Text -> [(Text, Text)]
+defaults (names -> Names{..}) dom =
+    [ (role,   roleName)
+    , (env,    envName)
+    , (domain, dom)
+    , (name,   appName)
+    , (weight, "0")
+    ] ++ maybe [] (\v -> [(version, v)]) versionName

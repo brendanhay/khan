@@ -149,7 +149,7 @@ image c@Common{..} d@Image{..} = do
             , Path.encodeString iPlaybook
             ]
 
-        void $ Image.create iid imageName (blockDevices iNDevices)
+        void $ Image.create d iid (blockDevices iNDevices)
 
     if isLeft e && iPreserve
         then say "Error creating Image, preserving base Instance {}" [iid]

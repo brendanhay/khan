@@ -28,8 +28,8 @@ findAll = do
     debug_ "Finding Availability Zones in current region"
     fmap dazrAvailabilityZoneInfo . send $
         DescribeAvailabilityZones []
-            [ Filter "region-name" [reg]
-            , Filter "state" ["available"]
+            [ ec2Filter "region-name" [reg]
+            , ec2Filter "state" ["available"]
             ]
 
 getSuffixes :: String -> AWS String

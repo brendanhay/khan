@@ -76,7 +76,7 @@ info :: Common -> Group -> AWS ()
 info _ (names -> Names{..}) = do
     mg <- Security.find groupName
     maybe (log_ "No Security Groups found.")
-          (\g -> ln >> pp (title $ sgitGroupName g) >> ppi 2 g >> ln)
+          (\g -> pPrintLn $ title g <-> body g)
           mg
 
 modify :: Changed a => (Text -> AWS a) -> Common -> Group -> AWS ()

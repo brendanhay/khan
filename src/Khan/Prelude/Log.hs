@@ -37,16 +37,19 @@ import           System.IO.Unsafe             (unsafePerformIO)
 import           Text.PrettyPrint.ANSI.Leijen
 
 data Color where
-    R :: Pretty a => a -> Color
-    G :: Pretty a => a -> Color
-    B :: Pretty a => a -> Color
-    P :: Pretty a => a -> Color
+    R :: Pretty a =>  a  -> Color
+    G :: Pretty a =>  a  -> Color
+    B :: Pretty a =>  a  -> Color
+    P :: Pretty a =>  a  -> Color
+    L :: Pretty a => [a] -> Color
 
 instance Pretty Color where
-    pretty (R x) = red   (pretty x)
-    pretty (G x) = green (pretty x)
-    pretty (B x) = bold  (pretty x)
-    pretty (P x) = pretty x
+    pretty (R x)  = red   (pretty x)
+    pretty (G x)  = green (pretty x)
+    pretty (B x)  = bold  (pretty x)
+    pretty (P x)  = pretty x
+    pretty (L xs) = line <>
+        vcat (map ((" - " <>) . pretty) xs)
 
 instance Buildable Color where
     build = fromString . show . pretty

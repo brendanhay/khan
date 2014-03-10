@@ -15,8 +15,12 @@
 
 module Khan.CLI.Cluster (commands) where
 
+import           Control.Arrow
 import           Control.Concurrent          (threadDelay)
+import           Data.Conduit
+import qualified Data.Conduit.List           as Conduit
 import qualified Data.HashMap.Strict         as Map
+import           Data.List                   (partition)
 import           Data.SemVer
 import           Khan.Internal
 import qualified Khan.Model.AvailabilityZone as AZ
@@ -32,17 +36,20 @@ import qualified Khan.Model.Tag              as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling     hiding (Filter)
-import           Network.AWS.EC2
+import           Network.AWS.EC2             hiding (Filter)
 
 data Info = Info
     { iRole :: !Role
     , iEnv  :: !Env
+    , iAll  :: !Bool
     }
 
 infoParser :: EnvMap -> Parser Info
 infoParser env = Info
     <$> roleOption
     <*> envOption env
+    <*> switchOption "all" False
+        "Show all available versions, even if they are not deployed."
 
 instance Options Info where
     validate Info{..} =
@@ -179,61 +186,60 @@ commands env = group "cluster" "Auto Scaling Groups." $ mconcat
         "Display cluster information."
     , command "deploy" deploy (deployParser env)
         "Deploy a versioned cluster."
-    , command "scale" scale (scaleParser env)
-        "Update the scaling information for a cluster."
     , command "promote" promote (clusterParser env)
         "Promote a deployed cluster to serve traffic."
+    , command "scale" scale (scaleParser env)
+        "Update the scaling information for a cluster."
     , command "retire" retire (clusterParser env)
         "Retire a specific cluster version."
     ]
 
 info :: Common -> Info -> AWS ()
 info Common{..} Info{..} = do
-    let r = _role iRole
-        e = _env  iEnv
-
-    say "Looking for Instances tagged with {} and {}" [r, e]
-    is <- mapM annotate =<< Instance.findAll []
-        [ Tag.filter Tag.role [r]
-        , Tag.filter Tag.env  [e]
-        , Filter "instance-state-name" ["pending", "running", "stopping", "shutting-down"]
-        , Filter "tag-key" [groupTag]
-        ]
-
-    let m  = Map.fromListWith (<>) [(k, [v]) | (k, v) <- is]
-        ks = Map.keys m
-
-    if null ks
+    when iAll images
+    m <- instances
+    if null (Map.keys m)
         then log_ "No Auto Scaling Groups found."
-        else do
-            say "Describing Auto Scaling Groups: {}" [ks]
-            gs <- ASG.findAll ks
+        else groups m >> pLn
+  where
+    images = do
+        say  "Looking for Images tagged with {}" [iRole]
+        mapM_ (pPrint . overview) =<< Image.findAll []
+            [ Tag.filter Tag.role [_role iRole]
+            ]
 
-            say "Found {} matching Auto Scaling Groups" [length gs]
-            forM_ gs $ \g@AutoScalingGroup{..} -> do
-                xs <- noteAWS "Missing Auto Scaling Group entries: {}"
+    instances = do
+        say "Looking for Instances tagged with {} and {}" [B iRole, B iEnv]
+        is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []
+            [ Tag.filter Tag.role [_role iRole]
+            , Tag.filter Tag.env  [_env  iEnv]
+            , ec2Filter "instance-state-name" states
+            , ec2Filter "tag-key" [Tag.group]
+            ]
+        return $ Map.fromListWith (<>) [(k, [v]) | (Just k, v) <- is]
+
+    states = ["pending", "running", "stopping", "shutting-down"]
+    unwrap = (tagGroup . annTags *** annValue) . join (,)
+
+    groups m = ASG.findAll (Map.keys m) $$ Conduit.mapM_ $
+        \g@AutoScalingGroup{..} -> do
+            ag <- Tag.annotate g
+            xs <- mapM Tag.annotate =<<
+                noteAWS "Missing Auto Scaling Group entries: {}"
                     [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
-
-                ln >> pp (title asgAutoScalingGroupName)
-                ppi 2 g  >> ln
-                ppi 2 (map weighted xs) >> ln
-  where
-    annotate i@RunningInstancesItemType{..} = (,)
-        <$> noteAWS "No Auto Scaling Group for: {}" [B riitInstanceId] (groupName riitTagSet)
-        <*> pure i
-
-    groupName = Map.lookup groupTag . Tag.flatten
-    groupTag  = "aws:autoscaling:groupName"
-
-    weighted i = PI i (Tag.lookupWeight . Tag.flatten $ riitTagSet i)
+            pPrint (overview ag)
+            if null xs
+               then log_ "No Auto Scaling Instances found."
+               else pPrint $ header (Proxy :: Proxy RunningInstancesItemType)
+                         <-> body xs
 
 deploy :: Common -> Deploy -> AWS ()
-deploy c@Common{..} d@Deploy{..} = check >> create
+deploy c@Common{..} d@Deploy{..} = ensure >> create
   where
-    check = do
+    ensure = do
         g <- ASG.find d
-        when (Just "Delete in progress" == join (asgStatus <$> j)) $ do
+        when (Just "Delete in progress" == join (asgStatus <$> g)) $ do
             say "Waiting for previous deletion of Auto Scaling Group {}"
                 [appName]
             liftIO . threadDelay $ 10 * 1000000
@@ -246,7 +252,7 @@ deploy c@Common{..} d@Deploy{..} = check >> create
         p <- async $ Role.find d <|> Role.update d dTrust dPolicy
         s <- async $ Security.sshGroup d
         g <- async $ Security.create groupName
-        a <- async $ Image.find [] [Filter "name" [imageName]]
+        a <- async $ Image.find [] [ec2Filter "name" [imageName]]
 
         wait_ k
         wait_ p <* say "Found IAM Profile {}" [profileName]
@@ -264,17 +270,75 @@ deploy c@Common{..} d@Deploy{..} = check >> create
 
     zones = map (AZ cRegion) dZones
 
+promote :: Common -> Cluster -> AWS ()
+promote _ c@Cluster{..} = do
+    gs <- ASG.findAll []
+        $= Conduit.mapM Tag.annotate
+        $= Conduit.filter (matchTags . annTags)
+        $$ Conduit.consume
+
+    (next, prev) <- targets gs
+
+    let name = asgAutoScalingGroupName (annValue next)
+
+    promote' name next
+
+    if null prev
+        then log_ "No previous Group or Instances to demote."
+        else demote prev
+
+    say "Successfully promoted {}" [name]
+  where
+    matchTags Tags{..} = tagEnv == cEnv && cRole == tagRole
+
+    targets gs
+        | (x:xs, ys) <- partition ((Just cVersion ==) . tagVersion . annTags) gs
+            = return (x, xs ++ ys)
+        | otherwise
+            = throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
+
+    promote' name next = do
+        say "Looking for Instances tagged with {}" [name]
+        is <- map riitInstanceId <$>
+            Instance.findAll [] [Tag.filter Tag.group [name]]
+
+        say "Promoting Auto Scaling Group {}" [name]
+        ag <- sendAsync . CreateOrUpdateTags $ Members [reweight promoted next]
+
+        say "Promoting Instances: {}" [L is]
+        ai <- sendAsync $ CreateTags is [ResourceTagSetItemType Tag.weight promoted]
+
+        wait_ ag
+        wait_ ai
+
+    demote prev = do
+        say "Demoting Auto Scaling Groups: {}"
+            [L $ map (asgAutoScalingGroupName . annValue) prev]
+        ag <- sendAsync . CreateOrUpdateTags $
+            Members (map (reweight demoted) prev)
+
+        as <- forM prev $ \(Ann AutoScalingGroup{..} _) -> async $ do
+            say "Looking for Instances tagged with {}" [asgAutoScalingGroupName]
+            is <- map riitInstanceId <$> Instance.findAll []
+                [ Tag.filter Tag.group [asgAutoScalingGroupName]
+                ]
+
+            say "Demoting Instances: {}" [L is]
+            send_ $ CreateTags is [ResourceTagSetItemType Tag.weight demoted]
+
+        wait_ ag
+        mapM_ wait_ as
+
+    reweight w a = ASG.tag (asgAutoScalingGroupName $ annValue a) Tag.weight w
+
+    promoted = "100"
+    demoted  = "0"
+
+    Names{..} = names c
+
 scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
-promote :: Common -> Cluster -> AWS ()
-promote _ c@Cluster{..} = return ()
-    -- find all role clusters in the current region
-
-    -- sort by their weight tags
-
-    -- present multiple choice
-
--- FIXME: Ensure the cluster is not currently the only promoted one.
+-- FIXME: Ensure the cluster is not currently the _only_ promoted one.
 retire :: Common -> Cluster -> AWS ()
 retire _ c = ASG.delete c >> Config.delete c

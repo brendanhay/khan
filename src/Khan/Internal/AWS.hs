@@ -15,8 +15,12 @@
 
 module Khan.Internal.AWS
     (
+    -- * Filters
+      ec2Filter
+    , asgFilter
+
     -- * EC2 Metadata
-      Meta(..)
+    , Meta(..)
     , meta
 
     -- * Encapsulate/rerun an AWS context
@@ -48,12 +52,18 @@ import           Khan.Internal.IO
 import           Khan.Internal.Options
 import           Khan.Prelude              hiding (min, max)
 import           Network.AWS
-import           Network.AWS.AutoScaling   hiding (DescribeTags)
+import           Network.AWS.AutoScaling   as ASG hiding (DescribeTags)
 import           Network.AWS.EC2           as EC2
 import           Network.AWS.EC2.Metadata  (Meta(..))
 import qualified Network.AWS.EC2.Metadata  as Meta
 import           Network.AWS.IAM
 import qualified Shelly                    as Shell
+
+ec2Filter :: Text -> [Text] -> EC2.Filter
+ec2Filter = EC2.Filter
+
+asgFilter :: Text -> [Text] -> ASG.Filter
+asgFilter = ASG.Filter
 
 meta :: (Functor m, MonadIO m) => Meta -> EitherT String m Text
 meta = fmap Text.decodeUtf8 . Meta.meta

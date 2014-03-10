@@ -35,7 +35,7 @@ import qualified Shelly                    as Shell
 
 download :: Int -> Text -> Maybe Text -> FilePath -> AWS Bool
 download n b p dir = do
-    say "Paginating bucket {} contents" [b]
+    say "Paginating Bucket {} contents" [b]
     or <$> (paginate start
         $= Conduit.concatMap (filter match . gbrContents)
         $= chunked []
@@ -67,7 +67,7 @@ download n b p dir = do
 
 prune :: Int -> Text -> Maybe Text -> Text -> AWS Bool
 prune c b p a = do
-    say "Pruning artifact {} from bucket {}/{}" [a, b, fromMaybe "" p]
+    say "Pruning Artifact {} from Bucket {}/{}" [a, b, fromMaybe "" p]
     mk <- paginate start
         $= Conduit.concatMap (split . filter match . gbrContents)
         $$ Conduit.consume

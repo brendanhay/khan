@@ -188,10 +188,10 @@ commands env = group "cluster" "Auto Scaling Groups." $ mconcat
         "Display cluster information."
     , command "deploy" deploy (deployParser env)
         "Deploy a versioned cluster."
-    , command "scale" scale (scaleParser env)
-        "Update the scaling information for a cluster."
     , command "promote" promote (clusterParser env)
         "Promote a deployed cluster to serve traffic."
+    , command "scale" scale (scaleParser env)
+        "Update the scaling information for a cluster."
     , command "retire" retire (clusterParser env)
         "Retire a specific cluster version."
     ]
@@ -277,9 +277,6 @@ deploy c@Common{..} d@Deploy{..} = check >> create
 
     zones = map (AZ cRegion) dZones
 
-scale :: Common -> Scale -> AWS ()
-scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
-
 promote :: Common -> Cluster -> AWS ()
 promote _ c@Cluster{..} = do
     gs <- ASG.findAll []
@@ -348,6 +345,9 @@ promote _ c@Cluster{..} = do
     demoted  = "0"
 
     Names{..} = names c
+
+scale :: Common -> Scale -> AWS ()
+scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 -- FIXME: Ensure the cluster is not currently the _only_ promoted one.
 retire :: Common -> Cluster -> AWS ()

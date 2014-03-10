@@ -15,7 +15,6 @@
 
 module Khan.CLI.Cluster (commands) where
 
-
 import           Control.Arrow
 import           Control.Concurrent          (threadDelay)
 import           Data.Conduit

@@ -14,52 +14,61 @@
 
 module Main (main) where
 
-import           Control.Arrow             ((***))
+import           Control.Arrow            ((***))
 import           Control.Error
 import           Control.Monad
-import qualified Data.HashMap.Strict       as Map
-import           Data.List                 (isPrefixOf)
+import qualified Data.HashMap.Strict      as Map
+import           Data.List                (isPrefixOf)
 import           Data.Monoid
-import qualified Data.Text                 as Text
-import qualified Khan.CLI.Ansible          as Ansible
-import qualified Khan.CLI.Artifact         as Artifact
-import qualified Khan.CLI.Cluster          as Cluster
-import qualified Khan.CLI.DNS              as DNS
-import qualified Khan.CLI.Group            as Group
-import qualified Khan.CLI.Image            as Image
-import qualified Khan.CLI.Launch           as Launch
-import qualified Khan.CLI.Metadata         as Metadata
-import qualified Khan.CLI.Profile          as Role
-import qualified Khan.CLI.Routing          as Routing
-import qualified Khan.CLI.SSH              as SSH
+import qualified Data.Text                as Text
+import qualified Khan.CLI.Ansible         as Ansible
+import qualified Khan.CLI.Artifact        as Artifact
+import qualified Khan.CLI.Cluster         as Cluster
+import qualified Khan.CLI.DNS             as DNS
+import qualified Khan.CLI.Group           as Group
+import qualified Khan.CLI.Image           as Image
+import qualified Khan.CLI.Launch          as Launch
+import qualified Khan.CLI.Metadata        as Metadata
+import qualified Khan.CLI.Profile         as Role
+import qualified Khan.CLI.Routing         as Routing
+import qualified Khan.CLI.SSH             as SSH
 import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
-import qualified Network.AWS.EC2.Metadata  as Meta
-import           Options.Applicative       (info)
-import           Options.Applicative.Types (ParserPrefs)
+import qualified Network.AWS.EC2.Metadata as Meta
+import           Options.Applicative      (info)
 import           System.Environment
-import           System.Exit               (exitWith)
-import           System.IO                 (hPutStrLn, stderr)
+import           System.Exit
+import           System.IO                (hPutStrLn, stderr)
 
 main :: IO ()
 main = runScript $ do
-    (as, es) <- scriptIO $
-        (,) <$> getArgs
-            <*> getEnvironment
+    (as, es, name) <- scriptIO $
+        (,,) <$> getArgs
+             <*> getEnvironment
+             <*> getProgName
 
     when ("--bash-completion-index" `elem` as) . void . liftIO $
         uncurry customExecParser (parserInfo mempty)
 
     ec2 <- Meta.ec2
     mr  <- regionalise ec2
-    cmd <- either failure return $ parseProgram as es mr
-    fmapLT format $ run ec2 cmd
+
+    case parseProgram as es mr of
+        Success x           -> fmapLT format (run ec2 x)
+        CompletionInvoked c -> complete c name
+        Failure f           -> failure  f name
   where
-    failure ParserFailure{..} = liftIO $ getProgName
-        >>= errMessage
-        >>= hPutStrLn stderr
-        >>  exitWith errExitCode
+    complete c n = liftIO $
+        execCompletion c n >>= putStr >> exitSuccess
+
+    failure f n =
+        let (msg, c) = execFailure f n
+         in liftIO $ do
+                case c of
+                    ExitSuccess -> putStrLn msg
+                    _           -> hPutStrLn stderr msg
+                exitWith c
 
     regionalise False = return Nothing
     regionalise True  = do
@@ -84,7 +93,7 @@ main = runScript $ do
 parseProgram :: [String]
              -> [(String, String)]
              -> Maybe Region
-             -> Either ParserFailure (Common, Command)
+             -> ParserResult (Common, Command)
 parseProgram as es mr = uncurry execParserPure (parserInfo upd) as
   where
     upd | Just r <- mr = Map.insert "KHAN_REGION" (Text.pack $ show r) env
@@ -94,7 +103,10 @@ parseProgram as es mr = uncurry execParserPure (parserInfo upd) as
         [join (***) Text.pack (k, v) | (k, v) <- es, "KHAN_" `isPrefixOf` k]
 
 parserInfo :: EnvMap -> (ParserPrefs, ParserInfo (Common, Command))
-parserInfo env = (prefs showHelpOnError, info parser idm)
+parserInfo env =
+    ( prefs $ showHelpOnError <> columns 100
+    , info parser idm
+    )
   where
     parser = (,)
         <$> commonParser env

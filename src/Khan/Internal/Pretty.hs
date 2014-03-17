@@ -250,8 +250,25 @@ instance Body IAM.GetRolePolicyResult where
     body IAM.GetRolePolicyResult{..} = vrow 23 "policy-document:" <+>
         (pretty . prettyJSON $ decodeURL grprPolicyDocument)
 
+instance Title IAM.ServerCertificateMetadata where
+    title = title . IAM.scmServerCertificateName
+
+instance Header IAM.ServerCertificateMetadata where
+    header _ = hcols 19
+        [ W 59 (H "arn:")
+        , W 22 (H "id:")
+        , H "uploaded-at:"
+        ]
+
+instance Body IAM.ServerCertificateMetadata where
+    body IAM.ServerCertificateMetadata{..} = hcols 19
+        [ W 59 (C scmArn)
+        , W 22 (C scmServerCertificateId)
+        , C scmUploadDate
+        ]
+
 instance Title R53.HostedZone where
-    title R53.HostedZone{..} = title hzName
+    title = title . R53.hzName
 
 instance Header R53.HostedZone where
     header _ = hcols 10

@@ -23,6 +23,7 @@ import           Data.Monoid
 import qualified Data.Text                as Text
 import qualified Khan.CLI.Ansible         as Ansible
 import qualified Khan.CLI.Artifact        as Artifact
+import qualified Khan.CLI.Certificate     as Certificate
 import qualified Khan.CLI.Cluster         as Cluster
 import qualified Khan.CLI.DNS             as DNS
 import qualified Khan.CLI.Group           as Group
@@ -113,6 +114,7 @@ parserInfo env =
         <*> hsubparser
              ( Ansible.commands env
             <> Artifact.commands
+            <> Certificate.commands
             <> Cluster.commands env
             <> DNS.commands
             <> Group.commands env

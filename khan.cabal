@@ -32,6 +32,7 @@ library
 
       , Khan.CLI.Ansible
       , Khan.CLI.Artifact
+      , Khan.CLI.Certificate
       , Khan.CLI.Cluster
       , Khan.CLI.DNS
       , Khan.CLI.Group
@@ -59,6 +60,7 @@ library
       , Khan.Model.SSH
       , Khan.Model.ScalingGroup
       , Khan.Model.SecurityGroup
+      , Khan.Model.ServerCertificate
       , Khan.Model.Tag
 
       , Khan.Prelude

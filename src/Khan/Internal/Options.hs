@@ -60,6 +60,7 @@ module Khan.Internal.Options
     , module Export
     ) where
 
+import Options.Applicative.Builder.Internal (HasValue)
 import qualified Data.Attoparsec.Text      as AText
 import qualified Data.HashMap.Strict       as Map
 import           Data.SemVer
@@ -262,13 +263,13 @@ checkPath p e = check p msg >> checkIO (not <$> shell (Shell.test_e p)) msg
   where
     msg = Text.unpack (Text.concat ["path '", Shell.toTextIgnore p, "'"]) ++ e
 
-etext :: Text -> EnvMap -> Mod f Text
+etext :: HasValue f => Text -> EnvMap -> Mod f Text
 etext = evalue Just
 
-epath :: Text -> EnvMap -> Mod f FilePath
+epath :: HasValue f => Text -> EnvMap -> Mod f FilePath
 epath = evalue (Just . Path.fromText)
 
-evalue :: (Text -> Maybe a) -> Text -> EnvMap -> Mod f a
+evalue :: HasValue f => (Text -> Maybe a) -> Text -> EnvMap -> Mod f a
 evalue f k env =
     case k `Map.lookup` env of
         Nothing -> mempty

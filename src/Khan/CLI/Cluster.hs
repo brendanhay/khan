@@ -235,7 +235,7 @@ info Common{..} Info{..} = do
                          <-> body xs
 
 deploy :: Common -> Deploy -> AWS ()
-deploy c@Common{..} d@Deploy{..} = ensure >> create
+deploy Common{..} d@Deploy{..} = ensure >> create
   where
     ensure = do
         g <- ASG.find d

@@ -47,6 +47,7 @@ library
       , Khan.Model.Ansible
       , Khan.Model.AvailabilityZone
       , Khan.Model.Bucket
+      , Khan.Model.LoadBalancer
       , Khan.Model.HostedZone
       , Khan.Model.Image
       , Khan.Model.Instance
@@ -92,14 +93,13 @@ library
       , http-types
       , mtl
       , old-locale
-      , optparse-applicative
+      , optparse-applicative >= 0.8
       , prelude-prime
       , process              >= 1.2
       , random
       , semigroups
       , shelly
       , system-filepath      >= 0.4.9
-      , tagged
       , text                 >= 1.0
       , text-format
       , time

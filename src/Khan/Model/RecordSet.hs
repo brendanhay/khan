@@ -16,8 +16,8 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.RecordSet
-    ( findAll
-    , find
+    ( find
+    , findAll
     , set
     , update
     , modify
@@ -37,20 +37,19 @@ import           Khan.Internal        ()
 import           Khan.Prelude         hiding (find, min, max)
 import           Network.AWS.Route53  hiding (wait)
 
+find :: HostedZoneId
+     -> (ResourceRecordSet -> Bool)
+     -> AWS (Maybe ResourceRecordSet)
+find zid p = findAll zid p $$ Conduit.head
+
 findAll :: HostedZoneId
         -> (ResourceRecordSet -> Bool)
         -> Source AWS ResourceRecordSet
 findAll zid p = do
     say "Searching for Record Sets in {}" [zid]
     paginate (ListResourceRecordSets zid Nothing Nothing Nothing Nothing)
-        $= Conduit.map lrrsrResourceRecordSets
-        $= Conduit.concat
+        $= Conduit.concatMap lrrsrResourceRecordSets
         $= Conduit.filter p
-
-find :: HostedZoneId
-     -> (ResourceRecordSet -> Bool)
-     -> AWS (Maybe ResourceRecordSet)
-find zid p = findAll zid p $$ Conduit.head
 
 set :: HostedZoneId -> Text -> [ResourceRecordSet] -> AWS Bool
 set zid name rrs = do

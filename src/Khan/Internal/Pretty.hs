@@ -47,7 +47,7 @@ import           Data.Aeson
 import qualified Data.Aeson.Encode.Pretty     as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LBS
 import           Data.List                    (sort)
-import           Data.Proxy
+import           Data.Proxy                   (Proxy(..))
 import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
@@ -413,3 +413,6 @@ prettyJSON = Text.decodeUtf8 . LBS.toStrict . maybe "" Aeson.encodePretty
 
 decodeURL :: Text -> Maybe Object
 decodeURL = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
+
+reproxy :: proxy s -> Proxy t
+reproxy _ = Proxy

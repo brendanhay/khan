@@ -48,7 +48,7 @@ import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS               (AWS, liftEitherT)
-import           Shelly                    (Sh, (</>), (<.>), absPath, shellyNoDir, toTextIgnore)
+import           Shelly                    (Sh, (</>), (<.>), absPath, toTextIgnore)
 import qualified Shelly                    as Shell
 import           System.Directory
 import qualified System.Random             as Random
@@ -58,7 +58,7 @@ sh :: MonadIO m => Sh a -> EitherT String m a
 sh = fmapLT show . syncIO . shell
 
 shell :: MonadIO m => Sh a -> m a
-shell = shellyNoDir
+shell = Shell.shelly
 
 defaultPath :: FilePath -> FilePath -> FilePath
 defaultPath p def

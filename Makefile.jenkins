@@ -18,8 +18,7 @@ clean:
 dist: dist/$(DEB)
 
 dist/khan: build
-	strip -p --strip-unneeded --remove-section=.comment -o dist/khan $(BIN) && \
-	 upx dist/khan
+	strip -o dist/khan $(BIN) && upx dist/khan
 
 %.deb: dist/khan
 	makedeb --name=$(NAME) \

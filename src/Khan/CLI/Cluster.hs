@@ -29,8 +29,10 @@ import qualified Khan.Model.EC2.AvailabilityZone     as AZ
 import qualified Khan.Model.EC2.Image                as Image
 import qualified Khan.Model.EC2.Instance             as Instance
 import qualified Khan.Model.EC2.SecurityGroup        as Security
+import qualified Khan.Model.ELB.LoadBalancer         as Balancer
 import           Khan.Model.IAM.Role                 (Paths(..))
 import qualified Khan.Model.IAM.Role                 as Role
+import qualified Khan.Model.IAM.ServerCertificate    as Cert
 import qualified Khan.Model.Key                      as Key
 import qualified Khan.Model.Tag                      as Tag
 import           Khan.Prelude
@@ -73,6 +75,9 @@ data Deploy = Deploy
     , dType     :: !InstanceType
     , dTrust    :: !TrustPath
     , dPolicy   :: !PolicyPath
+    , dBalance  :: !Bool
+    , dFrontend :: !Frontend
+    , dBackend  :: !Backend
     }
 
 deployParser :: EnvMap -> Parser Deploy
@@ -99,6 +104,12 @@ deployParser env = Deploy
         "Instance Type to provision when auto scaling occurs."
     <*> trustOption
     <*> policyOption
+    <*> switchOption "elb" False
+        "Create and assign an Elastic Load Balancer to the cluster."
+    <*> customOption "frontend" "FE" parseString (value $ FE HTTPS 443)
+        "Frontend shizzle."
+    <*> customOption "backend" "BE" parseString (value $ BE HTTP 8080)
+        "Backend shizzle."
 
 instance Options Deploy where
     discover _ Common{..} d@Deploy{..} = do
@@ -235,7 +246,7 @@ info Common{..} Info{..} = do
                          <-> body xs
 
 deploy :: Common -> Deploy -> AWS ()
-deploy Common{..} d@Deploy{..} = ensure >> create
+deploy Common{..} d@Deploy{..} = ensure >> balance dBalance >> create
   where
     ensure = do
         g <- ASG.find d
@@ -246,6 +257,19 @@ deploy Common{..} d@Deploy{..} = ensure >> create
             ensure
         when (isJust g) $
             throwAWS "Auto Scaling Group {} already exists." [B appName]
+
+    balance False = return ()
+    balance True  = do
+        s <- async $ Cert.find dDomain
+        b <- async $ Balancer.find d
+
+        c <- wait s >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
+        m <- wait b
+
+        when (isJust m) $ do
+            throwAWS "Load Balancer {} already exists." [B appName]
+
+        Balancer.create d zones dFrontend dBackend c
 
     create = do
         k <- async $ Key.create dRKeys d cLKeys
@@ -264,7 +288,7 @@ deploy Common{..} d@Deploy{..} = ensure >> create
 
         Config.create d ami dType
 
-        ASG.create d False dDomain zones dCooldown dDesired dGrace dMin dMax
+        ASG.create d dBalance dDomain zones dCooldown dDesired dGrace dMin dMax
 
     Names{..} = names d
 

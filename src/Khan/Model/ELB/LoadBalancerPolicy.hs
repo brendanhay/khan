@@ -18,30 +18,29 @@ module Khan.Model.ELB.LoadBalancerPolicy
     , assign
     ) where
 
-import           Data.Conduit
-import qualified Data.Conduit.List as Conduit
-import qualified Data.Text         as Text
-import           Khan.Internal
-import           Khan.Prelude      hiding (find)
-import           Network.AWS.ELB
-import           Network.AWS.IAM   (ServerCertificateMetadata(..))
+import Khan.Internal
+import Khan.Prelude
+import Network.AWS.ELB
 
--- Create a naming rule for the port/domain pair?
+create :: Naming a => a -> AWS ()
+create (names -> Names{..}) = do
+    say "Creating Load Balancer Policy {}" [appName]
+    send_ $ CreateLoadBalancerPolicy
+        { clbpLoadBalancerName = appName
+        , clbpPolicyName       = appName
+        , clbpPolicyTypeName   = "SSLNegotiationPolicyType"
+        , clbpPolicyAttributes = Members [PolicyAttribute key val]
+        }
+  where
+    key = Just "Reference-Security-Policy"
+    val = Just "ELBSecurityPolicy-2014-01"
 
-create dom pas = undefined --do
-    -- send $ CreateLoadBalancerPolicy
-    --     { clbpLoadBalancerName = dom
-    --     , clbpPolicyAttributes = Members [PolicyAttributes (Just "Reference-Security-Policy") (Just "ELBSecurityPolicy-2014-01")]
-    --     , clbpPolicyName       = "ReferenceSSLNegotiationPolicy"
-    --     , clbpPolicyTypeName   = "SSLNegotiationPolicyType"
-    --     }
-
-assign dom port = undefined -- do
-    -- send $ SetLoadBalancerPoliciesOfListener
-    --     { slbpolLoadBalancerName = dom
-    --     , slbpolLoadBalancerPort = port
-    --     , slbpolPolicyNames      = Members []
-    --       -- ^ List of policies to be associated with the listener. Currently
-    --       -- this list can have at most one policy. If the list is empty, the
-    --       -- current policy is removed from the listener.
-    --     }
+assign :: Naming a => a -> Frontend -> AWS ()
+assign (names -> Names{..}) (FE _ port) = do
+    say "Assigning Policy {} on Port {} to Load Balancer {}"
+        [B appName, B port, B appName]
+    send_ $ SetLoadBalancerPoliciesOfListener
+        { slbpolLoadBalancerName = appName
+        , slbpolLoadBalancerPort = port
+        , slbpolPolicyNames      = Members [appName]
+        }

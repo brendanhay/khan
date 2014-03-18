@@ -425,6 +425,15 @@ instance Pretty Env where
 instance Pretty Role where
     pretty = pretty . _role
 
+instance Pretty Protocol where
+    pretty = text . show
+
+instance Pretty Frontend where
+    pretty (FE s p) = "frontend/" <> pretty s <> ":" <> pretty p
+
+instance Pretty Backend where
+    pretty (BE s p) = "backend/" <> pretty s <> ":" <> pretty p
+
 prettyJSON :: ToJSON a => Maybe a -> Text
 prettyJSON = Text.decodeUtf8 . LBS.toStrict . maybe "" Aeson.encodePretty
 

@@ -52,7 +52,9 @@ library
       , Khan.Model.EC2.Image
       , Khan.Model.EC2.Instance
       , Khan.Model.EC2.SecurityGroup
+      , Khan.Model.ELB.HealthCheck
       , Khan.Model.ELB.LoadBalancer
+      , Khan.Model.ELB.LoadBalancerPolicy
       , Khan.Model.IAM.Role
       , Khan.Model.IAM.ServerCertificate
       , Khan.Model.Key
@@ -70,6 +72,7 @@ library
       , Khan.Internal.IO
       , Khan.Internal.Options
       , Khan.Internal.Orphans
+      , Khan.Internal.Parser
       , Khan.Internal.Pretty
       , Khan.Internal.Types
 

@@ -34,8 +34,8 @@ find dom = do
         | otherwise = throwError (toError e)
 
     unwrap = scServerCertificateMetadata
-           . gscrServerCertificate
-           . gscrGetServerCertificateResult
+        . gscrServerCertificate
+        . gscrGetServerCertificateResult
 
 upload :: Text -> FilePath -> FilePath -> Maybe FilePath -> AWS ()
 upload dom pubp privp chainp = do

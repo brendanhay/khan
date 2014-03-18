@@ -24,19 +24,13 @@ module Khan.Model.EC2.SecurityGroup
     , create
     , delete
     , update
-
-    -- * IP permission parsing
-    , parseRule
     ) where
 
-import           Control.Monad
-import           Data.Attoparsec.Text
-import           Data.List            (sort)
-import qualified Data.Text            as Text
-import           Data.Tuple
-import           Khan.Internal
-import           Khan.Prelude         hiding (find, min, max)
-import           Network.AWS.EC2      hiding (Instance)
+import Control.Monad
+import Data.List       (sort)
+import Khan.Internal   hiding (Protocol(..))
+import Khan.Prelude    hiding (find, min, max)
+import Network.AWS.EC2 hiding (Instance)
 
 sshGroup :: Naming a => a -> AWS Bool
 sshGroup (names -> Names{..}) = update sshGroupName
@@ -105,35 +99,3 @@ update name (sort -> rules) = do
             es <- sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing xs)
             verifyEC2 "InvalidPermission.Duplicate" es
             return $ isRight es
-
-parseRule :: String -> Either String IpPermissionType
-parseRule s = msg . parseOnly parser $ Text.pack s
-  where
-    msg = fmapL . const $
-        "expected: tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...], got: " ++ s
-
-    parser = do
-        p <- protocol
-        f <- decimal <* char ':'
-        t <- decimal <* char ':'
-        g <- sepBy1 (eitherP range group') (char ',')
-        return . uncurry (IpPermissionType p f t) . swap $ partitionEithers g
-
-    range = do
-        a <- takeTill (== '.') <* char '.'
-        b <- takeTill (== '.') <* char '.'
-        c <- takeTill (== '.') <* char '.'
-        d <- text
-        return . IpRange $ Text.intercalate "." [a, b, c, d]
-
-    group' = UserIdGroupPair Nothing Nothing <$> (Just <$> text)
-
-    text = Text.pack <$> many1 (satisfy $ notInClass ":|,")
-
-    protocol = do
-        p <- takeTill (== ':') <* char ':'
-        case p of
-            "tcp"  -> return TCP
-            "udp"  -> return UDP
-            "icmp" -> return ICMP
-            _      -> fail ""

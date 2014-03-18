@@ -37,6 +37,9 @@ module Khan.Internal.Types
    , PolicyPath    (..)
    , Env           (_env)
    , Role          (_role)
+   , Protocol      (..)
+   , Frontend      (..)
+   , Backend       (..)
 
    -- * Smart constructors
    , versioned
@@ -46,6 +49,7 @@ module Khan.Internal.Types
 
    -- * Text helpers
    , stripText
+   , protoToText
    ) where
 
 import           Data.Aeson
@@ -272,3 +276,19 @@ stripText :: Text -> Text -> Text
 stripText x y =
     let z = fromMaybe y $ Text.stripPrefix x y
      in fromMaybe z $ Text.stripSuffix x z
+
+data Protocol
+    = HTTP
+    | HTTPS
+    | TCP
+    | SSL
+      deriving (Show)
+
+protoToText :: Protocol -> Text
+protoToText = Text.toLower . Text.pack . show
+
+data Frontend = FE !Protocol !Integer
+    deriving (Show)
+
+data Backend  = BE !Protocol !Integer
+    deriving (Show)

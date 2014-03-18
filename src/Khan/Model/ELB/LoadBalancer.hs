@@ -21,25 +21,12 @@ module Khan.Model.ELB.LoadBalancer
 
 import           Data.Conduit
 import qualified Data.Conduit.List                 as Conduit
-import qualified Data.Text                         as Text
 import           Khan.Internal
+import qualified Khan.Model.ELB.HealthCheck        as Check
 import qualified Khan.Model.ELB.LoadBalancerPolicy as Policy
 import           Khan.Prelude                      hiding (find)
 import           Network.AWS.ELB
 import           Network.AWS.IAM                   (ServerCertificateMetadata(..))
-
-data Protocol
-    = HTTP
-    | HTTPS
-    | TCP
-    | SSL
-      deriving (Show)
-
-protoToText :: Protocol -> Text
-protoToText = Text.toLower . Text.pack . show
-
-data Frontend = FE !Protocol !Integer
-data Backend  = BE !Protocol !Integer
 
 find :: Naming a => a -> AWS (Maybe LoadBalancerDescription)
 find (names -> Names{..}) = findAll [appName] $$ Conduit.head
@@ -59,20 +46,25 @@ create :: Naming a
        -> Backend
        -> ServerCertificateMetadata
        -> AWS ()
-create (names -> Names{..}) zones front back cert = do
-    say "Creating Load Balancer {}" [appName]
-    elb <- send $ CreateLoadBalancer
+create (names -> n@Names{..}) zones fe@(FE fs fp) be@(BE ts tp) cert = do
+    say "Creating Load Balancer {}: {} -> {}" [B appName, B fe, B be]
+    b <- send $ CreateLoadBalancer
         { clbAvailabilityZones = Members zones
-        , clbListeners         = Members [listener front back]
+        , clbListeners         = Members [listener]
         , clbLoadBalancerName  = appName
         , clbScheme            = Nothing
         , clbSecurityGroups    = mempty
         , clbSubnets           = mempty
         }
-    say "Created Load Balancer DNS {}"
-        [clbrDNSName $ clbrCreateLoadBalancerResult elb]
+
+    Policy.create n
+    Policy.assign n fe
+    Check.configure n fe
+
+    say "Load Balancer available via DNS {}"
+        [clbrDNSName $ clbrCreateLoadBalancerResult b]
   where
-    listener (FE fs fp) (BE ts tp) = Listener
+    listener = Listener
         { lInstancePort     = fp
         , lInstanceProtocol = Just (protoToText fs)
         , lLoadBalancerPort = tp
@@ -84,19 +76,3 @@ delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
     say "Deleting Load Balancer {}" [appName]
     send_ $ DeleteLoadBalancer appName
-
---
--- 3. ELB.CreateLoadBalancer (returns DNS name)
--- 5. Configure SSL Security Policy
--- 6. Configure Backend Server Auth
--- 7. Configure Health Checks
--- 8. skip this step - Register Backend Instances
-
--- 4. R53.CreateRecordSet - should be last?
---    Shouldn't happen at all, only via promote?
-
-
--- Deploy:
--- 1. create the ELB
--- 2. create the ASG and attach the ELB
-

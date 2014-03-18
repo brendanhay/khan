@@ -51,7 +51,7 @@ updateParser :: EnvMap -> Parser Update
 updateParser env = Update
     <$> roleOption
     <*> envOption env
-    <*> many (customOption "rule" "RULE" Security.parseRule mempty
+    <*> many (customOption "rule" "RULE" parseString mempty
         "tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...]")
     <*> ansibleOption
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- Module      : Khan.Model.Tag.Internal
+-- Module      : Khan.Model.Tag.Tagged
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.Tag.Internal where
+module Khan.Model.Tag.Tagged where
 
 import           Data.HashMap.Strict     (HashMap)
 import qualified Data.HashMap.Strict     as Map

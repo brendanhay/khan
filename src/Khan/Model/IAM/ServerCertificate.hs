@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
--- Module      : Khan.Model.ServerCertificate
+-- Module      : Khan.Model.IAM.ServerCertificate
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -13,7 +13,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.ServerCertificate
+module Khan.Model.IAM.ServerCertificate
     ( find
     , upload
     ) where

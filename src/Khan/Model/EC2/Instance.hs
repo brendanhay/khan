@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.Model.Instance
+-- Module      : Khan.Model.EC2.Instance
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.Instance
+module Khan.Model.EC2.Instance
     ( findAll
     , run
     , wait
@@ -41,29 +41,35 @@ run :: Naming a
     -> Integer
     -> Bool
     -> AWS [RunningInstancesItemType]
-run (names -> Names{..}) image typ az min max opt =
+run (names -> Names{..}) image typ az min max opt = do
+    say "Running [{}..{}] Instances in {}" [B min, B max, B az]
     fmap rirInstancesSet . send $ RunInstances
-        image
-        min
-        max
-        (Just keyName)
-        []                        -- Group Ids
-        [groupName, sshGroupName] -- Group Names
-        Nothing                   -- User Data
-        (Just typ)
-        (Just $ PlacementType (Just az) Nothing Nothing)
-        Nothing
-        Nothing
-        []                        -- Block Devices
-        (Just $ MonitoringInstanceType True)
-        Nothing
-        Nothing                   -- FIXME: Disable API Termination
-        Nothing                   -- Shutdown Behaviour
-        Nothing                   -- Private IP
-        Nothing                   -- llient Token
-        []                        -- NICs
-        [IamInstanceProfileRequestType Nothing (Just profileName)]
-        (Just opt)
+        { riImageId                           = image
+        , riMinCount                          = min
+        , riMaxCount                          = max
+        , riKeyName                           = Just keyName
+        , riSecurityGroupId                   = []
+        , riSecurityGroup                     = [groupName, sshGroupName]
+        , riUserData                          = Nothing
+        , riInstanceType                      = Just typ
+        , riPlacement                         = Just place
+        , rjKernelId                          = Nothing
+        , rjRamdiskId                         = Nothing
+        , rjBlockDeviceMapping                = []
+        , rjMonitoring                        = Just monitor
+        , rjSubnetId                          = Nothing
+        , rjDisableApiTermination             = Nothing
+        , rjInstanceInitiatedShutdownBehavior = Nothing
+        , rjPrivateIpAddress                  = Nothing
+        , rjClientToken                       = Nothing
+        , rjNetworkInterface                  = []
+        , rjIamInstanceProfile                = [profile]
+        , rjEbsOptimized                      = Just opt
+        }
+  where
+    place   = PlacementType (Just az) Nothing Nothing
+    monitor = MonitoringInstanceType True
+    profile = IamInstanceProfileRequestType Nothing (Just profileName)
 
 wait :: [Text] -> AWS ()
 wait []  = log_ "All instances running."

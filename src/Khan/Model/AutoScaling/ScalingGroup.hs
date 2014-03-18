@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
--- Module      : Khan.Model.ScalingGroup
+-- Module      : Khan.Model.AutoScaling.ScalingGroup
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -13,7 +13,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.ScalingGroup
+module Khan.Model.AutoScaling.ScalingGroup
     ( findAll
     , find
     , create
@@ -35,18 +35,17 @@ findAll ns = do
         then log_ "Describing Auto Scaling Groups..."
         else say  "Describing Auto Scaling Groups: {}" [L ns]
     paginate (DescribeAutoScalingGroups (Members ns) Nothing Nothing)
-        $= Conduit.map unwrap
+        $= Conduit.map (members
+            . dasgrAutoScalingGroups
+            . dashrDescribeAutoScalingGroupsResult)
         $= Conduit.concat
-  where
-    unwrap = members
-        . dasgrAutoScalingGroups
-        . dashrDescribeAutoScalingGroupsResult
 
 find :: Naming a => a -> AWS (Maybe AutoScalingGroup)
 find (names -> Names{..}) = findAll [appName] $$ Conduit.head
 
 create :: Naming a
        => a
+       -> Bool
        -> Text
        -> [AvailabilityZone]
        -> Integer
@@ -55,25 +54,28 @@ create :: Naming a
        -> Integer
        -> Integer
        -> AWS ()
-create (names -> n@Names{..}) dom zones cool desired grace min max = do
-    void . send $ CreateAutoScalingGroup
-        appName                        -- Name
-        (Members zones)                -- Zones
-        (Just cool)                    -- Default Cooldown
-        (Just desired)                 -- Desired Capacity
-        (Just grace)                   -- Grace Period
-        (Just "EC2")                   -- Health Check Type: EC2 | ELB
-        appName                        -- Launch Configuration Name
-        (Members [])
-        max
-        min
-        Nothing
-        (Members $ map (uncurry (tag appName)) (Tag.defaults n dom))
-        (Members [])
-        Nothing
+create (names -> n@Names{..}) elb dom zones cool desired grace min max = do
+    send_ $ CreateAutoScalingGroup
+        { casgAutoScalingGroupName    = appName
+        , casgLaunchConfigurationName = appName
+        , casgAvailabilityZones       = Members zones
+        , casgDefaultCooldown         = Just cool
+        , casgDesiredCapacity         = Just desired
+        , casgHealthCheckGracePeriod  = Just grace
+        , casgHealthCheckType         = Just chk
+        , casgLoadBalancerNames       = Members elbs
+        , casgMaxSize                 = max
+        , casgMinSize                 = min
+        , casgPlacementGroup          = Nothing
+        , casgTags                    = Members tags
+        , casgTerminationPolicies     = mempty
+        , casgVPCZoneIdentifier       = Nothing
+        }
     say "Created Auto Scaling Group {}" [appName]
-    -- Create and update level2 'name' DNS SRV record
-    -- Health checks, monitoring, statistics
+  where
+    (chk, elbs) = if elb then ("ELB", [appName]) else ("EC2", [])
+
+    tags = map (uncurry $ tag appName) (Tag.defaults n dom)
 
 update :: Naming a
        => a
@@ -87,18 +89,19 @@ update (names -> n@Names{..}) cool desired grace min max = do
     AutoScalingGroup{..} <- find n >>=
         noteAWS "Auto Scaling Group {} doesn't exist." [B appName]
     send_ $ UpdateAutoScalingGroup
-        appName
-        (Members asgAvailabilityZones)
-        cool
-        desired
-        grace
-        Nothing
-        Nothing
-        max
-        min
-        Nothing
-        (Members asgTerminationPolicies)
-        Nothing
+        { uasgAutoScalingGroupName    = appName
+        , uasgAvailabilityZones       = Members asgAvailabilityZones
+        , uasgDefaultCooldown         = cool
+        , uasgDesiredCapacity         = desired
+        , uasgHealthCheckGracePeriod  = grace
+        , uasgHealthCheckType         = Nothing
+        , uasgLaunchConfigurationName = Nothing
+        , uasgMaxSize                 = max
+        , uasgMinSize                 = min
+        , uasgPlacementGroup          = Nothing
+        , uasgTerminationPolicies     = Members asgTerminationPolicies
+        , uasgVPCZoneIdentifier       = Nothing
+        }
     say "Updated Auto Scaling Group {}" [appName]
 
 delete :: Naming a => a -> AWS ()

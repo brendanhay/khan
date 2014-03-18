@@ -46,21 +46,21 @@ library
       , Khan.Internal
 
       , Khan.Model.Ansible
-      , Khan.Model.AvailabilityZone
-      , Khan.Model.Bucket
-      , Khan.Model.LoadBalancer
-      , Khan.Model.HostedZone
-      , Khan.Model.Image
-      , Khan.Model.Instance
+      , Khan.Model.AutoScaling.LaunchConfig
+      , Khan.Model.AutoScaling.ScalingGroup
+      , Khan.Model.EC2.AvailabilityZone
+      , Khan.Model.EC2.Image
+      , Khan.Model.EC2.Instance
+      , Khan.Model.EC2.SecurityGroup
+      , Khan.Model.ELB.LoadBalancer
+      , Khan.Model.IAM.Role
+      , Khan.Model.IAM.ServerCertificate
       , Khan.Model.Key
-      , Khan.Model.LaunchConfig
-      , Khan.Model.Object
-      , Khan.Model.RecordSet
-      , Khan.Model.Role
+      , Khan.Model.R53.HostedZone
+      , Khan.Model.R53.RecordSet
+      , Khan.Model.S3.Bucket
+      , Khan.Model.S3.Object
       , Khan.Model.SSH
-      , Khan.Model.ScalingGroup
-      , Khan.Model.SecurityGroup
-      , Khan.Model.ServerCertificate
       , Khan.Model.Tag
 
       , Khan.Prelude
@@ -73,8 +73,8 @@ library
       , Khan.Internal.Pretty
       , Khan.Internal.Types
 
-      , Khan.Model.Ansible.Internal
-      , Khan.Model.Tag.Internal
+      , Khan.Model.Ansible.Serialisation
+      , Khan.Model.Tag.Tagged
 
       , Khan.Prelude.Log
 

@@ -15,15 +15,15 @@
 module Khan.CLI.SSH (commands) where
 
 import           Control.Arrow
-import qualified Data.Text           as Text
+import qualified Data.Text               as Text
 import           Khan.Internal
-import qualified Khan.Model.Instance as Instance
-import qualified Khan.Model.Key      as Key
-import qualified Khan.Model.SSH      as SSH
-import qualified Khan.Model.Tag      as Tag
+import qualified Khan.Model.EC2.Instance as Instance
+import qualified Khan.Model.Key          as Key
+import qualified Khan.Model.SSH          as SSH
+import qualified Khan.Model.Tag          as Tag
 import           Khan.Prelude
 import           Network.AWS.EC2
-import           System.IO           hiding (FilePath)
+import           System.IO               hiding (FilePath)
 
 -- FIXME: Add scp/sftp
 data SSH = SSH

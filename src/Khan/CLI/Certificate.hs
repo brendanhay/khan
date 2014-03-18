@@ -15,7 +15,7 @@
 module Khan.CLI.Certificate (commands) where
 
 import           Khan.Internal
-import qualified Khan.Model.ServerCertificate as Cert
+import qualified Khan.Model.IAM.ServerCertificate as Cert
 import           Khan.Prelude
 import           Network.AWS.IAM
 

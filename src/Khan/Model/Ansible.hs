@@ -38,18 +38,18 @@ module Khan.Model.Ansible
     ) where
 
 import           Control.Monad.Error
-import qualified Data.Aeson.Encode.Pretty    as Aeson
-import qualified Data.ByteString.Lazy.Char8  as LBS
-import           Data.List                   (intercalate)
-import qualified Data.Text                   as Text
+import qualified Data.Aeson.Encode.Pretty         as Aeson
+import qualified Data.ByteString.Lazy.Char8       as LBS
+import           Data.List                        (intercalate)
+import qualified Data.Text                        as Text
 import           Data.Text.Format
 import           Data.Text.Format.Params
-import qualified Filesystem.Path.CurrentOS   as Path
+import qualified Filesystem.Path.CurrentOS        as Path
 import           Khan.Internal.AWS
 import           Khan.Internal.IO
 import           Khan.Internal.Options
 import           Khan.Internal.Types
-import           Khan.Model.Ansible.Internal
+import           Khan.Model.Ansible.Serialisation
 import           Khan.Prelude
 import           Network.AWS
 import           System.Exit

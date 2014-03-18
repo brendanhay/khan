@@ -16,19 +16,19 @@
 module Khan.CLI.Routing (commands) where
 
 import           Data.Aeson
-import qualified Data.HashMap.Strict         as Map
+import qualified Data.HashMap.Strict             as Map
 import           Data.String
-import qualified Data.Text                   as Text
-import qualified Data.Text.Lazy.IO           as LText
-import qualified Filesystem.Path.CurrentOS   as Path
+import qualified Data.Text                       as Text
+import qualified Data.Text.Lazy.IO               as LText
+import qualified Filesystem.Path.CurrentOS       as Path
 import           Khan.Internal
-import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Tag              as Tag
+import qualified Khan.Model.EC2.AvailabilityZone as AZ
+import qualified Khan.Model.EC2.Instance         as Instance
+import qualified Khan.Model.Tag                  as Tag
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2             hiding (Instance, ec2)
-import qualified Text.EDE                    as EDE
+import           Network.AWS.EC2                 hiding (Instance, ec2)
+import qualified Text.EDE                        as EDE
 
 data Routes = Routes
     { rEnv      :: !Env

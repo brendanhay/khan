@@ -235,9 +235,6 @@ readAssocList :: [(String, a)] -> Read.ReadPrec a
 readAssocList xs = Read.choice $
     map (\(x, y) -> Read.lift $ ReadP.string x >> return y) xs
 
-newtype CertARN = CertARN { _cert :: Text }
-    deriving (Eq, Show, IsString)
-
 newtype TrustPath = TrustPath { _trust :: FilePath }
     deriving (Eq, Show, IsString)
 

@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
--- Module      : Khan.Model.LoadBalancer
+-- Module      : Khan.Model.ELB.LoadBalancer
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -13,19 +13,20 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.LoadBalancer
+module Khan.Model.ELB.LoadBalancer
     ( find
     , create
     , delete
     ) where
 
 import           Data.Conduit
-import qualified Data.Conduit.List as Conduit
-import qualified Data.Text         as Text
+import qualified Data.Conduit.List                 as Conduit
+import qualified Data.Text                         as Text
 import           Khan.Internal
-import           Khan.Prelude      hiding (find)
+import qualified Khan.Model.ELB.LoadBalancerPolicy as Policy
+import           Khan.Prelude                      hiding (find)
 import           Network.AWS.ELB
-import           Network.AWS.IAM   (ServerCertificateMetadata(..))
+import           Network.AWS.IAM                   (ServerCertificateMetadata(..))
 
 data Protocol
     = HTTP
@@ -53,21 +54,23 @@ findAll bids = do
 
 create :: Naming a
        => a
+       -> [AvailabilityZone]
        -> Frontend
        -> Backend
        -> ServerCertificateMetadata
-       -> [AvailabilityZone]
        -> AWS ()
-create (names -> Names{..}) front back cert azs = do
+create (names -> Names{..}) zones front back cert = do
     say "Creating Load Balancer {}" [appName]
-    send_ $ CreateLoadBalancer
-        { clbAvailabilityZones = Members azs
+    elb <- send $ CreateLoadBalancer
+        { clbAvailabilityZones = Members zones
         , clbListeners         = Members [listener front back]
         , clbLoadBalancerName  = appName
         , clbScheme            = Nothing
         , clbSecurityGroups    = mempty
         , clbSubnets           = mempty
         }
+    say "Created Load Balancer DNS {}"
+        [clbrDNSName $ clbrCreateLoadBalancerResult elb]
   where
     listener (FE fs fp) (BE ts tp) = Listener
         { lInstancePort     = fp
@@ -82,11 +85,7 @@ delete (names -> Names{..}) = do
     say "Deleting Load Balancer {}" [appName]
     send_ $ DeleteLoadBalancer appName
 
--- Done as separate command?
--- 1. Create and Upload SSL Server Certificate (IAM.UploadServerCertificate)
-
 --
--- 2. Get ARN of SSL Server Certificate (IAM.GetServerCertificate)
 -- 3. ELB.CreateLoadBalancer (returns DNS name)
 -- 5. Configure SSL Security Policy
 -- 6. Configure Backend Server Auth

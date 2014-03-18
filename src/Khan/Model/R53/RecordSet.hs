@@ -5,7 +5,7 @@
 {-# LANGUAGE Rank2Types        #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- Module      : Khan.Model.RecordSet
+-- Module      : Khan.Model.R53.RecordSet
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -15,7 +15,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.RecordSet
+module Khan.Model.R53.RecordSet
     ( find
     , findAll
     , set

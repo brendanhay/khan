@@ -16,27 +16,27 @@
 module Khan.CLI.Cluster (commands) where
 
 import           Control.Arrow
-import           Control.Concurrent          (threadDelay)
+import           Control.Concurrent                  (threadDelay)
 import           Data.Conduit
-import qualified Data.Conduit.List           as Conduit
-import qualified Data.HashMap.Strict         as Map
-import           Data.List                   (partition)
+import qualified Data.Conduit.List                   as Conduit
+import qualified Data.HashMap.Strict                 as Map
+import           Data.List                           (partition)
 import           Data.SemVer
 import           Khan.Internal
-import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as Image
-import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.LaunchConfig     as Config
-import           Khan.Model.Role             (Paths(..))
-import qualified Khan.Model.Role             as Role
-import qualified Khan.Model.ScalingGroup     as ASG
-import qualified Khan.Model.SecurityGroup    as Security
-import qualified Khan.Model.Tag              as Tag
+import qualified Khan.Model.AutoScaling.LaunchConfig as Config
+import qualified Khan.Model.AutoScaling.ScalingGroup as ASG
+import qualified Khan.Model.EC2.AvailabilityZone     as AZ
+import qualified Khan.Model.EC2.Image                as Image
+import qualified Khan.Model.EC2.Instance             as Instance
+import qualified Khan.Model.EC2.SecurityGroup        as Security
+import           Khan.Model.IAM.Role                 (Paths(..))
+import qualified Khan.Model.IAM.Role                 as Role
+import qualified Khan.Model.Key                      as Key
+import qualified Khan.Model.Tag                      as Tag
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.AutoScaling     hiding (Filter)
-import           Network.AWS.EC2             hiding (Filter)
+import           Network.AWS.AutoScaling             hiding (Filter)
+import           Network.AWS.EC2                     hiding (Filter)
 
 data Info = Info
     { iRole :: !Role
@@ -264,7 +264,7 @@ deploy Common{..} d@Deploy{..} = ensure >> create
 
         Config.create d ami dType
 
-        ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax
+        ASG.create d False dDomain zones dCooldown dDesired dGrace dMin dMax
 
     Names{..} = names d
 

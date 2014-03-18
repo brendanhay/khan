@@ -6,7 +6,7 @@
 
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
--- Module      : Khan.Model.Role
+-- Module      : Khan.Model.IAM.Role
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -16,7 +16,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.Role
+module Khan.Model.IAM.Role
     ( Paths (..)
     , paths
     , find

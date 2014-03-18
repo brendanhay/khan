@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.Model.SecurityGroup
+-- Module      : Khan.Model.EC2.SecurityGroup
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.SecurityGroup
+module Khan.Model.EC2.SecurityGroup
     (
     -- * SSH group enforcement
       sshGroup

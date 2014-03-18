@@ -16,14 +16,14 @@
 module Khan.CLI.DNS (commands) where
 
 import           Data.Conduit
-import qualified Data.Conduit.List     as Conduit
-import qualified Data.List.NonEmpty    as List
-import qualified Data.Text             as Text
+import qualified Data.Conduit.List         as Conduit
+import qualified Data.List.NonEmpty        as List
+import qualified Data.Text                 as Text
 import           Khan.Internal
 import           Khan.Model.Ansible
-import qualified Khan.Model.HostedZone as HZone
-import qualified Khan.Model.RecordSet  as RSet
-import           Khan.Prelude          hiding (for)
+import qualified Khan.Model.R53.HostedZone as HZone
+import qualified Khan.Model.R53.RecordSet  as RSet
+import           Khan.Prelude              hiding (for)
 import           Network.AWS
 import           Network.AWS.Route53
 

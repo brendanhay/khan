@@ -15,26 +15,19 @@
 module Khan.CLI.Launch (commands) where
 
 import           Khan.Internal
-import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as Image
-import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Key              as Key
 import           Khan.Model.Ansible
-import           Khan.Model.Role             (Paths(..))
-import qualified Khan.Model.Role             as Role
-import qualified Khan.Model.SecurityGroup    as Security
-import qualified Khan.Model.Tag              as Tag
+import qualified Khan.Model.EC2.AvailabilityZone as AZ
+import qualified Khan.Model.EC2.Image            as Image
+import qualified Khan.Model.EC2.Instance         as Instance
+import qualified Khan.Model.EC2.SecurityGroup    as Security
+import           Khan.Model.IAM.Role             (Paths(..))
+import qualified Khan.Model.IAM.Role             as Role
+import qualified Khan.Model.Key                  as Key
+import qualified Khan.Model.Tag                  as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2
 
--- FIXME:
--- Block Device Mappings
--- Monitoring
--- Disable Api Termination
--- Instance Shutdown Behavior
--- Client Token
--- Network Interfaces
 data Launch = Launch
     { lRKeys     :: !RKeysBucket
     , lRole      :: !Role

@@ -167,7 +167,6 @@ data Names = Names
     , imageName    :: !Text
     , appName      :: !Text
     , versionName  :: Maybe Text
-    , policyName   :: !Text
     } deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Names where
@@ -187,7 +186,6 @@ createNames (_role -> role) (_env -> env) ver = Names
     , imageName    = roleVer
     , appName      = env <> "-" <> roleVer
     , versionName  = showVersion <$> ver
-    , policyName   = nameEnv
     }
   where
     nameEnv = env <> "-" <> role

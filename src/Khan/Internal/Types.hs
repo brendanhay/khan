@@ -166,6 +166,7 @@ data Names = Names
     , sshGroupName :: !Text
     , imageName    :: !Text
     , appName      :: !Text
+    , balancerName :: !Text
     , versionName  :: Maybe Text
     } deriving (Eq, Ord, Show, Generic)
 
@@ -184,11 +185,13 @@ createNames (_role -> role) (_env -> env) ver = Names
     , groupName    = nameEnv
     , sshGroupName = env <> "-ssh"
     , imageName    = roleVer
-    , appName      = env <> "-" <> roleVer
+    , appName      = roleEnv
+    , balancerName = roleEnv
     , versionName  = showVersion <$> ver
     }
   where
     nameEnv = env <> "-" <> role
+    roleEnv = env <> "-" <> roleVer
     roleVer = role <> maybe "" (Text.cons '_') (safeVersion <$> ver)
 
 safeVersion :: Version -> Text

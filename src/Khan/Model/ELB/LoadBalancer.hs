@@ -29,7 +29,7 @@ import           Network.AWS.ELB
 import           Network.AWS.IAM                   (ServerCertificateMetadata(..))
 
 find :: Naming a => a -> AWS (Maybe LoadBalancerDescription)
-find (names -> Names{..}) = findAll [appName] $$ Conduit.head
+find (names -> Names{..}) = findAll [balancerName] $$ Conduit.head
 
 findAll :: [Text] -> Source AWS LoadBalancerDescription
 findAll bids = do
@@ -47,11 +47,11 @@ create :: Naming a
        -> ServerCertificateMetadata
        -> AWS ()
 create (names -> n@Names{..}) zones fe@(FE fs fp) be@(BE ts tp) cert = do
-    say "Creating Load Balancer {}: {} -> {}" [B appName, B fe, B be]
+    say "Creating Load Balancer {}: {} -> {}" [B balancerName, B fe, B be]
     b <- send $ CreateLoadBalancer
         { clbAvailabilityZones = Members zones
         , clbListeners         = Members [listener]
-        , clbLoadBalancerName  = appName
+        , clbLoadBalancerName  = balancerName
         , clbScheme            = Nothing
         , clbSecurityGroups    = mempty
         , clbSubnets           = mempty
@@ -74,5 +74,5 @@ create (names -> n@Names{..}) zones fe@(FE fs fp) be@(BE ts tp) cert = do
 
 delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
-    say "Deleting Load Balancer {}" [appName]
-    send_ $ DeleteLoadBalancer appName
+    say "Deleting Load Balancer {}" [balancerName]
+    send_ $ DeleteLoadBalancer balancerName

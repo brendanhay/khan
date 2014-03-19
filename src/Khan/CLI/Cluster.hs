@@ -267,7 +267,7 @@ deploy Common{..} d@Deploy{..} = ensure >> balance dBalance >> create
         m <- wait b
 
         when (isJust m) $ do
-            throwAWS "Load Balancer {} already exists." [B appName]
+            throwAWS "Load Balancer {} already exists." [B balancerName]
 
         Balancer.create d zones dFrontend dBackend c
 
@@ -363,6 +363,5 @@ promote _ c@Cluster{..} = do
 scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
--- FIXME: Ensure the cluster is not currently the _only_ promoted one.
 retire :: Common -> Cluster -> AWS ()
 retire _ c = ASG.delete c >> Config.delete c

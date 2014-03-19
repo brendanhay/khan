@@ -84,7 +84,7 @@ library
     build-depends:
         aeson                >= 0.7
       , aeson-pretty
-      , amazonka             >= 0.1.8
+      , amazonka             >= 0.1.9
       , ansi-wl-pprint
       , attoparsec
       , base                 >= 4.6 && < 5

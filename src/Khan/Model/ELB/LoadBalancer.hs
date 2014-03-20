@@ -14,7 +14,8 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.ELB.LoadBalancer
-    ( find
+    ( findAll
+    , find
     , create
     , delete
     ) where
@@ -28,16 +29,25 @@ import           Khan.Prelude                      hiding (find)
 import           Network.AWS.ELB
 import           Network.AWS.IAM                   (ServerCertificateMetadata(..))
 
-find :: Naming a => a -> AWS (Maybe LoadBalancerDescription)
-find (names -> Names{..}) = findAll [balancerName] $$ Conduit.head
-
 findAll :: [Text] -> Source AWS LoadBalancerDescription
 findAll bids = do
-    say "Searching for Load Balancers matching {}" [bids]
-    paginate (DescribeLoadBalancers (Members bids) Nothing)
+    if null bids
+        then log_ "Describing Load Balancers..."
+        else say  "Describing Load Balancers: {}" [L bids]
+    paginateCatch (DescribeLoadBalancers (Members bids) Nothing)
+        $= Conduit.mapM verify
+        $= Conduit.catMaybes
         $= Conduit.concatMap (members
             . dlbrLoadBalancerDescriptions
             . dlbsDescribeLoadBalancersResult)
+  where
+    verify (Right x) = return (Just x)
+    verify (Left  e)
+        | "LoadBalancerNotFound" == elbeCode (elberError e) = return Nothing
+        | otherwise = throwError (toError e)
+
+find :: Naming a => a -> AWS (Maybe LoadBalancerDescription)
+find (names -> Names{..}) = findAll [balancerName] $$ Conduit.head
 
 create :: Naming a
        => a
@@ -46,7 +56,7 @@ create :: Naming a
        -> Backend
        -> ServerCertificateMetadata
        -> AWS ()
-create (names -> n@Names{..}) zones fe@(FE fs fp) be@(BE ts tp) cert = do
+create (names -> n@Names{..}) zones fe be cert = do
     say "Creating Load Balancer {}: {} -> {}" [B balancerName, B fe, B be]
     b <- send $ CreateLoadBalancer
         { clbAvailabilityZones = Members zones
@@ -56,19 +66,15 @@ create (names -> n@Names{..}) zones fe@(FE fs fp) be@(BE ts tp) cert = do
         , clbSecurityGroups    = mempty
         , clbSubnets           = mempty
         }
-
-    Policy.create n
-    Policy.assign n fe
-    Check.configure n fe
-
+    Policy.create n >> Policy.assign n fe >> Check.configure n be
     say "Load Balancer available via DNS {}"
         [clbrDNSName $ clbrCreateLoadBalancerResult b]
   where
     listener = Listener
-        { lInstancePort     = fp
-        , lInstanceProtocol = Just (protoToText fs)
-        , lLoadBalancerPort = tp
-        , lProtocol         = protoToText ts
+        { lInstancePort     = port be
+        , lInstanceProtocol = Just (protocolToText be)
+        , lLoadBalancerPort = port fe
+        , lProtocol         = protocolToText fe
         , lSSLCertificateId = Just (scmArn cert)
         }
 

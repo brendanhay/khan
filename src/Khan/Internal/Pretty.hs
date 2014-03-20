@@ -63,6 +63,7 @@ import           Khan.Prelude
 import           Network.AWS
 import qualified Network.AWS.AutoScaling      as ASG
 import qualified Network.AWS.EC2              as EC2
+import qualified Network.AWS.ELB              as ELB
 import qualified Network.AWS.IAM              as IAM
 import qualified Network.AWS.Route53          as R53
 import           Network.HTTP.Types           (urlDecode)
@@ -138,6 +139,16 @@ hcols w = indent 1 . hsep . cols w
 
 vrow :: Pretty a => Int -> a -> Doc
 vrow w = indent 1 . fill w . bold . pretty
+
+instance Header ELB.LoadBalancerDescription where
+    header _ = hcols 20
+        [ H "dns:"
+        ]
+
+instance Body ELB.LoadBalancerDescription where
+    body ELB.LoadBalancerDescription{..} = hcols 20
+        [ C (fromMaybe "<blank>" lbdDNSName)
+        ]
 
 instance Title ASG.AutoScalingGroup where
     title ASG.AutoScalingGroup{..} = title asgAutoScalingGroupName
@@ -432,7 +443,7 @@ instance Pretty Frontend where
     pretty (FE s p) = "frontend/" <> pretty s <> ":" <> pretty p
 
 instance Pretty Backend where
-    pretty (BE s p) = "backend/" <> pretty s <> ":" <> pretty p
+    pretty (BE s p c) = "backend/" <> pretty s <> ":" <> pretty p <> pretty c
 
 prettyJSON :: ToJSON a => Maybe a -> Text
 prettyJSON = Text.decodeUtf8 . LBS.toStrict . maybe "" Aeson.encodePretty

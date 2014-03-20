@@ -39,6 +39,7 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling             hiding (Filter)
 import           Network.AWS.EC2                     hiding (Filter)
+import           Network.AWS.ELB
 
 data Info = Info
     { iRole :: !Role
@@ -108,7 +109,7 @@ deployParser env = Deploy
         "Create and assign an Elastic Load Balancer to the cluster."
     <*> customOption "frontend" "FE" parseString (value $ FE HTTPS 443)
         "Frontend shizzle."
-    <*> customOption "backend" "BE" parseString (value $ BE HTTP 8080)
+    <*> customOption "backend" "BE" parseString (value $ BE HTTP 8080 "/i/status")
         "Backend shizzle."
 
 instance Options Deploy where
@@ -240,8 +241,17 @@ info Common{..} Info{..} = do
                     [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
             pPrint (overview ag)
+
+            if null asgLoadBalancerNames
+               then log_ "No associated Elastic Load Balancers found."
+               else do
+                   bs <- Balancer.findAll asgLoadBalancerNames
+                      $$ Conduit.consume
+                   pPrint $ header (Proxy :: Proxy LoadBalancerDescription)
+                        <-> body bs
+
             if null xs
-               then log_ "No Auto Scaling Instances found."
+               then log_ "No associated Auto Scaling Instances found."
                else pPrint $ header (Proxy :: Proxy RunningInstancesItemType)
                          <-> body xs
 

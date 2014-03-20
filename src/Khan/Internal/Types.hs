@@ -47,9 +47,14 @@ module Khan.Internal.Types
    , newEnv
    , newRole
 
+   -- * Ghetto lenses
+   , protocol
+   , protocolToText
+   , port
+   , healthCheck
+
    -- * Text helpers
    , stripText
-   , protoToText
    ) where
 
 import           Data.Aeson
@@ -59,7 +64,10 @@ import qualified Data.HashMap.Strict          as Map
 import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
+import qualified Data.Text.Lazy               as LText
+import           Data.Text.Buildable          (Buildable(..))
 import qualified Data.Text.Lazy.Builder       as Build
+import           Data.Text.Lazy.Builder.Int   (decimal)
 import qualified Filesystem.Path.CurrentOS    as Path
 import           GHC.Generics                 (Generic)
 import           Khan.Prelude
@@ -181,24 +189,22 @@ createNames (_role -> role) (_env -> env) ver = Names
     { envName      = env
     , keyName      = env <> "-khan"
     , roleName     = role
-    , profileName  = nameEnv
-    , groupName    = nameEnv
+    , profileName  = envRole
+    , groupName    = envRole
     , sshGroupName = env <> "-ssh"
     , imageName    = roleVer
-    , appName      = roleEnv
-    , balancerName = roleEnv
+    , appName      = env <> "-" <> roleVer
+    , balancerName = envRole <> version '-' alphaVersion
     , versionName  = showVersion <$> ver
     }
   where
-    nameEnv = env <> "-" <> role
-    roleEnv = env <> "-" <> roleVer
-    roleVer = role <> maybe "" (Text.cons '_') (safeVersion <$> ver)
+    envRole = env <> "-" <> role
+    roleVer = role <> Text.map f (version '_' showVersion)
+      where
+        f '+' = '/'
+        f  c  = c
 
-safeVersion :: Version -> Text
-safeVersion = Text.map f . showVersion
-  where
-    f '+' = '/'
-    f  c  = c
+    version c f = maybe "" (Text.cons c) $ f <$> ver
 
 unversioned :: Role -> Env -> Names
 unversioned role env = createNames role env Nothing
@@ -273,11 +279,6 @@ newRole = Role . Text.map f
     f '-' = '_'
     f c   = c
 
-stripText :: Text -> Text -> Text
-stripText x y =
-    let z = fromMaybe y $ Text.stripPrefix x y
-     in fromMaybe z $ Text.stripSuffix x z
-
 data Protocol
     = HTTP
     | HTTPS
@@ -285,11 +286,36 @@ data Protocol
     | SSL
       deriving (Show)
 
-protoToText :: Protocol -> Text
-protoToText = Text.toLower . Text.pack . show
+instance Buildable Protocol where
+    build = fromString . show
+
+class Listener a where
+    protocol :: a -> Protocol
+    port     :: a -> Integer
 
 data Frontend = FE !Protocol !Integer
     deriving (Show)
 
-data Backend  = BE !Protocol !Integer
+instance Listener Frontend where
+    protocol (FE s _) = s
+    port     (FE _ p) = p
+
+data Backend  = BE !Protocol !Integer !Text
     deriving (Show)
+
+instance Listener Backend where
+    protocol (BE s _ _) = s
+    port     (BE _ p _) = p
+
+healthCheck :: Backend -> Text
+healthCheck (BE s p c) = LText.toStrict
+     . Build.toLazyText
+     $ build s <> ":" <> decimal p <> build c
+
+protocolToText :: Listener a => a -> Text
+protocolToText = Text.toLower . Text.pack . show . protocol
+
+stripText :: Text -> Text -> Text
+stripText x y =
+    let z = fromMaybe y $ Text.stripPrefix x y
+     in fromMaybe z $ Text.stripSuffix x z

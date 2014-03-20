@@ -15,7 +15,7 @@ strip: build
 	 upx dist/khan
 
 install: cabal.sandbox.config add-sources
-	cabal install -j $(FLAGS)
+	cabal install -j $(FLAGS) --only-dependencies && $(MAKE) build
 
 clean:
 	-rm -rf dist cabal.sandbox.config .cabal-sandbox

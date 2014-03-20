@@ -75,13 +75,10 @@ instance TextParser Protocol where
             s       -> fail (Text.unpack s)
 
 instance TextParser Frontend where
-    parser = uncurry FE <$> listener
+    parser = FE <$> parser <*> decimal <* endOfInput
 
 instance TextParser Backend where
-    parser = uncurry BE <$> listener
-
-listener :: Parser (Protocol, Integer)
-listener = (,) <$> parser <*> decimal <* endOfInput
+    parser = BE <$> parser <*> decimal <*> takeText
 
 segment :: Parser Text
 segment = Text.pack <$> many1 (satisfy $ notInClass ":|,")

@@ -25,6 +25,7 @@ import Network.AWS.AutoScaling hiding (Filter)
 
 create :: Naming a => a -> Text -> InstanceType -> AWS ()
 create (names -> Names{..}) ami typ = do
+    say "Creating Launch Configuration {}" [appName]
     c <- sendCatch $ CreateLaunchConfiguration
         { clcBlockDeviceMappings     = mempty
         , clcEbsOptimized            = Nothing
@@ -41,9 +42,8 @@ create (names -> Names{..}) ami typ = do
         , clcUserData                = Nothing
         }
     verifyAS "AlreadyExists" c
-    say "Created Launch Configuration {}" [appName]
 
 delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
+    say "Deleting Launch Configuration {}" [appName]
     void . send $ DeleteLaunchConfiguration appName
-    say "Deleted Launch Configuration {}" [appName]

@@ -55,6 +55,7 @@ create :: Naming a
        -> Integer
        -> AWS ()
 create (names -> n@Names{..}) elb dom zones cool desired grace min max = do
+    say "Creating Auto Scaling Group {}" [appName]
     send_ $ CreateAutoScalingGroup
         { casgAutoScalingGroupName    = appName
         , casgLaunchConfigurationName = appName
@@ -71,7 +72,6 @@ create (names -> n@Names{..}) elb dom zones cool desired grace min max = do
         , casgTerminationPolicies     = mempty
         , casgVPCZoneIdentifier       = Nothing
         }
-    say "Created Auto Scaling Group {}" [appName]
   where
     (chk, elbs) = if elb then ("ELB", [appName]) else ("EC2", [])
 
@@ -88,6 +88,7 @@ update :: Naming a
 update (names -> n@Names{..}) cool desired grace min max = do
     AutoScalingGroup{..} <- find n >>=
         noteAWS "Auto Scaling Group {} doesn't exist." [B appName]
+    say "Updating Auto Scaling Group {}" [appName]
     send_ $ UpdateAutoScalingGroup
         { uasgAutoScalingGroupName    = appName
         , uasgAvailabilityZones       = Members asgAvailabilityZones
@@ -102,12 +103,11 @@ update (names -> n@Names{..}) cool desired grace min max = do
         , uasgTerminationPolicies     = Members asgTerminationPolicies
         , uasgVPCZoneIdentifier       = Nothing
         }
-    say "Updated Auto Scaling Group {}" [appName]
 
 delete :: Naming a => a -> AWS ()
 delete (names -> Names{..}) = do
+    say "Deleting of Auto Scaling Group {}" [appName]
     send_ $ DeleteAutoScalingGroup appName (Just True)
-    say "Delete of Auto Scaling Group {} in progress" [appName]
 
 tag :: Text -> Text -> Text -> Tag
 tag grp k v = Tag k (Just True) (Just grp) (Just "auto-scaling-group") (Just v)

@@ -36,11 +36,10 @@ create (names -> Names{..}) = do
     val = Just "ELBSecurityPolicy-2014-01"
 
 assign :: Naming a => a -> Frontend -> AWS ()
-assign (names -> Names{..}) (FE _ port) = do
-    say "Assigning Policy {} on Port {} to Load Balancer {}"
-        [B balancerName, B port, B balancerName]
+assign (names -> Names{..}) fe = do
+    say "Assigning Policy {} on Port {}" [B balancerName, B $ port fe]
     send_ $ SetLoadBalancerPoliciesOfListener
         { slbpolLoadBalancerName = balancerName
-        , slbpolLoadBalancerPort = port
+        , slbpolLoadBalancerPort = port fe
         , slbpolPolicyNames      = Members [balancerName]
         }

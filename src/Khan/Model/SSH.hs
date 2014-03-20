@@ -16,7 +16,6 @@ module Khan.Model.SSH
      , wait
      ) where
 
-import           Control.Concurrent        (threadDelay)
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
@@ -34,18 +33,17 @@ exec addr user key xs = liftIO $ do
 wait :: MonadIO m => Int -> Text -> Text -> FilePath -> m Bool
 wait s addr user key = do
     say "Waiting {} seconds for SSH on {}" [show s, Text.unpack addr]
-    liftIO $ go (s * 1000000)
+    liftIO $ go s
   where
-    go n
-        | n <= 0    = return False
-        | otherwise = do
-            log_ "Waiting..." *> threadDelay delay
-            e <- runEitherT . sh . Shell.silently $ Shell.run "ssh" xs
-            either (const . go $ n - delay)
-                   (return . const True)
-                   e
+    go n | n <= 0    = return False
+         | otherwise = do
+             say "Waiting {} seconds..." [delay] *> delaySeconds delay
+             e <- runEitherT . sh . Shell.silently $ Shell.run "ssh" xs
+             either (const . go $ n - delay)
+                    (return . const True)
+                    e
 
-    delay = 20 * 1000000
+    delay = 20
 
     xs = map Text.pack $ args addr user key opts
 

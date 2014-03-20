@@ -19,6 +19,9 @@ module Khan.Internal.IO
       sh
     , shell
 
+    -- * Concurrency
+    , delaySeconds
+
     -- * Files
     , defaultPath
     , expandPath
@@ -37,6 +40,7 @@ module Khan.Internal.IO
     , (<.>)
     ) where
 
+import           Control.Concurrent        (threadDelay)
 import           Data.Aeson                (Object)
 import qualified Data.List                 as List
 import           Data.Ord
@@ -59,6 +63,9 @@ sh = fmapLT show . syncIO . shell
 
 shell :: MonadIO m => Sh a -> m a
 shell = Shell.shelly
+
+delaySeconds :: MonadIO m => Int -> m ()
+delaySeconds n = liftIO $ threadDelay (n * 1000000)
 
 defaultPath :: FilePath -> FilePath -> FilePath
 defaultPath p def

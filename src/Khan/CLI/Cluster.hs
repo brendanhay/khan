@@ -16,7 +16,6 @@
 module Khan.CLI.Cluster (commands) where
 
 import           Control.Arrow
-import           Control.Concurrent                  (threadDelay)
 import           Data.Conduit
 import qualified Data.Conduit.List                   as Conduit
 import qualified Data.HashMap.Strict                 as Map
@@ -263,7 +262,7 @@ deploy Common{..} d@Deploy{..} = ensure >> create
         when (Just "Delete in progress" == join (asgStatus <$> g)) $ do
             say "Waiting for previous deletion of Auto Scaling Group {}"
                 [appName]
-            liftIO . threadDelay $ 10 * 1000000
+            delaySeconds 10
             ensure
         when (isJust g) $
             throwAWS "Auto Scaling Group {} already exists." [B appName]

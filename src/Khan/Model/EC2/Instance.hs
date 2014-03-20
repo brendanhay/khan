@@ -21,7 +21,6 @@ module Khan.Model.EC2.Instance
     ) where
 
 import Control.Arrow      ((***))
-import Control.Concurrent (threadDelay)
 import Control.Monad
 import Data.List          (partition)
 import Khan.Internal
@@ -81,7 +80,7 @@ wait ids = do
     unless (null ps) $ do
         say "Instances still pending: {}" [ps]
         log_ "Waiting..."
-        liftIO . threadDelay $ 1000000 * 30
+        delaySeconds 30
     wait ps
   where
     pending = partition (("pending" ==) . istName . riitInstanceState)

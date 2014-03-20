@@ -71,8 +71,8 @@ update (names -> n@Names{..}) tpath ppath = do
     i <- sendAsync $ CreateInstanceProfile profileName Nothing
     r <- sendAsync $ CreateRole (LText.toStrict t) Nothing profileName
 
-    wait i >>= verifyIAM "EntityAlreadyExists"
-    wait r >>= verifyIAM "EntityAlreadyExists"
+    b <- wait i >>= created
+    _ <- wait r >>= created
 
     ar <- sendAsync $ AddRoleToInstanceProfile profileName profileName
     pr <- sendAsync $ PutRolePolicy (LText.toStrict p) profileName profileName
@@ -80,6 +80,16 @@ update (names -> n@Names{..}) tpath ppath = do
     wait ar >>= verifyIAM "LimitExceeded"
     waitAsync_ pr <* say "Updated policy for Role {}" [profileName]
 
+    when b $ do
+        say "Waiting {} seconds for IAM Role replication..."
+            [B profileName, B delay]
+        delaySeconds delay
+
     find n
   where
     Object o = toJSON n
+
+    created (Right _) = return True
+    created e         = verifyIAM "EntityAlreadyExists" e >> return False
+
+    delay = 5

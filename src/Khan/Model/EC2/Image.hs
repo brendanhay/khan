@@ -20,7 +20,6 @@ module Khan.Model.EC2.Image
     , create
     ) where
 
-import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import qualified Data.Text          as Text
 import           Khan.Internal
@@ -54,7 +53,7 @@ create (names -> n@Names{..}) i bs = do
     wait l img = do
         say "Waiting {} seconds for Image {} creation..."
             [show delay, Text.unpack img]
-        liftIO $ threadDelay delay
+        delaySeconds delay
         rs <- findAllCatch [img] []
         verifyEC2 "InvalidAMIID.NotFound" rs
         if pending (hush rs)
@@ -64,5 +63,5 @@ create (names -> n@Names{..}) i bs = do
     pending (Just (x:_)) = diritImageState x /= "available"
     pending _            = True
 
-    limit = 24 :: Int    -- 24 * 20 seconds = 8 minutes
-    delay = 1000000 * 20 -- 20 seconds
+    limit = 24 :: Int -- 24 * 20 seconds = 8 minutes
+    delay = 20        -- 20 seconds

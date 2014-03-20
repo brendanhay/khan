@@ -27,13 +27,12 @@ module Khan.Model.R53.RecordSet
     ) where
 
 import           Control.Arrow
-import           Control.Concurrent   (threadDelay)
 import           Control.Monad
 import           Data.Conduit
 import qualified Data.Conduit.List    as Conduit
 import           Data.List            (sort)
 import qualified Data.Text            as Text
-import           Khan.Internal        ()
+import           Khan.Internal
 import           Khan.Prelude         hiding (find, min, max)
 import           Network.AWS.Route53  hiding (wait)
 
@@ -89,11 +88,13 @@ wait :: ChangeInfo -> AWS ()
 wait ChangeInfo{..} = case ciStatus of
     INSYNC  -> say "{} INSYNC." [cid]
     PENDING -> do
-        say "Waiting for {}" [cid]
-        liftIO . threadDelay $ 10 * 1000000
+        say "Waiting {} seconds for {}" [B delay, B cid]
+        delaySeconds delay
         send (GetChange ciId) >>= void . wait . gcrChangeInfo
   where
     cid = unChangeId ciId
+
+    delay = 10
 
 match :: Text -> Maybe Text -> ResourceRecordSet -> Bool
 match n Nothing x = n == rrsName x

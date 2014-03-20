@@ -73,7 +73,7 @@ create (names -> n@Names{..}) elb dom zones cool desired grace min max = do
         , casgVPCZoneIdentifier       = Nothing
         }
   where
-    (chk, elbs) = if elb then ("ELB", [appName]) else ("EC2", [])
+    (chk, elbs) = if elb then ("ELB", [balancerName]) else ("EC2", [])
 
     tags = map (uncurry $ tag appName) (Tag.defaults n dom)
 

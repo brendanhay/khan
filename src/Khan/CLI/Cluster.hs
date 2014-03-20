@@ -256,7 +256,7 @@ info Common{..} Info{..} = do
                          <-> body xs
 
 deploy :: Common -> Deploy -> AWS ()
-deploy Common{..} d@Deploy{..} = ensure >> balance dBalance >> create
+deploy Common{..} d@Deploy{..} = ensure >> create
   where
     ensure = do
         g <- ASG.find d
@@ -267,19 +267,6 @@ deploy Common{..} d@Deploy{..} = ensure >> balance dBalance >> create
             ensure
         when (isJust g) $
             throwAWS "Auto Scaling Group {} already exists." [B appName]
-
-    balance False = return ()
-    balance True  = do
-        s <- async $ Cert.find dDomain
-        b <- async $ Balancer.find d
-
-        c <- wait s >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
-        m <- wait b
-
-        when (isJust m) $ do
-            throwAWS "Load Balancer {} already exists." [B balancerName]
-
-        Balancer.create d zones dFrontend dBackend c
 
     create = do
         k <- async $ Key.create dRKeys d cLKeys
@@ -296,9 +283,21 @@ deploy Common{..} d@Deploy{..} = ensure >> balance dBalance >> create
         ami <- diritImageId <$> wait a
         say "Found AMI {} named {}" [ami, imageName]
 
+        when dBalance balance
         Config.create d ami dType
-
         ASG.create d dBalance dDomain zones dCooldown dDesired dGrace dMin dMax
+
+    balance = do
+        s <- async $ Cert.find dDomain
+        b <- async $ Balancer.find d
+
+        c <- wait s >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
+        m <- wait b
+
+        when (isJust m) $ do
+            throwAWS "Load Balancer {} already exists." [B balancerName]
+
+        Balancer.create d zones dFrontend dBackend c
 
     Names{..} = names d
 

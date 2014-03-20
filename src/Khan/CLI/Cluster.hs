@@ -214,13 +214,13 @@ info Common{..} Info{..} = do
         else groups m >> pLn
   where
     images = do
-        say  "Looking for Images tagged with {}" [iRole]
+        say  "Searching for Images tagged with {}" [iRole]
         mapM_ (pPrint . overview) =<< Image.findAll []
             [ Tag.filter Tag.role [_role iRole]
             ]
 
     instances = do
-        say "Looking for Instances tagged with {} and {}" [B iRole, B iEnv]
+        say "Searching for Instances tagged with {} and {}" [B iRole, B iEnv]
         is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []
             [ Tag.filter Tag.role [_role iRole]
             , Tag.filter Tag.env  [_env  iEnv]
@@ -264,25 +264,24 @@ deploy Common{..} d@Deploy{..} = ensure >> create
                 [appName]
             delaySeconds 10
             ensure
-        when (isJust g) $
-            throwAWS "Auto Scaling Group {} already exists." [B appName]
 
     create = do
         k <- async $ Key.create dRKeys d cLKeys
         p <- async $ Role.find d <|> Role.update d dTrust dPolicy
-        s <- async $ Security.sshGroup d
         g <- async $ Security.create groupName
+        s <- async $ Security.sshGroup d
         a <- async $ Image.find [] [ec2Filter "name" [imageName]]
 
         wait_ k
         wait_ p <* say "Found IAM Profile {}" [profileName]
-        wait_ s <* say "Found SSH Group {}" [sshGroupName]
         wait_ g <* say "Found App Group {}" [groupName]
+        wait_ s <* say "Found SSH Group {}" [sshGroupName]
 
         ami <- diritImageId <$> wait a
         say "Found AMI {} named {}" [ami, imageName]
 
         when dBalance balance
+
         Config.create d ami dType
         ASG.create d dBalance dDomain zones dCooldown dDesired dGrace dMin dMax
 
@@ -293,10 +292,9 @@ deploy Common{..} d@Deploy{..} = ensure >> create
         c <- wait s >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
         m <- wait b
 
-        when (isJust m) $ do
-            throwAWS "Load Balancer {} already exists." [B balancerName]
-
-        Balancer.create d zones dFrontend dBackend c
+        if isJust m
+            then say "Load Balancer {} already exists." [B balancerName]
+            else Balancer.create d zones dFrontend dBackend c
 
     Names{..} = names d
 
@@ -330,7 +328,7 @@ promote _ c@Cluster{..} = do
             = throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
 
     promote' name next = do
-        say "Looking for Instances tagged with {}" [name]
+        say "Searching for Instances tagged with {}" [name]
         is <- map riitInstanceId <$>
             Instance.findAll [] [Tag.filter Tag.group [name]]
 
@@ -350,7 +348,7 @@ promote _ c@Cluster{..} = do
             Members (map (reweight demoted) prev)
 
         as <- forM prev $ \(Ann AutoScalingGroup{..} _) -> async $ do
-            say "Looking for Instances tagged with {}" [asgAutoScalingGroupName]
+            say "Searching for Instances tagged with {}" [asgAutoScalingGroupName]
             is <- map riitInstanceId <$> Instance.findAll []
                 [ Tag.filter Tag.group [asgAutoScalingGroupName]
                 ]

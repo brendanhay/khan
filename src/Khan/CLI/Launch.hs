@@ -97,11 +97,11 @@ commands env = mconcat
 
 launch :: Common -> Launch -> AWS ()
 launch c@Common{..} l@Launch{..} = capture lAnsible c "launch {}" [show lType] $ do
-    say "Looking for Images matching {}" [fromMaybe imageName lImage]
+    say "Searching for Images matching {}" [fromMaybe imageName lImage]
     a <- async . Image.find [] . (:[]) $ maybe (Filter "name" [imageName])
         (Filter "image-id" . (:[])) lImage
 
-    say "Looking for IAM Profiles matching {}" [profileName]
+    say "Searching for IAM Profiles matching {}" [profileName]
     p <- async $ Role.find l <|> Role.update l lTrust lPolicy
 
     ami <- diritImageId <$> wait a

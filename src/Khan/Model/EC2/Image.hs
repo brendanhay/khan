@@ -32,8 +32,9 @@ find ids fs = findAll ids fs >>=
     hoistError . note "Failed to find any matching Images" . listToMaybe
 
 findAll :: [Text] -> [Filter] -> AWS [DescribeImagesResponseItemType]
-findAll ids fs = djImagesSet <$>
-    send (DescribeImages [] ids [] fs)
+findAll ids fs = do
+    say "Searching for Images {}" [L ids]
+    djImagesSet <$> send (DescribeImages [] ids [] fs)
 
 findAllCatch :: [Text]
              -> [Filter]

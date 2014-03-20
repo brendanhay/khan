@@ -104,10 +104,10 @@ image c@Common{..} d@Image{..} = do
     unless (null as) $
         throwAWS "Image {} already exists, exiting..." [imageName]
 
-    say "Looking for base Images matching {}" [iImage]
+    say "Searching for base Images matching {}" [iImage]
     a <- async $ Image.find [iImage] []
 
-    say "Looking for IAM Profile matching {}" [profileName]
+    say "Searching for IAM Profile matching {}" [profileName]
     i <- async $ Role.find d
 
     ami <- diritImageId <$> wait a

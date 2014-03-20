@@ -40,10 +40,7 @@ sshGroup (names -> Names{..}) = update sshGroupName
 find :: Text -> AWS (Maybe SecurityGroupItemType)
 find name = do
     say "Searching for Security Group {}" [name]
-    mg <- groupMay <$> sendCatch (DescribeSecurityGroups [name] [] [])
-    when (isNothing mg) $
-         say "Unable to find Security Group {}" [name]
-    return mg
+    groupMay <$> sendCatch (DescribeSecurityGroups [name] [] [])
   where
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
     groupMay (Left  _) = Nothing
@@ -80,10 +77,10 @@ update name (sort -> rules) = do
         ps          = sort (gs sgitIpPermissions)
         (auth, rev) = diff rules ps
 
-    log "Updating Security Group {}..." [name]
+    say "Updating Security Group {}..." [name]
 
     liftM2 (||) (revoke sgitGroupId rev) (authorise sgitGroupId auth)
-        <* log "Security Group {} updated." [name]
+        <* say "Security Group {} updated." [name]
   where
     revoke gid xs
         | null xs   = return False

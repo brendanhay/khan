@@ -21,7 +21,6 @@ import qualified Data.Conduit.List                   as Conduit
 import qualified Data.HashMap.Strict                 as Map
 import           Data.List                           (partition)
 import           Data.SemVer
-import qualified Data.Text                           as Text
 import           Khan.Internal
 import qualified Khan.Model.AutoScaling.LaunchConfig as Config
 import qualified Khan.Model.AutoScaling.ScalingGroup as ASG
@@ -333,9 +332,8 @@ promote _ c@Cluster{..} = do
             = throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
 
     rebalance next = do
-        let pre  = Text.replace "_" "-" (envName <> "-" <> roleName)
-            dom  = tagDomain $ annTags next
-            fqdn = pre <> "." <> dom
+        let dom  = tagDomain $ annTags next
+            fqdn = dnsName <> "." <> dom
         mb <- Balancer.find c
         maybe (return ())
               (\LoadBalancerDescription{..} -> do
@@ -345,7 +343,7 @@ promote _ c@Cluster{..} = do
                        [lbdLoadBalancerName] lbdCanonicalHostedZoneNameID
                    zid <- HZone.findId dom
                    say "Assigning Record Set {} to {}" [fqdn, tgt]
-                   void $ RSet.set zid pre
+                   void $ RSet.set zid dnsName
                        [ AliasRecordSet fqdn A (AliasTarget (hostedZoneId cid) tgt False) Nothing
                        ])
               mb
@@ -393,4 +391,31 @@ scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 retire :: Common -> Cluster -> AWS ()
-retire _ c = ASG.delete c >> Config.delete c
+retire _ c@Cluster{..} = do
+    ag <- ASG.find c
+        >>= noteAWS "Unable to find Auto Scaling Group {}" [appName]
+        >>= Tag.annotate
+
+    dg <- async $ ASG.delete c >> Config.delete c
+
+    mb <- Balancer.find c
+    maybe (return ())
+          (\LoadBalancerDescription{..} -> do
+               let dom = tagDomain (annTags ag)
+                   dns = dnsName <> "." <> dom
+               zid <- HZone.findId dom
+               mr  <- RSet.find zid (match lbdDNSName dns)
+               maybe (return ())
+                     (\r -> void $ RSet.modify zid [Change DeleteAction r])
+                     mr)
+          mb
+
+    wait_ dg
+  where
+    match lb dns AliasRecordSet{..} = Just dns `cmp` Just rrsName
+        && lb `cmp` Just (atDNSName rrsAliasTarget)
+    match _ _ _ = False
+
+    cmp a b = (stripText "." <$> a) == (stripText "." <$> b)
+
+    Names{..} = names c

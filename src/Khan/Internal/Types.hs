@@ -175,6 +175,7 @@ data Names = Names
     , imageName    :: !Text
     , appName      :: !Text
     , balancerName :: !Text
+    , dnsName      :: !Text
     , versionName  :: Maybe Text
     } deriving (Eq, Ord, Show, Generic)
 
@@ -195,6 +196,7 @@ createNames (_role -> role) (_env -> env) ver = Names
     , imageName    = roleVer
     , appName      = env <> "-" <> roleVer
     , balancerName = envRole <> version '-' alphaVersion
+    , dnsName      = Text.replace "_" "-" envRole
     , versionName  = showVersion <$> ver
     }
   where

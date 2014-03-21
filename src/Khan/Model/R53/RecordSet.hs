@@ -76,7 +76,6 @@ set zid name rrs = do
     f AliasRecordSet         {..} = atDNSName rrsAliasTarget
     f x                           = Text.unwords $ rrValues (rrsResourceRecords x)
 
-
 update :: HostedZoneId -> ResourceRecordSet -> AWS Bool
 update zid rset = do
     mr <- find zid $ match (rrsName rset) (setId rset)
@@ -89,10 +88,8 @@ update zid rset = do
     cre   = [Change CreateAction rset]
 
 modify :: HostedZoneId -> [Change] -> AWS ChangeInfo
-modify zid cs = do
-    let payload = ChangeResourceRecordSets zid (ChangeBatch Nothing cs)
-    liftIO $ print payload
-    fmap crrsrChangeInfo . send $ payload
+modify zid cs = fmap crrsrChangeInfo . send $
+    ChangeResourceRecordSets zid (ChangeBatch Nothing cs)
 
 wait :: ChangeInfo -> AWS ()
 wait ChangeInfo{..} = case ciStatus of

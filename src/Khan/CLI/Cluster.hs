@@ -333,17 +333,20 @@ promote _ c@Cluster{..} = do
             = throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
 
     rebalance next = do
-        let dns = Text.replace "_" "-" (envName <> "-" <> roleName)
-            dom = tagDomain $ annTags next
+        let pre  = Text.replace "_" "-" (envName <> "-" <> roleName)
+            dom  = tagDomain $ annTags next
+            fqdn = pre <> "." <> dom
         mb <- Balancer.find c
         maybe (return ())
               (\LoadBalancerDescription{..} -> do
-                   tgt <- noteAWS "Load Balancer doesn't contain a DNS entry."
+                   tgt <- noteAWS "Load Balancer {} doesn't contain a DNS entry."
                        [lbdLoadBalancerName] lbdDNSName
+                   cid <- noteAWS "Load Balancer doesn't contain a Hosted Zone."
+                       [lbdLoadBalancerName] lbdCanonicalHostedZoneNameID
                    zid <- HZone.findId dom
-                   say "Assigning Record Set {}.{} to {}" [dns, dom, tgt]
-                   void $ RSet.set zid dns
-                       [ AliasRecordSet dns A (AliasTarget zid tgt False) Nothing
+                   say "Assigning Record Set {} to {}" [fqdn, tgt]
+                   void $ RSet.set zid pre
+                       [ AliasRecordSet fqdn A (AliasTarget (hostedZoneId cid) tgt False) Nothing
                        ])
               mb
 

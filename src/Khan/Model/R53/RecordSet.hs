@@ -57,8 +57,8 @@ set zid name rrs = do
     let (cre, del) = join (***) sort $ diff rrs rrs'
         (cp,  dp)  = (null cre, null del)
 
-    unless dp $ say "Removing from Record Set {}:{}" [B name, L $ map f del]
-    unless cp $ say "Adding to Record Set {}:{}"     [B name, L $ map f cre]
+    unless dp $ say "Removing from Record Set {}:{}" [B name, values del]
+    unless cp $ say "Adding to Record Set {}:{}"     [B name, values cre]
 
     unless (cp && dp) $ do
         void . modify zid $
@@ -68,6 +68,8 @@ set zid name rrs = do
 
     return $ any (not . null) [cre, del]
   where
+    values = L . map f
+
     f FailoverAliasRecordSet {..} = atDNSName rrsAliasTarget
     f LatencyAliasRecordSet  {..} = atDNSName rrsAliasTarget
     f WeightedAliasRecordSet {..} = atDNSName rrsAliasTarget
@@ -87,8 +89,10 @@ update zid rset = do
     cre   = [Change CreateAction rset]
 
 modify :: HostedZoneId -> [Change] -> AWS ChangeInfo
-modify zid cs = fmap crrsrChangeInfo . send $
-    ChangeResourceRecordSets zid (ChangeBatch Nothing cs)
+modify zid cs = do
+    let payload = ChangeResourceRecordSets zid (ChangeBatch Nothing cs)
+    liftIO $ print payload
+    fmap crrsrChangeInfo . send $ payload
 
 wait :: ChangeInfo -> AWS ()
 wait ChangeInfo{..} = case ciStatus of

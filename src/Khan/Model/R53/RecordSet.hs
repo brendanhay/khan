@@ -45,7 +45,7 @@ findAll :: HostedZoneId
         -> (ResourceRecordSet -> Bool)
         -> Source AWS ResourceRecordSet
 findAll zid p = do
-    say "Searching for Record Sets in {}" [zid]
+    say "Searching for Record Sets in Hosted Zone {}" [zid]
     paginate (ListResourceRecordSets zid Nothing Nothing Nothing Nothing)
         $= Conduit.concatMap lrrsrResourceRecordSets
         $= Conduit.filter p
@@ -57,17 +57,23 @@ set zid name rrs = do
     let (cre, del) = join (***) sort $ diff rrs rrs'
         (cp,  dp)  = (null cre, null del)
 
-    unless dp $ say "Removing {} from {}..." [f del, name]
-    unless cp $ say "Adding {} to {}..." [f cre, name]
+    unless dp $ say "Removing from Record Set {}:{}" [B name, L $ map f del]
+    unless cp $ say "Adding to Record Set {}:{}"     [B name, L $ map f cre]
 
     unless (cp && dp) $ do
         void . modify zid $
             map (Change DeleteAction) del ++ map (Change CreateAction) cre
-        say "Record set {} in zone {} updated." [name, unHostedZoneId zid]
+        say "Record Set {} in Hosted Zone {} updated."
+            [name, unHostedZoneId zid]
 
     return $ any (not . null) [cre, del]
- where
-   f = Text.intercalate ", " . concatMap (rrValues . rrsResourceRecords)
+  where
+    f FailoverAliasRecordSet {..} = atDNSName rrsAliasTarget
+    f LatencyAliasRecordSet  {..} = atDNSName rrsAliasTarget
+    f WeightedAliasRecordSet {..} = atDNSName rrsAliasTarget
+    f AliasRecordSet         {..} = atDNSName rrsAliasTarget
+    f x                           = Text.unwords $ rrValues (rrsResourceRecords x)
+
 
 update :: HostedZoneId -> ResourceRecordSet -> AWS Bool
 update zid rset = do

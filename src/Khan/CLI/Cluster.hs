@@ -21,6 +21,7 @@ import qualified Data.Conduit.List                   as Conduit
 import qualified Data.HashMap.Strict                 as Map
 import           Data.List                           (partition)
 import           Data.SemVer
+import qualified Data.Text                           as Text
 import           Khan.Internal
 import qualified Khan.Model.AutoScaling.LaunchConfig as Config
 import qualified Khan.Model.AutoScaling.ScalingGroup as ASG
@@ -33,12 +34,15 @@ import           Khan.Model.IAM.Role                 (Paths(..))
 import qualified Khan.Model.IAM.Role                 as Role
 import qualified Khan.Model.IAM.ServerCertificate    as Cert
 import qualified Khan.Model.Key                      as Key
+import qualified Khan.Model.R53.HostedZone           as HZone
+import qualified Khan.Model.R53.RecordSet            as RSet
 import qualified Khan.Model.Tag                      as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling             hiding (Filter)
 import           Network.AWS.EC2                     hiding (Filter)
 import           Network.AWS.ELB
+import           Network.AWS.Route53                 hiding (Protocol(..))
 
 data Info = Info
     { iRole :: !Role
@@ -312,6 +316,7 @@ promote _ c@Cluster{..} = do
     let name = asgAutoScalingGroupName (annValue next)
 
     promote' name next
+    rebalance next
 
     if null prev
         then log_ "No previous Group or Instances to demote."
@@ -327,13 +332,28 @@ promote _ c@Cluster{..} = do
         | otherwise
             = throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
 
+    rebalance next = do
+        let dns = Text.replace "_" "-" (envName <> "-" <> roleName)
+            dom = tagDomain $ annTags next
+        mb <- Balancer.find c
+        maybe (return ())
+              (\LoadBalancerDescription{..} -> do
+                   tgt <- noteAWS "Load Balancer doesn't contain a DNS entry."
+                       [lbdLoadBalancerName] lbdDNSName
+                   zid <- HZone.findId dom
+                   say "Assigning Record Set {}.{} to {}" [dns, dom, tgt]
+                   void $ RSet.set zid dns
+                       [ AliasRecordSet dns A (AliasTarget zid tgt False) Nothing
+                       ])
+              mb
+
     promote' name next = do
         say "Searching for Instances tagged with {}" [name]
         is <- map riitInstanceId <$>
             Instance.findAll [] [Tag.filter Tag.group [name]]
 
         say "Promoting Auto Scaling Group {}" [name]
-        ag <- sendAsync . CreateOrUpdateTags $ Members [reweight promoted next]
+        ag <- sendAsync $ CreateOrUpdateTags (Members [reweight promoted next])
 
         say "Promoting Instances: {}" [L is]
         ai <- sendAsync $ CreateTags is [ResourceTagSetItemType Tag.weight promoted]

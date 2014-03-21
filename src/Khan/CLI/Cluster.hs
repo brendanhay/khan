@@ -399,6 +399,8 @@ retire _ c@Cluster{..} = do
     dg <- async $ ASG.delete c >> Config.delete c
 
     mb <- Balancer.find c
+    db <- async $ Balancer.delete c
+
     maybe (return ())
           (\LoadBalancerDescription{..} -> do
                let dom = tagDomain (annTags ag)
@@ -406,11 +408,15 @@ retire _ c@Cluster{..} = do
                zid <- HZone.findId dom
                mr  <- RSet.find zid (match lbdDNSName dns)
                maybe (return ())
-                     (\r -> void $ RSet.modify zid [Change DeleteAction r])
+                     (\r -> do
+                          say "Deleting Record Set {} from Hosted Zone {}"
+                              [dns, unHostedZoneId zid]
+                          void $ RSet.modify zid [Change DeleteAction r])
                      mr)
           mb
 
     wait_ dg
+    wait_ db
   where
     match lb dns AliasRecordSet{..} = Just dns `cmp` Just rrsName
         && lb `cmp` Just (atDNSName rrsAliasTarget)

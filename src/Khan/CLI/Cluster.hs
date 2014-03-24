@@ -210,38 +210,40 @@ commands env = group "cluster" "Auto Scaling Groups." $ mconcat
 
 info :: Common -> Info -> AWS ()
 info Common{..} Info{..} = do
-    when iAll images
-    m <- instances
-    if null (Map.keys m)
-        then log_ "No Auto Scaling Groups found."
-        else groups m >> pLn
-  where
-    images = do
+    when iAll $ do
         say  "Searching for Images tagged with {}" [iRole]
         mapM_ (pPrint . overview) =<< Image.findAll []
             [ Tag.filter Tag.role [_role iRole]
             ]
 
-    instances = do
-        say "Searching for Instances tagged with {} and {}" [B iRole, B iEnv]
-        is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []
-            [ Tag.filter Tag.role [_role iRole]
-            , Tag.filter Tag.env  [_env  iEnv]
-            , ec2Filter "instance-state-name" states
-            , ec2Filter "tag-key" [Tag.group]
-            ]
-        return $ Map.fromListWith (<>) [(k, [v]) | (Just k, v) <- is]
+    say "Searching for Instances tagged with {} and {}" [B iRole, B iEnv]
+    ms <- Instance.findAll []
+        [ Tag.filter Tag.role [_role iRole]
+        , Tag.filter Tag.env  [_env  iEnv]
+        , ec2Filter "instance-state-name" states
+        , ec2Filter "tag-key" [Tag.group]
+        ]
 
+    let is = mapMaybe (fmap unwrap . Tag.annotate) ms
+        m  = Map.fromListWith (<>) [(k, [v]) | (Just k, v) <- is]
+
+    if null (Map.keys m)
+        then log_ "No Auto Scaling Groups found."
+        else groups m >> pLn
+  where
     states = ["pending", "running", "stopping", "shutting-down"]
     unwrap = (tagGroup . annTags *** annValue) . join (,)
 
-    groups m = ASG.findAll (Map.keys m) $$ Conduit.mapM_ $
-        \g@AutoScalingGroup{..} -> do
-            ag <- Tag.annotate g
-            xs <- mapM Tag.annotate =<<
+    groups m = ASG.findAll (Map.keys m)
+         $= Conduit.mapMaybe Tag.annotate
+         $$ Conduit.mapM_ $ \ag -> do
+            let AutoScalingGroup{..} = annValue ag
+
+            xs <- mapMaybe Tag.annotate <$>
                 noteAWS "Missing Auto Scaling Group entries: {}"
                     [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
+
             pPrint (overview ag)
 
             if null asgLoadBalancerNames
@@ -306,7 +308,7 @@ deploy Common{..} d@Deploy{..} = ensure >> create
 promote :: Common -> Cluster -> AWS ()
 promote _ c@Cluster{..} = do
     gs <- ASG.findAll []
-        $= Conduit.mapM Tag.annotate
+        $= Conduit.mapMaybe Tag.annotate
         $= Conduit.filter (matchTags . annTags)
         $$ Conduit.consume
 
@@ -392,9 +394,9 @@ scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
 retire :: Common -> Cluster -> AWS ()
 retire _ c@Cluster{..} = do
-    ag <- ASG.find c
-        >>= noteAWS "Unable to find Auto Scaling Group {}" [appName]
-        >>= Tag.annotate
+    ag <- ASG.find c >>= noteAWS "Unable to find Auto Scaling Group {}" [appName]
+        . join
+        . fmap Tag.annotate
 
     dg <- async $ ASG.delete c >> Config.delete c
 

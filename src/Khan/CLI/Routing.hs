@@ -61,7 +61,7 @@ instance Options Routes where
             then return $! r { rZones = zs, rTemplate = f }
             else do
                 iid      <- liftEitherT $ meta InstanceId
-                Tags{..} <- Tag.required iid
+                Tags{..} <- Tag.require iid
                 return $! r
                     { rDomain   = Just tagDomain
                     , rEnv      = tagEnv
@@ -85,7 +85,7 @@ commands env = command "routes" routes (routesParser env)
 routes :: Common -> Routes -> AWS ()
 routes Common{..} Routes{..} = do
     reg <- getRegion
-    is  <- mapM Tag.annotate =<< Instance.findAll [] (filters reg)
+    is  <- mapMaybe Tag.annotate <$> Instance.findAll [] (filters reg)
 
     let xs = [ mk a | a@Ann{..} <- is
              , tagWeight annTags >= rWeight

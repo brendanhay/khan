@@ -33,7 +33,7 @@ module Khan.Model.Tag
     , filter
 
     -- * Tags
-    , required
+    , require
     , instances
     , images
     , defaults
@@ -43,44 +43,35 @@ import           Control.Monad.Error
 import qualified Data.Attoparsec.Text  as AText
 import qualified Data.HashMap.Strict   as Map
 import           Data.SemVer
-import qualified Data.Text             as Text
 import           Khan.Internal         hiding (group)
 import           Khan.Model.Tag.Tagged
 import           Khan.Prelude          hiding (filter)
 import           Network.AWS
 import           Network.AWS.EC2
 
-annotate :: (Applicative m, MonadError AWSError m, Tagged a) => a -> m (Ann a)
+annotate :: Tagged a => a -> Maybe (Ann a)
 annotate x = Ann x <$> parse x
 
-parse :: (Applicative m, MonadError AWSError m, Tagged a) => a -> m Tags
+parse :: Tagged a => a -> Maybe Tags
 parse (tags -> ts) = Tags
-    <$> (newRole <$> require role ts)
-    <*> (newEnv  <$> require env ts)
-    <*> require domain ts
-    <*> pure (Map.lookup name ts)
-    <*> pure (lookupVersion ts)
-    <*> pure (lookupWeight ts)
-    <*> pure (Map.lookup group ts)
+    <$> (newRole <$> key role)
+    <*> (newEnv <$> key env)
+    <*> key domain
+    <*> pure (key name)
+    <*> pure lookupVersion
+    <*> pure lookupWeight
+    <*> pure (key group)
   where
-    require k m = hoistError . note (missing k m) $ Map.lookup k m
-
-    missing k m = Err
-        . Text.unpack
-        $ Text.concat ["No tag '", k, "' found in [", render m, "]"]
-
-    render = Text.intercalate ","
-        . map (\(k, v) -> Text.concat [k, "=", v])
-        . Map.toList
+    key k = Map.lookup k ts
 
     lookupVersion = join
         . fmap (hush . parseVersion)
-        . Map.lookup version
+        $ Map.lookup version ts
 
     lookupWeight = fromMaybe 0
         . join
         . fmap (hush . AText.parseOnly AText.decimal)
-        . Map.lookup weight
+        $ Map.lookup weight ts
 
 env, role, domain, name, version, weight, group :: Text
 env     = "Env"
@@ -94,10 +85,11 @@ group   = "aws:autoscaling:groupName"
 filter :: Text -> [Text] -> Filter
 filter k = ec2Filter ("tag:" <> k)
 
-required :: Text -> AWS Tags
-required iid = do
+require :: Text -> AWS Tags
+require iid = do
     say "Describing tags for Instance {}..." [iid]
-    send (DescribeTags [TagResourceId [iid]]) >>= parse
+    parse <$> send (DescribeTags [TagResourceId [iid]]) >>=
+        noteAWS "Unable to parse prerequisite tags for: {}" [iid]
 
 instances :: Naming a => a -> Text -> [Text] -> AWS ()
 instances n dom ids = do

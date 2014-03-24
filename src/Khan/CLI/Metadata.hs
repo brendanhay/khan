@@ -55,7 +55,7 @@ describe _ Describe{..} = do
 
     doc <- filtered <$> decode bs
     iid <- instanceId doc
-    ts  <- Tag.required iid
+    ts  <- Tag.require iid
 
     liftIO
         . LText.putStrLn

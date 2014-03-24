@@ -119,12 +119,12 @@ inventory Common{..} Inventory{..} = do
     debug_ "Writing inventory to stdout"
     unless iSilent . liftIO $ LBS.putStrLn j
   where
-    list = Instance.findAll [] [Tag.filter Tag.env [_env iEnv]] >>=
-        foldlM hosts Map.empty
+    list = foldl' hosts Map.empty <$>
+        Instance.findAll [] [Tag.filter Tag.env [_env iEnv]]
 
     hosts m RunningInstancesItemType{..} = case riitDnsName of
-        Nothing   -> return m
-        Just fqdn -> do
+        Nothing   -> m
+        Just fqdn -> fromMaybe m $ do
             t@Tags{..} <- Tag.parse riitTagSet
 
             let n@Names{..} = names t
@@ -132,7 +132,12 @@ inventory Common{..} Inventory{..} = do
                 update k    = Map.insertWith (<>) k (Set.singleton host)
 
             return $! foldl' (flip update) m
-                [roleName, envName, Text.pack $ show cRegion, "khan", tagDomain]
+                [ roleName
+                , envName
+                , Text.pack $ show cRegion
+                , "khan"
+                , tagDomain
+                ]
 
 playbook :: Common -> Ansible -> AWS ()
 playbook c a@Ansible{..} = ansible c $ a

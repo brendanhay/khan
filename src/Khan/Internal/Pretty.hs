@@ -67,7 +67,7 @@ import qualified Network.AWS.ELB              as ELB
 import qualified Network.AWS.IAM              as IAM
 import qualified Network.AWS.Route53          as R53
 import           Network.HTTP.Types           (urlDecode)
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
+import           Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 
 default (Doc)
 
@@ -418,7 +418,7 @@ instance Pretty R53.AliasTarget where
         , "->"
         , pretty atDNSName
         , " health:"
-        , bool atEvaluateTargetHealth
+        , PP.bool atEvaluateTargetHealth
         ]
 
 instance Pretty R53.ResourceRecords where

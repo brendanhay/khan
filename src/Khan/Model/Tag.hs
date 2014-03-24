@@ -40,13 +40,13 @@ module Khan.Model.Tag
     ) where
 
 import           Control.Monad.Error
-import qualified Data.Attoparsec.Text    as AText
-import qualified Data.HashMap.Strict     as Map
+import qualified Data.Attoparsec.Text  as AText
+import qualified Data.HashMap.Strict   as Map
 import           Data.SemVer
-import qualified Data.Text               as Text
-import           Khan.Internal           hiding (group)
-import           Khan.Model.Tag.Internal
-import           Khan.Prelude            hiding (filter)
+import qualified Data.Text             as Text
+import           Khan.Internal         hiding (group)
+import           Khan.Model.Tag.Tagged
+import           Khan.Prelude          hiding (filter)
 import           Network.AWS
 import           Network.AWS.EC2
 

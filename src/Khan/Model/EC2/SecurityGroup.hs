@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- Module      : Khan.Model.SecurityGroup
+-- Module      : Khan.Model.EC2.SecurityGroup
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -14,7 +14,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.SecurityGroup
+module Khan.Model.EC2.SecurityGroup
     (
     -- * SSH group enforcement
       sshGroup
@@ -24,19 +24,13 @@ module Khan.Model.SecurityGroup
     , create
     , delete
     , update
-
-    -- * IP permission parsing
-    , parseRule
     ) where
 
-import           Control.Monad
-import           Data.Attoparsec.Text
-import           Data.List            (sort)
-import qualified Data.Text            as Text
-import           Data.Tuple
-import           Khan.Internal
-import           Khan.Prelude         hiding (find, min, max)
-import           Network.AWS.EC2      hiding (Instance)
+import Control.Monad
+import Data.List       (sort)
+import Khan.Internal   hiding (Protocol(..))
+import Khan.Prelude    hiding (find, min, max)
+import Network.AWS.EC2 hiding (Instance)
 
 sshGroup :: Naming a => a -> AWS Bool
 sshGroup (names -> Names{..}) = update sshGroupName
@@ -46,10 +40,7 @@ sshGroup (names -> Names{..}) = update sshGroupName
 find :: Text -> AWS (Maybe SecurityGroupItemType)
 find name = do
     say "Searching for Security Group {}" [name]
-    mg <- groupMay <$> sendCatch (DescribeSecurityGroups [name] [] [])
-    when (isNothing mg) $
-         say "Unable to find Security Group {}" [name]
-    return mg
+    groupMay <$> sendCatch (DescribeSecurityGroups [name] [] [])
   where
     groupMay (Right x) = headMay . toList $ dshrSecurityGroupInfo x
     groupMay (Left  _) = Nothing
@@ -86,10 +77,10 @@ update name (sort -> rules) = do
         ps          = sort (gs sgitIpPermissions)
         (auth, rev) = diff rules ps
 
-    log "Updating Security Group {}..." [name]
+    say "Updating Security Group {}..." [name]
 
     liftM2 (||) (revoke sgitGroupId rev) (authorise sgitGroupId auth)
-        <* log "Security Group {} updated." [name]
+        <* say "Security Group {} updated." [name]
   where
     revoke gid xs
         | null xs   = return False
@@ -105,35 +96,3 @@ update name (sort -> rules) = do
             es <- sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing xs)
             verifyEC2 "InvalidPermission.Duplicate" es
             return $ isRight es
-
-parseRule :: String -> Either String IpPermissionType
-parseRule s = msg . parseOnly parser $ Text.pack s
-  where
-    msg = fmapL . const $
-        "expected: tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...], got: " ++ s
-
-    parser = do
-        p <- protocol
-        f <- decimal <* char ':'
-        t <- decimal <* char ':'
-        g <- sepBy1 (eitherP range group') (char ',')
-        return . uncurry (IpPermissionType p f t) . swap $ partitionEithers g
-
-    range = do
-        a <- takeTill (== '.') <* char '.'
-        b <- takeTill (== '.') <* char '.'
-        c <- takeTill (== '.') <* char '.'
-        d <- text
-        return . IpRange $ Text.intercalate "." [a, b, c, d]
-
-    group' = UserIdGroupPair Nothing Nothing <$> (Just <$> text)
-
-    text = Text.pack <$> many1 (satisfy $ notInClass ":|,")
-
-    protocol = do
-        p <- takeTill (== ':') <* char ':'
-        case p of
-            "tcp"  -> return TCP
-            "udp"  -> return UDP
-            "icmp" -> return ICMP
-            _      -> fail ""

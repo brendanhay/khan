@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
--- Module      : Khan.Model.Image
+-- Module      : Khan.Model.EC2.Image
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -13,14 +13,13 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.Image
+module Khan.Model.EC2.Image
     ( find
     , findAll
     , findAllCatch
     , create
     ) where
 
-import           Control.Concurrent (threadDelay)
 import           Control.Monad
 import qualified Data.Text          as Text
 import           Khan.Internal
@@ -33,8 +32,11 @@ find ids fs = findAll ids fs >>=
     hoistError . note "Failed to find any matching Images" . listToMaybe
 
 findAll :: [Text] -> [Filter] -> AWS [DescribeImagesResponseItemType]
-findAll ids fs = djImagesSet <$>
-    send (DescribeImages [] ids [] fs)
+findAll ids fs = do
+    if null ids
+        then log_ "Searching for Images..."
+        else say "Searching for Images {}" [L ids]
+    djImagesSet <$> send (DescribeImages [] ids [] fs)
 
 findAllCatch :: [Text]
              -> [Filter]
@@ -54,7 +56,7 @@ create (names -> n@Names{..}) i bs = do
     wait l img = do
         say "Waiting {} seconds for Image {} creation..."
             [show delay, Text.unpack img]
-        liftIO $ threadDelay delay
+        delaySeconds delay
         rs <- findAllCatch [img] []
         verifyEC2 "InvalidAMIID.NotFound" rs
         if pending (hush rs)
@@ -64,5 +66,5 @@ create (names -> n@Names{..}) i bs = do
     pending (Just (x:_)) = diritImageState x /= "available"
     pending _            = True
 
-    limit = 24 :: Int    -- 24 * 20 seconds = 8 minutes
-    delay = 1000000 * 20 -- 20 seconds
+    limit = 24 :: Int -- 24 * 20 seconds = 8 minutes
+    delay = 20        -- 20 seconds

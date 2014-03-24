@@ -18,8 +18,8 @@
 module Khan.CLI.Profile (commands) where
 
 import           Khan.Internal
-import           Khan.Model.Role (Paths(..))
-import qualified Khan.Model.Role as Role
+import           Khan.Model.IAM.Role (Paths(..))
+import qualified Khan.Model.IAM.Role as Role
 import           Khan.Prelude
 import           Network.AWS.IAM hiding (Role)
 

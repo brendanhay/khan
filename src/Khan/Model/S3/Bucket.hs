@@ -3,7 +3,7 @@
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- Module      : Khan.Model.Bucket
+-- Module      : Khan.Model.S3.Bucket
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
 -- License     : This Source Code Form is subject to the terms of
 --               the Mozilla Public License, v. 2.0.
@@ -13,7 +13,7 @@
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-module Khan.Model.Bucket
+module Khan.Model.S3.Bucket
     ( download
     , prune
     ) where
@@ -28,7 +28,7 @@ import           Data.SemVer
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
-import qualified Khan.Model.Object         as Object
+import qualified Khan.Model.S3.Object      as Object
 import           Khan.Prelude
 import           Network.AWS.S3
 import qualified Shelly                    as Shell

@@ -15,24 +15,24 @@
 
 module Khan.CLI.Image (commands) where
 
-import qualified Data.Aeson                  as Aeson
-import qualified Data.ByteString.Lazy.Char8  as LBS
+import qualified Data.Aeson                      as Aeson
+import qualified Data.ByteString.Lazy.Char8      as LBS
 import           Data.SemVer
-import qualified Data.Text                   as Text
-import qualified Filesystem.Path.CurrentOS   as Path
-import           Khan.CLI.Ansible            (Ansible(..), playbook)
+import qualified Data.Text                       as Text
+import qualified Filesystem.Path.CurrentOS       as Path
+import           Khan.CLI.Ansible                (Ansible(..), playbook)
 import           Khan.Internal
 import           Khan.Model.Ansible
-import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as Image
-import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.Role          as Role
-import qualified Khan.Model.SSH              as SSH
-import qualified Khan.Model.SecurityGroup    as Security
+import qualified Khan.Model.EC2.AvailabilityZone as AZ
+import qualified Khan.Model.EC2.Image            as Image
+import qualified Khan.Model.EC2.Instance         as Instance
+import qualified Khan.Model.EC2.SecurityGroup    as Security
+import qualified Khan.Model.IAM.Role             as Role
+import qualified Khan.Model.Key                  as Key
+import qualified Khan.Model.SSH                  as SSH
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2             hiding (Failed, Image)
+import           Network.AWS.EC2                 hiding (Failed, Image)
 
 data Image = Image
     { iRKeys    :: !RKeysBucket
@@ -104,10 +104,10 @@ image c@Common{..} d@Image{..} = do
     unless (null as) $
         throwAWS "Image {} already exists, exiting..." [imageName]
 
-    say "Looking for base Images matching {}" [iImage]
+    say "Searching for base Images matching {}" [iImage]
     a <- async $ Image.find [iImage] []
 
-    say "Looking for IAM Profile matching {}" [profileName]
+    say "Searching for IAM Profile matching {}" [profileName]
     i <- async $ Role.find d
 
     ami <- diritImageId <$> wait a

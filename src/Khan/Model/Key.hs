@@ -23,7 +23,7 @@ import qualified Data.Text                 as Text
 import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
-import qualified Khan.Model.Object         as Object
+import qualified Khan.Model.S3.Object      as Object
 import           Khan.Prelude              hiding (min, max)
 import           Network.AWS.EC2           hiding (Instance)
 import qualified Shelly                    as Shell

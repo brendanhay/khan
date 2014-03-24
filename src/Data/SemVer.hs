@@ -1,4 +1,6 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 
 -- Module      : Data.SemVer
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -23,6 +25,7 @@ module Data.SemVer
 
     , newVersion
     , showVersion
+    , alphaVersion
     , parseVersion
 
     , parseFileName
@@ -39,10 +42,18 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Data.Text.Buildable
 import qualified Data.Text.Lazy             as LText
+import           Data.Text.Lazy.Builder     (Builder)
 import qualified Data.Text.Lazy.Builder     as Build
 import qualified Data.Text.Lazy.Builder.Int as Build
 import qualified Filesystem.Path.CurrentOS  as Path
 import           Prelude                    hiding (takeWhile)
+
+data Sep = Sep
+    { sepMinor   :: !Builder
+    , sepPatch   :: !Builder
+    , sepRelease :: !Builder
+    , sepMeta    :: !Builder
+    }
 
 data Version = Version
     { versionMajor   :: !Int
@@ -65,17 +76,39 @@ instance ToJSON Version where
     toJSON = toJSON . showVersion
 
 instance Buildable Version where
-    build Version{..} = mconcat
+    build = build . (sep,)
+      where
+        sep = Sep
+            { sepMinor   = Build.singleton '.'
+            , sepPatch   = Build.singleton '.'
+            , sepRelease = Build.singleton '-'
+            , sepMeta    = Build.singleton '+'
+            }
+
+instance Buildable (Sep, Version) where
+    build (Sep{..}, Version{..}) = mconcat
         [ Build.decimal versionMajor
-        , Build.singleton '.'
+        , sepMinor
         , Build.decimal versionMinor
-        , Build.singleton '.'
+        , sepPatch
         , Build.decimal versionPatch
-        , f '-' versionRelease
-        , f '+' versionMeta
+        , f sepRelease versionRelease
+        , f sepMeta versionMeta
         ]
       where
-        f c = maybe mempty (mappend (Build.singleton c) . Build.fromText)
+        f b = maybe mempty (mappend b . Build.fromText)
+
+newtype Alpha = Alpha { unAlpha :: Version }
+
+instance Buildable Alpha where
+    build = build . (sep,) . unAlpha
+      where
+        sep = Sep
+            { sepMinor   = Build.singleton 'm'
+            , sepPatch   = Build.singleton 'p'
+            , sepRelease = Build.singleton 'r'
+            , sepMeta    = Build.singleton 'b'
+            }
 
 bumpMajor :: Version -> Version
 bumpMajor v = v { versionMajor = versionMajor v + 1 }
@@ -91,6 +124,9 @@ newVersion ma mi p = Version ma mi p Nothing Nothing
 
 showVersion :: Version -> Text
 showVersion = LText.toStrict . Build.toLazyText . build
+
+alphaVersion :: Version -> Text
+alphaVersion = LText.toStrict . Build.toLazyText . build . Alpha
 
 parseVersion :: Text -> Either String Version
 parseVersion = parseOnly version

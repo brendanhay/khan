@@ -33,7 +33,7 @@ import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal
 import           Khan.Model.Ansible
-import qualified Khan.Model.Instance        as Instance
+import qualified Khan.Model.EC2.Instance    as Instance
 import qualified Khan.Model.Key             as Key
 import qualified Khan.Model.Tag             as Tag
 import           Khan.Prelude

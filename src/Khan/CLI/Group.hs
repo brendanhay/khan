@@ -17,7 +17,7 @@ module Khan.CLI.Group (commands) where
 
 import           Khan.Internal
 import           Khan.Model.Ansible
-import qualified Khan.Model.SecurityGroup as Security
+import qualified Khan.Model.EC2.SecurityGroup as Security
 import           Khan.Prelude
 import           Network.AWS.EC2
 
@@ -51,7 +51,7 @@ updateParser :: EnvMap -> Parser Update
 updateParser env = Update
     <$> roleOption
     <*> envOption env
-    <*> many (customOption "rule" "RULE" Security.parseRule mempty
+    <*> many (customOption "rule" "RULE" parseString mempty
         "tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...]")
     <*> ansibleOption
 

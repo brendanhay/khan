@@ -47,7 +47,7 @@ import           Data.Aeson
 import qualified Data.Aeson.Encode.Pretty     as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LBS
 import           Data.List                    (sort)
-import           Data.Proxy
+import           Data.Proxy                   (Proxy(..))
 import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
@@ -63,10 +63,11 @@ import           Khan.Prelude
 import           Network.AWS
 import qualified Network.AWS.AutoScaling      as ASG
 import qualified Network.AWS.EC2              as EC2
+import qualified Network.AWS.ELB              as ELB
 import qualified Network.AWS.IAM              as IAM
 import qualified Network.AWS.Route53          as R53
 import           Network.HTTP.Types           (urlDecode)
-import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>))
+import           Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 
 default (Doc)
 
@@ -138,6 +139,16 @@ hcols w = indent 1 . hsep . cols w
 
 vrow :: Pretty a => Int -> a -> Doc
 vrow w = indent 1 . fill w . bold . pretty
+
+instance Header ELB.LoadBalancerDescription where
+    header _ = hcols 20
+        [ H "dns:"
+        ]
+
+instance Body ELB.LoadBalancerDescription where
+    body ELB.LoadBalancerDescription{..} = hcols 20
+        [ C (fromMaybe "<blank>" lbdDNSName)
+        ]
 
 instance Title ASG.AutoScalingGroup where
     title ASG.AutoScalingGroup{..} = title asgAutoScalingGroupName
@@ -250,8 +261,25 @@ instance Body IAM.GetRolePolicyResult where
     body IAM.GetRolePolicyResult{..} = vrow 23 "policy-document:" <+>
         (pretty . prettyJSON $ decodeURL grprPolicyDocument)
 
+instance Title IAM.ServerCertificateMetadata where
+    title = title . IAM.scmServerCertificateName
+
+instance Header IAM.ServerCertificateMetadata where
+    header _ = hcols 19
+        [ W 59 (H "arn:")
+        , W 22 (H "id:")
+        , H "uploaded-at:"
+        ]
+
+instance Body IAM.ServerCertificateMetadata where
+    body IAM.ServerCertificateMetadata{..} = hcols 19
+        [ W 59 (C scmArn)
+        , W 22 (C scmServerCertificateId)
+        , C scmUploadDate
+        ]
+
 instance Title R53.HostedZone where
-    title R53.HostedZone{..} = title hzName
+    title = title . R53.hzName
 
 instance Header R53.HostedZone where
     header _ = hcols 10
@@ -390,7 +418,7 @@ instance Pretty R53.AliasTarget where
         , "->"
         , pretty atDNSName
         , " health:"
-        , bool atEvaluateTargetHealth
+        , PP.bool atEvaluateTargetHealth
         ]
 
 instance Pretty R53.ResourceRecords where
@@ -408,8 +436,20 @@ instance Pretty Env where
 instance Pretty Role where
     pretty = pretty . _role
 
+instance Pretty Protocol where
+    pretty = text . show
+
+instance Pretty Frontend where
+    pretty (FE s p) = "frontend/" <> pretty s <> ":" <> pretty p
+
+instance Pretty Backend where
+    pretty (BE s p c) = "backend/" <> pretty s <> ":" <> pretty p <> pretty c
+
 prettyJSON :: ToJSON a => Maybe a -> Text
 prettyJSON = Text.decodeUtf8 . LBS.toStrict . maybe "" Aeson.encodePretty
 
 decodeURL :: Text -> Maybe Object
 decodeURL = decode . LBS.fromStrict . urlDecode True . Text.encodeUtf8
+
+reproxy :: proxy s -> Proxy t
+reproxy _ = Proxy

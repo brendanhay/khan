@@ -48,8 +48,7 @@ instance Pretty Color where
     pretty (G x)  = green (pretty x)
     pretty (B x)  = bold  (pretty x)
     pretty (P x)  = pretty x
-    pretty (L xs) = line <>
-        vcat (map ((" - " <>) . pretty) xs)
+    pretty (L xs) = (line <>) . vsep $ map ((" - " <>) . pretty) xs
 
 instance Buildable Color where
     build = fromString . show . pretty

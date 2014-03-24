@@ -11,11 +11,11 @@ build:
 	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS))) && cp -f $(BIN) .
 
 strip: build
-	strip -p --strip-unneeded --remove-section=.comment -o dist/khan $(BIN) && \
+	strip -o dist/khan $(BIN) && \
 	 upx dist/khan
 
 install: cabal.sandbox.config add-sources
-	cabal install -flib-only -j $(FLAGS)
+	cabal install -j $(FLAGS) --only-dependencies && $(MAKE) build
 
 clean:
 	-rm -rf dist cabal.sandbox.config .cabal-sandbox

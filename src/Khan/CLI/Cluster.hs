@@ -16,27 +16,32 @@
 module Khan.CLI.Cluster (commands) where
 
 import           Control.Arrow
-import           Control.Concurrent          (threadDelay)
 import           Data.Conduit
-import qualified Data.Conduit.List           as Conduit
-import qualified Data.HashMap.Strict         as Map
-import           Data.List                   (partition)
+import qualified Data.Conduit.List                   as Conduit
+import qualified Data.HashMap.Strict                 as Map
+import           Data.List                           (partition)
 import           Data.SemVer
 import           Khan.Internal
-import qualified Khan.Model.AvailabilityZone as AZ
-import qualified Khan.Model.Image            as Image
-import qualified Khan.Model.Instance         as Instance
-import qualified Khan.Model.Key              as Key
-import qualified Khan.Model.LaunchConfig     as Config
-import           Khan.Model.Role             (Paths(..))
-import qualified Khan.Model.Role             as Role
-import qualified Khan.Model.ScalingGroup     as ASG
-import qualified Khan.Model.SecurityGroup    as Security
-import qualified Khan.Model.Tag              as Tag
+import qualified Khan.Model.AutoScaling.LaunchConfig as Config
+import qualified Khan.Model.AutoScaling.ScalingGroup as ASG
+import qualified Khan.Model.EC2.AvailabilityZone     as AZ
+import qualified Khan.Model.EC2.Image                as Image
+import qualified Khan.Model.EC2.Instance             as Instance
+import qualified Khan.Model.EC2.SecurityGroup        as Security
+import qualified Khan.Model.ELB.LoadBalancer         as Balancer
+import           Khan.Model.IAM.Role                 (Paths(..))
+import qualified Khan.Model.IAM.Role                 as Role
+import qualified Khan.Model.IAM.ServerCertificate    as Cert
+import qualified Khan.Model.Key                      as Key
+import qualified Khan.Model.R53.HostedZone           as HZone
+import qualified Khan.Model.R53.RecordSet            as RSet
+import qualified Khan.Model.Tag                      as Tag
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.AutoScaling     hiding (Filter)
-import           Network.AWS.EC2             hiding (Filter)
+import           Network.AWS.AutoScaling             hiding (Filter)
+import           Network.AWS.EC2                     hiding (Filter)
+import           Network.AWS.ELB
+import           Network.AWS.Route53                 hiding (Protocol(..))
 
 data Info = Info
     { iRole :: !Role
@@ -73,6 +78,9 @@ data Deploy = Deploy
     , dType     :: !InstanceType
     , dTrust    :: !TrustPath
     , dPolicy   :: !PolicyPath
+    , dBalance  :: !Bool
+    , dFrontend :: !Frontend
+    , dBackend  :: !Backend
     }
 
 deployParser :: EnvMap -> Parser Deploy
@@ -99,6 +107,12 @@ deployParser env = Deploy
         "Instance Type to provision when auto scaling occurs."
     <*> trustOption
     <*> policyOption
+    <*> switchOption "elb" False
+        "Create and assign an Elastic Load Balancer to the cluster."
+    <*> customOption "frontend" "FE" parseString (value $ FE HTTPS 443)
+        "Frontend shizzle."
+    <*> customOption "backend" "BE" parseString (value $ BE HTTP 8080 "/i/status")
+        "Backend shizzle."
 
 instance Options Deploy where
     discover _ Common{..} d@Deploy{..} = do
@@ -203,13 +217,13 @@ info Common{..} Info{..} = do
         else groups m >> pLn
   where
     images = do
-        say  "Looking for Images tagged with {}" [iRole]
+        say  "Searching for Images tagged with {}" [iRole]
         mapM_ (pPrint . overview) =<< Image.findAll []
             [ Tag.filter Tag.role [_role iRole]
             ]
 
     instances = do
-        say "Looking for Instances tagged with {} and {}" [B iRole, B iEnv]
+        say "Searching for Instances tagged with {} and {}" [B iRole, B iEnv]
         is <- mapM (fmap unwrap . Tag.annotate) =<< Instance.findAll []
             [ Tag.filter Tag.role [_role iRole]
             , Tag.filter Tag.env  [_env  iEnv]
@@ -229,42 +243,61 @@ info Common{..} Info{..} = do
                     [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
             pPrint (overview ag)
+
+            if null asgLoadBalancerNames
+               then log_ "No associated Elastic Load Balancers found."
+               else do
+                   bs <- Balancer.findAll asgLoadBalancerNames
+                      $$ Conduit.consume
+                   pPrint $ header (Proxy :: Proxy LoadBalancerDescription)
+                        <-> body bs
+
             if null xs
-               then log_ "No Auto Scaling Instances found."
+               then log_ "No associated Auto Scaling Instances found."
                else pPrint $ header (Proxy :: Proxy RunningInstancesItemType)
                          <-> body xs
 
 deploy :: Common -> Deploy -> AWS ()
-deploy c@Common{..} d@Deploy{..} = ensure >> create
+deploy Common{..} d@Deploy{..} = ensure >> create
   where
     ensure = do
         g <- ASG.find d
         when (Just "Delete in progress" == join (asgStatus <$> g)) $ do
             say "Waiting for previous deletion of Auto Scaling Group {}"
                 [appName]
-            liftIO . threadDelay $ 10 * 1000000
+            delaySeconds 10
             ensure
-        when (isJust g) $
-            throwAWS "Auto Scaling Group {} already exists." [B appName]
 
     create = do
         k <- async $ Key.create dRKeys d cLKeys
         p <- async $ Role.find d <|> Role.update d dTrust dPolicy
-        s <- async $ Security.sshGroup d
         g <- async $ Security.create groupName
+        s <- async $ Security.sshGroup d
         a <- async $ Image.find [] [ec2Filter "name" [imageName]]
 
         wait_ k
         wait_ p <* say "Found IAM Profile {}" [profileName]
-        wait_ s <* say "Found SSH Group {}" [sshGroupName]
         wait_ g <* say "Found App Group {}" [groupName]
+        wait_ s <* say "Found SSH Group {}" [sshGroupName]
 
         ami <- diritImageId <$> wait a
         say "Found AMI {} named {}" [ami, imageName]
 
-        Config.create d ami dType
+        when dBalance balance
 
-        ASG.create d dDomain zones dCooldown dDesired dGrace dMin dMax
+        Config.create d ami dType
+        ASG.create d dBalance dDomain zones dCooldown dDesired dGrace dMin dMax
+
+    balance = do
+        s <- async $ Cert.find dDomain
+        b <- async $ Balancer.find d
+
+        c <- wait s >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
+        m <- wait b
+
+        if isJust m
+            then say "Load Balancer {} already exists." [B balancerName]
+            else Balancer.create d zones dFrontend dBackend c
 
     Names{..} = names d
 
@@ -282,6 +315,7 @@ promote _ c@Cluster{..} = do
     let name = asgAutoScalingGroupName (annValue next)
 
     promote' name next
+    rebalance next
 
     if null prev
         then log_ "No previous Group or Instances to demote."
@@ -297,13 +331,30 @@ promote _ c@Cluster{..} = do
         | otherwise
             = throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
 
+    rebalance next = do
+        let dom  = tagDomain $ annTags next
+            fqdn = dnsName <> "." <> dom
+        mb <- Balancer.find c
+        maybe (return ())
+              (\LoadBalancerDescription{..} -> do
+                   tgt <- noteAWS "Load Balancer {} doesn't contain a DNS entry."
+                       [lbdLoadBalancerName] lbdDNSName
+                   cid <- noteAWS "Load Balancer doesn't contain a Hosted Zone."
+                       [lbdLoadBalancerName] lbdCanonicalHostedZoneNameID
+                   zid <- HZone.findId dom
+                   say "Assigning Record Set {} to {}" [fqdn, tgt]
+                   void $ RSet.set zid dnsName
+                       [ AliasRecordSet fqdn A (AliasTarget (hostedZoneId cid) tgt False) Nothing
+                       ])
+              mb
+
     promote' name next = do
-        say "Looking for Instances tagged with {}" [name]
+        say "Searching for Instances tagged with {}" [name]
         is <- map riitInstanceId <$>
             Instance.findAll [] [Tag.filter Tag.group [name]]
 
         say "Promoting Auto Scaling Group {}" [name]
-        ag <- sendAsync . CreateOrUpdateTags $ Members [reweight promoted next]
+        ag <- sendAsync $ CreateOrUpdateTags (Members [reweight promoted next])
 
         say "Promoting Instances: {}" [L is]
         ai <- sendAsync $ CreateTags is [ResourceTagSetItemType Tag.weight promoted]
@@ -318,7 +369,7 @@ promote _ c@Cluster{..} = do
             Members (map (reweight demoted) prev)
 
         as <- forM prev $ \(Ann AutoScalingGroup{..} _) -> async $ do
-            say "Looking for Instances tagged with {}" [asgAutoScalingGroupName]
+            say "Searching for Instances tagged with {}" [asgAutoScalingGroupName]
             is <- map riitInstanceId <$> Instance.findAll []
                 [ Tag.filter Tag.group [asgAutoScalingGroupName]
                 ]
@@ -339,6 +390,38 @@ promote _ c@Cluster{..} = do
 scale :: Common -> Scale -> AWS ()
 scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
 
--- FIXME: Ensure the cluster is not currently the _only_ promoted one.
 retire :: Common -> Cluster -> AWS ()
-retire _ c = ASG.delete c >> Config.delete c
+retire _ c@Cluster{..} = do
+    ag <- ASG.find c
+        >>= noteAWS "Unable to find Auto Scaling Group {}" [appName]
+        >>= Tag.annotate
+
+    dg <- async $ ASG.delete c >> Config.delete c
+
+    mb <- Balancer.find c
+    db <- async $ Balancer.delete c
+
+    maybe (return ())
+          (\LoadBalancerDescription{..} -> do
+               let dom = tagDomain (annTags ag)
+                   dns = dnsName <> "." <> dom
+               zid <- HZone.findId dom
+               mr  <- RSet.find zid (match lbdDNSName dns)
+               maybe (return ())
+                     (\r -> do
+                          say "Deleting Record Set {} from Hosted Zone {}"
+                              [dns, unHostedZoneId zid]
+                          void $ RSet.modify zid [Change DeleteAction r])
+                     mr)
+          mb
+
+    wait_ dg
+    wait_ db
+  where
+    match lb dns AliasRecordSet{..} = Just dns `cmp` Just rrsName
+        && lb `cmp` Just (atDNSName rrsAliasTarget)
+    match _ _ _ = False
+
+    cmp a b = (stripText "." <$> a) == (stripText "." <$> b)
+
+    Names{..} = names c

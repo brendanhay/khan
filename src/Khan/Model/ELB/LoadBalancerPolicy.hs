@@ -25,7 +25,7 @@ import Network.AWS.ELB
 create :: Naming a => a -> AWS ()
 create (names -> Names{..}) = do
     say "Creating Load Balancer Policy {}" [balancerName]
-    send_ $ CreateLoadBalancerPolicy
+    send_ CreateLoadBalancerPolicy
         { clbpLoadBalancerName = balancerName
         , clbpPolicyName       = balancerName
         , clbpPolicyTypeName   = "SSLNegotiationPolicyType"
@@ -38,7 +38,7 @@ create (names -> Names{..}) = do
 assign :: Naming a => a -> Frontend -> AWS ()
 assign (names -> Names{..}) fe = do
     say "Assigning Policy {} on Port {}" [B balancerName, B $ port fe]
-    send_ $ SetLoadBalancerPoliciesOfListener
+    send_ SetLoadBalancerPoliciesOfListener
         { slbpolLoadBalancerName = balancerName
         , slbpolLoadBalancerPort = port fe
         , slbpolPolicyNames      = Members [balancerName]

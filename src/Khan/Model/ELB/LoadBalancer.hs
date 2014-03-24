@@ -58,7 +58,7 @@ create :: Naming a
        -> AWS ()
 create (names -> n@Names{..}) zones fe be cert = do
     say "Creating Load Balancer {}: {} -> {}" [B balancerName, B fe, B be]
-    b <- send $ CreateLoadBalancer
+    b <- send CreateLoadBalancer
         { clbAvailabilityZones = Members zones
         , clbListeners         = Members [listener]
         , clbLoadBalancerName  = balancerName

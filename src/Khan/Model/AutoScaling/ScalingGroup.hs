@@ -56,7 +56,7 @@ create :: Naming a
        -> AWS ()
 create (names -> n@Names{..}) elb dom zones cool desired grace min max = do
     say "Creating Auto Scaling Group {}" [appName]
-    send_ $ CreateAutoScalingGroup
+    send_ CreateAutoScalingGroup
         { casgAutoScalingGroupName    = appName
         , casgLaunchConfigurationName = appName
         , casgAvailabilityZones       = Members zones

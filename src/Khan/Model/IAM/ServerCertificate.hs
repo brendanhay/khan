@@ -1,7 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.Model.IAM.ServerCertificate
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -44,7 +42,7 @@ upload dom pubp privp chainp = do
              <*> loadKey privp "Reading private key from {}"
              <*> loadChain chainp
     say "Upload Certificate {}" [dom]
-    send_ $ UploadServerCertificate
+    send_ UploadServerCertificate
         { uscCertificateBody       = pub
         , uscPrivateKey            = priv
         , uscCertificateChain      = chain

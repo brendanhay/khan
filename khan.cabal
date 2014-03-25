@@ -113,7 +113,7 @@ library
       , unordered-containers
       , wl-pprint-text
 
-    if impl(ghc>=7.7)
+    if impl(ghc < 7.7)
        build-depends: tagged
 
 executable khan

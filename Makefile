@@ -1,24 +1,21 @@
-SHELL := /usr/bin/env bash
-FLAGS := --disable-documentation --disable-library-coverage
-BIN   := dist/build/khan/khan
-DEPS  := vendor/amazonka vendor/ede
+SHELL        := /usr/bin/env bash
+NAME         := khan
+VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
+BUILD_NUMBER ?= 0
+DEB          := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
+FLAGS        := --disable-documentation --disable-library-coverage
+DEPS         := vendor/amazonka vendor/ede
+BIN          := dist/build/$(NAME)/$(NAME)
+OUT          := dist/$(NAME)
 
-.PHONY: test lint doc
+.PHONY: $(BIN) clean test lint
 
-all: build
+all: deps $(NAME)
 
-build:
-	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS))) && cp -f $(BIN) .
-
-strip: build
-	strip -o dist/khan $(BIN) && \
-	 upx dist/khan
-
-install: cabal.sandbox.config add-sources
-	cabal install -j $(FLAGS) --only-dependencies && $(MAKE) build
+dist: deps dist/$(DEB)
 
 clean:
-	-rm -rf dist cabal.sandbox.config .cabal-sandbox
+	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT)
 	cabal clean
 
 test:
@@ -27,8 +24,25 @@ test:
 lint:
 	hlint src
 
-doc:
-	cabal haddock
+$(NAME): $(BIN)
+	ln -fs $< $@
+
+$(BIN):
+	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS)))
+
+$(OUT): $(BIN)
+	strip -o $(OUT) $< && upx $<
+
+%.deb: $(OUT)
+	makedeb --name=$(NAME) \
+	 --version=$(VERSION) \
+	 --debian-dir=deb \
+	 --build=$(BUILD_NUMBER) \
+	 --architecture=amd64 \
+	 --output-dir=dist
+
+deps: add-sources
+	cabal install -j $(FLAGS) --only-dependencies
 
 add-sources: cabal.sandbox.config $(DEPS)
 	cabal sandbox add-source vendor/amazonka

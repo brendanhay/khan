@@ -52,4 +52,4 @@ cabal.sandbox.config:
 	cabal sandbox init
 
 vendor/%:
-	git clone git@github.com:brendanhay/$*.git $@
+	git clone https://github.com/brendanhay/$*.git $@

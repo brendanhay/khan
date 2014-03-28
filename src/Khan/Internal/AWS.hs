@@ -27,6 +27,7 @@ module Khan.Internal.AWS
     , contextAWS
 
     -- * Region
+    , regionName
     , abbreviate
 
     -- * Errors
@@ -43,6 +44,7 @@ module Khan.Internal.AWS
     ) where
 
 import           Control.Monad.Error
+import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
 import           Data.Text.Format          (Format, format)
 import           Data.Text.Format.Params
@@ -70,6 +72,9 @@ meta = fmap Text.decodeUtf8 . Meta.meta
 
 contextAWS :: MonadIO m => Common -> AWS a -> m (Either AWSError a)
 contextAWS Common{..} = liftIO . runAWS AuthDiscover cDebug . within cRegion
+
+regionName :: AWS Text
+regionName = Text.pack . show <$> getRegion
 
 abbreviate :: Region -> Text
 abbreviate NorthVirginia   = "va"

@@ -20,12 +20,13 @@ module Khan.Model.EC2.Instance
     , wait
     ) where
 
-import Control.Arrow      ((***))
-import Control.Monad
-import Data.List          (partition)
-import Khan.Internal
-import Khan.Prelude       hiding (min, max)
-import Network.AWS.EC2    hiding (Instance, wait)
+import           Control.Arrow                ((***))
+import           Control.Monad
+import           Data.List                    (partition)
+import           Khan.Internal
+import qualified Khan.Model.EC2.SecurityGroup as Security
+import           Khan.Prelude                 hiding (min, max)
+import           Network.AWS.EC2              hiding (Instance, wait)
 
 findAll :: [Text] -> [Filter] -> AWS [RunningInstancesItemType]
 findAll ids = fmap (concatMap ritInstancesSet . dirReservationSet) .
@@ -40,15 +41,16 @@ run :: Naming a
     -> Integer
     -> Bool
     -> AWS [RunningInstancesItemType]
-run (names -> Names{..}) image typ az min max opt = do
+run (names -> n@Names{..}) image typ az min max opt = do
     say "Running [{}..{}] Instances in {}" [B min, B max, B az]
+    gs <- Security.defaults n
     fmap rirInstancesSet . send $ RunInstances
         { riImageId                           = image
         , riMinCount                          = min
         , riMaxCount                          = max
         , riKeyName                           = Just keyName
         , riSecurityGroupId                   = []
-        , riSecurityGroup                     = [groupName, sshGroupName]
+        , riSecurityGroup                     = gs
         , riUserData                          = Nothing
         , riInstanceType                      = Just typ
         , riPlacement                         = Just place

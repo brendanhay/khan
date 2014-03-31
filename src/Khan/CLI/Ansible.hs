@@ -119,30 +119,33 @@ inventory Common{..} Inventory{..} = do
     debug_ "Writing inventory to stdout"
     unless iSilent . liftIO $ LBS.putStrLn j
   where
-    list = foldl' hosts Map.empty <$>
-        Instance.findAll [] [Tag.filter Tag.env [_env iEnv]]
+    list = localhost . foldl' hosts Map.empty <$> instances
 
-    hosts m RunningInstancesItemType{..} = case riitDnsName of
-        Nothing   -> m
-        Just fqdn -> fromMaybe m $ do
-            t@Tags{..} <- Tag.parse riitTagSet
+    instances = Instance.findAll [] [Tag.filter Tag.env [_env iEnv]]
+    localhost = Map.insert "localhost" (Set.singleton $ Localhost cRegion)
 
-            let n@Names{..} = names t
-                host        = Host fqdn tagDomain n cRegion
-                update k    = Map.insertWith (<>) k (Set.singleton host)
+    hosts m RunningInstancesItemType{..} =
+        case riitDnsName of
+            Nothing   -> m
+            Just fqdn -> fromMaybe m $ do
+                t@Tags{..} <- Tag.parse riitTagSet
 
-            return $! foldl' (flip update) m
-                [ roleName
-                , envName
-                , Text.pack $ show cRegion
-                , "khan"
-                , tagDomain
-                ]
+                let n@Names{..} = names t
+                    host        = Host fqdn tagDomain n cRegion
+                    update k    = Map.insertWith (<>) k (Set.singleton host)
+
+                return $! foldl' (flip update) m
+                    [ roleName
+                    , envName
+                    , Text.pack $ show cRegion
+                    , "khan"
+                    , tagDomain
+                    ]
 
 playbook :: Common -> Ansible -> AWS ()
 playbook c a@Ansible{..} = ansible c $ a
     { aBin  = aBin `mplus` Just "ansible-playbook"
-    , aArgs = extraVars a (cRegion c) aArgs
+    , aArgs = overrides a aArgs
     }
 
 ansible :: Common -> Ansible -> AWS ()

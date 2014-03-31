@@ -34,7 +34,7 @@ module Khan.Model.Ansible
 
     -- * CLI arguments
     , (+$+)
-    , extraVars
+    , overrides
     ) where
 
 import           Control.Monad.Error
@@ -97,21 +97,11 @@ inventoryPath (CacheDir dir) env = do
     r <- Text.pack . show <$> getRegion
     return $ dir </> Path.fromText (Text.concat [r, "_", _env env])
 
-extraVars :: Naming a => a -> Region -> [String] -> [String]
-extraVars (names -> Names{..}) reg = (+$+ [("--extra-vars", vars)])
+overrides :: Naming a => a -> [String] -> [String]
+overrides (names -> n) = (+$+ [("--extra-vars", Text.unpack quoted)])
   where
-    vars = concat
-        [ "'"
-        , "khan_region="
-        , show reg
-        , " khan_region_abbrev="
-        , Text.unpack (abbreviate reg)
-        , " khan_env="
-        , Text.unpack envName
-        , " khan_key="
-        , Text.unpack keyName
-        , "'"
-        ]
+    quoted = "'" <> Text.intercalate " " vars <> "'"
+    vars   = map (\(k, v) -> k <> "=" <> v) (extraVars n)
 
 (+$+) :: [String] -> [(String, String)] -> [String]
 (+$+) args extras = args ++ foldr' add [] extras

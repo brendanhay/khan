@@ -49,11 +49,12 @@ module Khan.Internal.Types
 
    -- * Ghetto lenses
    , protocol
-   , protocolToText
    , port
    , healthCheck
 
    -- * Text helpers
+   , protocolToText
+   , regionToText
    , stripText
    ) where
 
@@ -317,7 +318,11 @@ healthCheck (BE s p c) = LText.toStrict
 protocolToText :: Listener a => a -> Text
 protocolToText = Text.toLower . Text.pack . show . protocol
 
+regionToText :: Region -> Text
+regionToText = Text.pack . show
+
 stripText :: Text -> Text -> Text
 stripText x y =
     let z = fromMaybe y $ Text.stripPrefix x y
      in fromMaybe z $ Text.stripSuffix x z
+

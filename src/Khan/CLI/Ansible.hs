@@ -137,7 +137,7 @@ inventory Common{..} Inventory{..} = do
                 return $! foldl' (flip update) m
                     [ roleName
                     , envName
-                    , Text.pack $ show cRegion
+                    , textToRegion cRegion
                     , "khan"
                     , tagDomain
                     ]

@@ -176,7 +176,9 @@ ansible c@Common{..} a@Ansible{..} = do
         IO.hSetBuffering IO.stdout IO.LineBuffering
         IO.hSetBuffering IO.stderr IO.LineBuffering
 
-    let cmd = unwords ["ANSIBLE_FORCE_COLOR=1", unwords (bin : args k script)]
+    let cmd = unwords [ "ANSIBLE_FORCE_COLOR=1", unwords (bin : args k script)
+                      , "ANSIBLE_SSH_ARGS='-o ForwardAgent=yes'"
+                      ]
 
     log "{}" [cmd]
     liftEitherT . sync $ callCommand cmd

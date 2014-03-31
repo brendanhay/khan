@@ -98,7 +98,7 @@ instance ToJSON ImageInput where
     toJSON ImageInput{..} = object $
         ("khan_dns", String iDNS) : hostVars iRegion iNames
 
--- | Applied to all hosts, excluding localhost
+-- | Applied to all hosts, excluding localhost.
 hostVars :: Region -> Names -> [(Text, Value)]
 hostVars reg Names{..} = regionVars reg ++
     [ ("khan_env",     String envName)
@@ -111,7 +111,7 @@ hostVars reg Names{..} = regionVars reg ++
     , ("khan_version", toJSON versionName)
     ]
 
--- | Applied to all hosts, including localhost
+-- | Applied to all hosts, including localhost.
 regionVars :: Region -> [(Text, Value)]
 regionVars reg =
     [ ("khan_region",        String $ regionToText reg)

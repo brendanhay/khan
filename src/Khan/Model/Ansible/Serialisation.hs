@@ -41,7 +41,7 @@ data Output
 instance ToJSON Output where
     toJSON (Change   msg) = object ["changed" .= True,  "msg" .= msg]
     toJSON (NoChange msg) = object ["changed" .= False, "msg" .= msg]
-    toJSON (Fail    msg) = object  ["failed"  .= True,  "msg" .= msg]
+    toJSON (Fail     msg) = object ["failed"  .= True,  "msg" .= msg]
 
 data Inv a
     = Meta { unwrap :: a }

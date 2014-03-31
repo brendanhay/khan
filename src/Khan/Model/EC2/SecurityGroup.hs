@@ -42,7 +42,8 @@ sshAccess (names -> Names{..}) = update groupName
     ]
 
 defaults :: Naming a => a -> AWS [Text]
-defaults (names -> Names{..}) = (: [envName, groupName]) <$> regionName
+defaults (names -> Names{..}) =
+    (: [envName, groupName]) . abbreviate <$> getRegion
 
 createGroups :: Naming a => a -> AWS Bool
 createGroups = fmap (any modified) . mapM create <=< defaults

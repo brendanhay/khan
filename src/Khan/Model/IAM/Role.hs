@@ -81,8 +81,7 @@ update (names -> n@Names{..}) tpath ppath = do
     waitAsync_ pr <* say "Updated policy for Role {}" [profileName]
 
     when b $ do
-        say "Waiting {} seconds for IAM Role replication..."
-            [B profileName, B delay]
+        say "Waiting {} seconds for IAM Role replication..." [B delay]
         delaySeconds delay
 
     find n

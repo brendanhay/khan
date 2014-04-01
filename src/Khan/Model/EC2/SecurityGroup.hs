@@ -16,8 +16,12 @@
 
 module Khan.Model.EC2.SecurityGroup
     (
-    -- * SSH group enforcement
-      sshGroup
+    -- * SSH rules
+      sshAccess
+
+    -- * Default groups
+    , defaults
+    , createGroups
 
     -- * EC2 API calls
     , find
@@ -26,16 +30,23 @@ module Khan.Model.EC2.SecurityGroup
     , update
     ) where
 
-import Control.Monad
-import Data.List       (sort)
+import Control.Monad          (liftM2)
+import Data.List              (sort)
 import Khan.Internal   hiding (Protocol(..))
 import Khan.Prelude    hiding (find, min, max)
 import Network.AWS.EC2 hiding (Instance)
 
-sshGroup :: Naming a => a -> AWS Bool
-sshGroup (names -> Names{..}) = update sshGroupName
+sshAccess :: Naming a => a -> AWS Bool
+sshAccess (names -> Names{..}) = update groupName
     [ IpPermissionType TCP 22 22 [] [IpRange "0.0.0.0/0"]
     ]
+
+defaults :: Naming a => a -> AWS [Text]
+defaults (names -> Names{..}) =
+    (: [envName, groupName]) . abbreviate <$> getRegion
+
+createGroups :: Naming a => a -> AWS Bool
+createGroups = fmap (any modified) . mapM create <=< defaults
 
 find :: Text -> AWS (Maybe SecurityGroupItemType)
 find name = do

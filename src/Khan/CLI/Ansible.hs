@@ -137,7 +137,7 @@ inventory Common{..} Inventory{..} = do
                 return $! foldl' (flip update) m
                     [ roleName
                     , envName
-                    , textToRegion cRegion
+                    , regionToText cRegion
                     , "khan"
                     , tagDomain
                     ]
@@ -177,7 +177,6 @@ ansible c@Common{..} a@Ansible{..} = do
         IO.hSetBuffering IO.stderr IO.LineBuffering
 
     let cmd = unwords [ "ANSIBLE_FORCE_COLOR=1", unwords (bin : args k script)
-                      , "ANSIBLE_SSH_ARGS='-o ForwardAgent=yes'"
                       ]
 
     log "{}" [cmd]

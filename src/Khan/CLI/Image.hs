@@ -115,14 +115,14 @@ image c@Common{..} d@Image{..} = do
 
     wait_ i <* say "Found IAM Profile {}" [profileName]
 
-    g <- async $ Security.sshGroup d
     z <- async $ AZ.getSuffixes iZones
     k <- async $ Key.create iRKeys d cLKeys
-
-    wait_ g <* say "Found Role Group {}" [sshGroupName]
+    g <- async $ Security.createGroups d >> Security.sshAccess d
 
     az  <- fmap (AZ cRegion) $ wait z >>= randomSelect
     key <- wait k <* say "Found KeyPair {}" [keyName]
+
+    wait_ g
 
     say "Using AvailabilityZone {}" [az]
     mr  <- listToMaybe . map riitInstanceId <$>

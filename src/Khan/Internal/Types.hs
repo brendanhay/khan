@@ -48,6 +48,7 @@ module Khan.Internal.Types
    , newRole
 
    -- * Ghetto lenses
+   , modified
    , protocol
    , port
    , healthCheck
@@ -83,6 +84,10 @@ data Modified a
     = Changed   { result :: !a }
     | Unchanged { result :: !a }
       deriving (Eq, Show)
+
+modified :: Modified a -> Bool
+modified (Changed _) = True
+modified _           = False
 
 class Invalid a where
     invalid :: a -> Bool
@@ -172,7 +177,6 @@ data Names = Names
     , roleName     :: !Text
     , profileName  :: !Text
     , groupName    :: !Text
-    , sshGroupName :: !Text
     , imageName    :: !Text
     , appName      :: !Text
     , balancerName :: !Text
@@ -193,7 +197,6 @@ createNames (_role -> role) (_env -> env) ver = Names
     , roleName     = role
     , profileName  = envRole
     , groupName    = envRole
-    , sshGroupName = env <> "-ssh"
     , imageName    = roleVer
     , appName      = env <> "-" <> roleVer
     , balancerName = envRole <> version '-' alphaVersion
@@ -256,7 +259,7 @@ newtype PolicyPath = PolicyPath { _policy :: FilePath }
     deriving (Eq, Show, IsString)
 
 newtype Env = Env { _env :: Text }
-    deriving (Eq, Ord, Show, Invalid, Naming)
+    deriving (Eq, Ord, Show, Invalid)
 
 instance IsString Env where
     fromString = newEnv . fromString
@@ -268,7 +271,7 @@ newEnv :: Text -> Env
 newEnv = Env
 
 newtype Role = Role { _role :: Text }
-    deriving (Eq, Ord, Show, Invalid, Naming)
+    deriving (Eq, Ord, Show, Invalid)
 
 instance IsString Role where
     fromString = newRole . fromString
@@ -325,4 +328,3 @@ stripText :: Text -> Text -> Text
 stripText x y =
     let z = fromMaybe y $ Text.stripPrefix x y
      in fromMaybe z $ Text.stripSuffix x z
-

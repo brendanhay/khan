@@ -110,12 +110,10 @@ launch c@Common{..} l@Launch{..} = capture lAnsible c "launch {}" [show lType] $
     wait_ p <* say "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create lRKeys l cLKeys
-    s <- async $ Security.sshGroup l
-    g <- async $ Security.create groupName
+    s <- async $ Security.createGroups l
 
     wait_ k <* say "Found KeyPair {}" [keyName]
-    wait_ s <* say "Found SSH Group {}" [sshGroupName]
-    wait_ g <* say "Found Role Group {}" [groupName]
+    wait_ s
 
     az <- randomShuffle lZones
     rs <- forM (take lNum $ cycle az) $ \z ->

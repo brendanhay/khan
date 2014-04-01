@@ -18,15 +18,17 @@ module Khan.Model.AutoScaling.LaunchConfig
     , delete
     ) where
 
-import Control.Monad
-import Khan.Internal
-import Khan.Prelude            hiding (min, max)
-import Network.AWS.AutoScaling hiding (Filter)
+import           Control.Monad
+import           Khan.Internal
+import qualified Khan.Model.EC2.SecurityGroup as Security
+import           Khan.Prelude                 hiding (min, max)
+import           Network.AWS.AutoScaling      hiding (Filter)
 
 create :: Naming a => a -> Text -> InstanceType -> AWS ()
-create (names -> Names{..}) ami typ = do
+create (names -> n@Names{..}) ami typ = do
     say "Creating Launch Configuration {}" [appName]
-    c <- sendCatch CreateLaunchConfiguration
+    gs <- Security.defaults n
+    c  <- sendCatch CreateLaunchConfiguration
         { clcBlockDeviceMappings     = mempty
         , clcEbsOptimized            = Nothing
         , clcIamInstanceProfile      = Just profileName
@@ -37,7 +39,7 @@ create (names -> Names{..}) ami typ = do
         , clcKeyName                 = Just keyName
         , clcLaunchConfigurationName = appName
         , clcRamdiskId               = Nothing
-        , clcSecurityGroups          = Members [groupName, sshGroupName]
+        , clcSecurityGroups          = Members gs
         , clcSpotPrice               = Nothing
         , clcUserData                = Nothing
         }

@@ -273,14 +273,12 @@ deploy Common{..} d@Deploy{..} = ensure >> create
     create = do
         k <- async $ Key.create dRKeys d cLKeys
         p <- async $ Role.find d <|> Role.update d dTrust dPolicy
-        g <- async $ Security.create groupName
-        s <- async $ Security.sshGroup d
+        g <- async $ Security.createGroups d
         a <- async $ Image.find [] [ec2Filter "name" [imageName]]
 
         wait_ k
         wait_ p <* say "Found IAM Profile {}" [profileName]
-        wait_ g <* say "Found App Group {}" [groupName]
-        wait_ s <* say "Found SSH Group {}" [sshGroupName]
+        wait_ g
 
         ami <- diritImageId <$> wait a
         say "Found AMI {} named {}" [ami, imageName]

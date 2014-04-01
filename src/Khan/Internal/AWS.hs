@@ -43,7 +43,6 @@ module Khan.Internal.AWS
     ) where
 
 import           Control.Monad.Error
-import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
 import           Data.Text.Format          (Format, format)
 import           Data.Text.Format.Params

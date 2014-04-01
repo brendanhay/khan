@@ -40,10 +40,14 @@ import qualified Network.AWS.EC2.Metadata as Meta
 import           Options.Applicative      (info)
 import           System.Environment
 import           System.Exit
-import           System.IO                (hPutStrLn, stderr)
+import           System.IO                (BufferMode(..), hSetBuffering, hPutStrLn, stdout, stderr)
 
 main :: IO ()
 main = runScript $ do
+    liftIO $ do
+        hSetBuffering stdout LineBuffering
+        hSetBuffering stderr LineBuffering
+
     (as, es, name) <- scriptIO $
         (,,) <$> getArgs
              <*> getEnvironment

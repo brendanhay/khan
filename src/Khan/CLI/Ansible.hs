@@ -40,7 +40,6 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
 import           System.Directory
-import qualified System.IO                  as IO
 import qualified System.Posix.Files         as Posix
 import           System.Process             (callCommand)
 
@@ -150,8 +149,6 @@ playbook c a@Ansible{..} = ansible c $ a
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
-    let bin = Text.unpack $ fromMaybe "ansible" aBin
-
     which bin
 
     k <- maybe (Key.path aRKeys a cLKeys) return aKey
@@ -171,17 +168,14 @@ ansible c@Common{..} a@Ansible{..} = do
     debug "Setting +rwx on {}" [script]
     liftIO $ Posix.setFileMode script Posix.ownerModes
 
-    debug_ "Setting line-buffering on stdout and stderr"
-    liftIO $ do
-        IO.hSetBuffering IO.stdout IO.LineBuffering
-        IO.hSetBuffering IO.stderr IO.LineBuffering
-
     let cmd = unwords [ "ANSIBLE_FORCE_COLOR=1", unwords (bin : args k script)
                       ]
 
     log "{}" [cmd]
     liftEitherT . sync $ callCommand cmd
   where
+    bin = Text.unpack $ fromMaybe "ansible" aBin
+
     args k s = aArgs +$+
         [ ("-i", s)
         , ("--private-key", Path.encodeString k)

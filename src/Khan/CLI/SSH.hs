@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.CLI.Group
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -15,24 +16,27 @@
 module Khan.CLI.SSH (commands) where
 
 import           Control.Arrow
-import qualified Data.Text               as Text
+import qualified Data.Text                 as Text
+import           Data.List                 (isPrefixOf)
+import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
-import qualified Khan.Model.EC2.Instance as Instance
-import qualified Khan.Model.Key          as Key
-import qualified Khan.Model.SSH          as SSH
-import qualified Khan.Model.Tag          as Tag
+import qualified Khan.Model.EC2.Instance   as Instance
+import qualified Khan.Model.Key            as Key
+import           Khan.Model.SSH            (Mode(..))
+import qualified Khan.Model.SSH            as SSH
+import qualified Khan.Model.Tag            as Tag
 import           Khan.Prelude
 import           Network.AWS.EC2
-import           System.IO               hiding (FilePath)
+import           System.Environment
+import           System.IO                 hiding (FilePath)
 
--- FIXME: Add scp/sftp
 data SSH = SSH
-    { sRKeys :: !RKeysBucket
-    , sRole  :: !Role
-    , sEnv   :: !Env
-    , sKey   :: Maybe FilePath
-    , sUser  :: !Text
-    , sArgs  :: [String]
+    { sshRKeys :: !RKeysBucket
+    , sshRole  :: !Role
+    , sshEnv   :: !Env
+    , sshKey   :: Maybe FilePath
+    , sshUser  :: !Text
+    , sshArgs  :: [String]
     } deriving (Show)
 
 sshParser :: EnvMap -> Parser SSH
@@ -46,36 +50,103 @@ sshParser env = SSH
 
 instance Options SSH where
     validate SSH{..} =
-        check sEnv "--env must be specified."
+        check sshEnv "--env must be specified."
 
 instance Naming SSH where
-    names SSH{..} = unversioned sRole sEnv
+    names SSH{..} = unversioned sshRole sshEnv
+
+data SCP = SCP
+    { scpRKeys  :: !RKeysBucket
+    , scpRole   :: !Role
+    , scpEnv    :: !Env
+    , scpKey    :: Maybe FilePath
+    , scpUser   :: !Text
+    , scpMode   :: !Mode
+    , scpArgs   :: [String]
+    } deriving (Show)
+
+scpParser :: EnvMap -> (FilePath -> FilePath -> Mode) -> Parser SCP
+scpParser env mode = SCP
+    <$> rKeysOption env
+    <*> roleOption
+    <*> envOption env
+    <*> keyOption
+    <*> userOption
+    <*> modeParser
+    <*> argsOption str mempty "Pass through arugments to scp."
+  where
+    modeParser = mode
+        <$> pathOption "source" (short 's' <> action "file")
+            "Source path."
+        <*> pathOption "destination" (short 'd' <> action "file")
+            "Destination path."
+
+instance Options SCP where
+    validate SCP{..} =
+        check scpEnv "--env must be specified."
+
+instance Naming SCP where
+    names SCP{..} = unversioned scpRole scpEnv
 
 commands :: EnvMap -> Mod CommandFields Command
-commands env = command "ssh" ssh (sshParser env)
-    "Display a multiple choice list of matching hosts to SSH into."
+commands env = mconcat
+    [ command "ssh" ssh (sshParser env)
+        "Display a multiple choice list of matching hosts to SSH into."
+    , group "scp" "Manage Artifacts over SCP." $ mconcat
+        [ command "upload" scp (scpParser env Upload)
+            "Upload."
+        , command "download" scp (scpParser env Download)
+            "Download."
+        ]
+    ]
 
 ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
-    key <- maybe (Key.path sRKeys s cLKeys) return sKey
-    dns <- mapMaybe riitDnsName <$> Instance.findAll []
-        [ Tag.filter Tag.env  [_env  sEnv]
-        , Tag.filter Tag.role [_role sRole]
-        ]
-    go key dns
+    key <- maybe (Key.path sshRKeys s cLKeys) return sshKey
+    addresses sshEnv sshRole >>= go key
   where
-    go _   []  = log_ "No hosts found."
-    go key [x] = SSH.exec x sUser key sArgs
-    go key dns = do
+    go _ []  = log_ "No hosts found."
+    go k [x] = exec k x
+    go k dns = do
         forM_ cs $ \(n, addr) ->
             log "{}) {}" [B n, P (Text.unpack addr)]
         x <- choose
         a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
-        SSH.exec a sUser key sArgs
+        exec k a
       where
         cs = map (first show) $ zip ([1..] :: [Int]) dns
+
+    exec k x = SSH.execSSH x sshUser k sshArgs
 
     choose = liftIO $ do
         hSetBuffering stdout NoBuffering
         putStr "Select the host to connect to: "
         getLine
+
+scp :: Common -> SCP -> AWS ()
+scp Common{..} s@SCP{..} = do
+    verify
+    key <- maybe (Key.path scpRKeys s cLKeys) return scpKey
+    addresses scpEnv scpRole >>= go key
+  where
+    go _ [] = log_ "No hosts found."
+    go k xs = mapM (async . exec k) xs >>= mapM_ wait_
+
+    exec k x = SSH.execSCP scpMode x scpUser k scpArgs
+
+    -- FIXME: ghetto check to ensure bash expansion hasn't occured accidently
+    -- for a remote home directory
+    verify = do
+        h <- fromMaybe "" <$> liftIO (lookupEnv "HOME")
+        when (h `isPrefixOf` path scpMode) $
+           throwAWS "Unexpected bash expansion of $HOME: {}" [show scpMode]
+
+    path (Upload   _ p) = Path.encodeString p
+    path (Download p _) = Path.encodeString p
+
+addresses :: Env -> Role -> AWS [Text]
+addresses (_env -> env) (_role -> role) =
+    mapMaybe riitDnsName <$> Instance.findAll []
+        [ Tag.filter Tag.env  [env]
+        , Tag.filter Tag.role [role]
+        ]

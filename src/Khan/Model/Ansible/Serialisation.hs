@@ -69,11 +69,8 @@ instance ToJSON (Inv (HashMap Text (Set Host))) where
         vars = foldl' (flip f) Map.empty . Set.unions $ Map.elems m
         f h  = Map.insert (hostFQDN h) (Meta h)
 
-    toJSON (JS m) = toJSON (Map.map JS o) `f` toJSON (Meta m)
+    toJSON (JS m) = toJSON (Map.map JS m) `f` toJSON (Meta m)
       where
-        -- Fix for https://github.com/zinfra/khan/issues/74
-        o = Map.filterWithKey (\k _ -> "localhost" /= k) m
-
         f (Object x) (Object y) = Object $ x <> y
         f _          x          = x
 
@@ -89,7 +86,9 @@ instance ToJSON (Inv Host) where
 
     toJSON (Meta Host      {..}) = object $
         ("khan_domain", String hvDomain) : hostVars hvRegion hvNames
-    toJSON (Meta Localhost {..}) = object (regionVars hvRegion)
+    toJSON (Meta Localhost {..}) = object $
+        -- Fix for https://github.com/zinfra/khan/issues/74
+        ("ansible_connection", String "local") : regionVars hvRegion
 
 data ImageInput = ImageInput
     { iNames  :: !Names

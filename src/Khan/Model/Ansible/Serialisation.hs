@@ -69,8 +69,11 @@ instance ToJSON (Inv (HashMap Text (Set Host))) where
         vars = foldl' (flip f) Map.empty . Set.unions $ Map.elems m
         f h  = Map.insert (hostFQDN h) (Meta h)
 
-    toJSON (JS m) = toJSON (Map.map JS m) `f` toJSON (Meta m)
+    toJSON (JS m) = toJSON (Map.map JS o) `f` toJSON (Meta m)
       where
+        -- Fix for https://github.com/zinfra/khan/issues/74
+        o = Map.filterWithKey (\k _ -> "localhost" /= k) m
+
         f (Object x) (Object y) = Object $ x <> y
         f _          x          = x
 

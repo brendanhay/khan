@@ -139,6 +139,7 @@ inventory Common{..} Inventory{..} = do
                     , regionToText cRegion
                     , "khan"
                     , tagDomain
+                    , fqdn
                     ]
 
 playbook :: Common -> Ansible -> AWS ()

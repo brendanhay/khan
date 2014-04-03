@@ -110,7 +110,7 @@ launch c@Common{..} l@Launch{..} = capture lAnsible c "launch {}" [show lType] $
     wait_ p <* say "Found IAM Profile {}" [profileName]
 
     k <- async $ Key.create lRKeys l cLKeys
-    s <- async $ Security.createGroups l
+    s <- async $ Security.createDefaults l
 
     wait_ k <* say "Found KeyPair {}" [keyName]
     wait_ s

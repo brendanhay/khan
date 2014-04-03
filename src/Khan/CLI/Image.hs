@@ -117,7 +117,7 @@ image c@Common{..} d@Image{..} = do
 
     z <- async $ AZ.getSuffixes iZones
     k <- async $ Key.create iRKeys d cLKeys
-    g <- async $ Security.createGroups d >> Security.sshAccess d
+    g <- async $ Security.createDefaults d >> Security.sshAccess d
 
     az  <- fmap (AZ cRegion) $ wait z >>= randomSelect
     key <- wait k <* say "Found KeyPair {}" [keyName]

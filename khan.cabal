@@ -84,12 +84,12 @@ library
     build-depends:
         aeson                >= 0.7
       , aeson-pretty
-      , amazonka             >= 0.2.4
+      , amazonka             >= 0.2.5
       , ansi-wl-pprint
       , attoparsec
       , base                 >= 4.6 && < 5
       , bytestring
-      , conduit
+      , conduit              >= 1.1
       , containers
       , directory
       , ede                  >= 0.1.3

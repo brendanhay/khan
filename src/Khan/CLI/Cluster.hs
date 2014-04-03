@@ -273,7 +273,7 @@ deploy Common{..} d@Deploy{..} = ensure >> create
     create = do
         k <- async $ Key.create dRKeys d cLKeys
         p <- async $ Role.find d <|> Role.update d dTrust dPolicy
-        g <- async $ Security.createGroups d
+        g <- async $ Security.createDefaults d
         a <- async $ Image.find [] [ec2Filter "name" [imageName]]
 
         wait_ k

@@ -33,6 +33,7 @@ module Khan.Model.EC2.SecurityGroup
     , merge
     ) where
 
+import Control.Arrow
 import Control.Monad          (liftM2)
 import Data.List              (groupBy, sort, nub)
 import Khan.Internal   hiding (Protocol(..))

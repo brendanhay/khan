@@ -55,7 +55,8 @@ updateParser env = Update
         "tcp|udp|icmp:from_port:to_port:[group|0.0.0.0,...]")
     <*> ansibleOption
 
-instance Options Update
+instance Options Update where
+    discover _ _ u = return $! u { uRules = Security.merge (uRules u) }
 
 instance Naming Update where
     names Update{..} = unversioned uRole uEnv

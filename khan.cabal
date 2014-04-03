@@ -90,6 +90,7 @@ library
       , base                 >= 4.6 && < 5
       , bytestring
       , conduit              >= 1.1
+      , conduit-extra
       , containers
       , directory
       , ede                  >= 0.1.3

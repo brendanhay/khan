@@ -16,22 +16,25 @@
 
 module Khan.Model.EC2.SecurityGroup
     (
-    -- * SSH rules
+    -- * SSH
       sshAccess
 
-    -- * Default groups
+    -- * Defaults
     , defaults
-    , createGroups
+    , createDefaults
 
-    -- * EC2 API calls
+    -- * EC2 API
     , find
     , create
     , delete
     , update
+
+    -- * Rules
+    , merge
     ) where
 
 import Control.Monad          (liftM2)
-import Data.List              (sort)
+import Data.List              (groupBy, sort, nub)
 import Khan.Internal   hiding (Protocol(..))
 import Khan.Prelude    hiding (find, min, max)
 import Network.AWS.EC2 hiding (Instance)
@@ -45,8 +48,8 @@ defaults :: Naming a => a -> AWS [Text]
 defaults (names -> Names{..}) =
     (: [envName, groupName]) . abbreviate <$> getRegion
 
-createGroups :: Naming a => a -> AWS Bool
-createGroups = fmap (any modified) . mapM create <=< defaults
+createDefaults :: Naming a => a -> AWS Bool
+createDefaults = fmap (any modified) . mapM create <=< defaults
 
 find :: Text -> AWS (Maybe SecurityGroupItemType)
 find name = do
@@ -107,3 +110,14 @@ update name (sort -> rules) = do
             es <- sendCatch (AuthorizeSecurityGroupIngress (Just gid) Nothing xs)
             verifyEC2 "InvalidPermission.Duplicate" es
             return $ isRight es
+
+merge :: [IpPermissionType] -> [IpPermissionType]
+merge = map (foldr1 flatten) . filter (not . null) . groupBy eq . nub . sort
+  where
+    eq a b = and [g iptIpProtocol, g iptFromPort, g iptToPort]
+      where
+        g h = uncurry (==) $ join (***) h (a, b)
+
+    flatten x y = y { iptGroups = g iptGroups, iptIpRanges = g iptIpRanges }
+      where
+        g h = nub (h x ++ h y)

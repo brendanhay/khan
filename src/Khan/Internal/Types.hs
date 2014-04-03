@@ -326,5 +326,5 @@ regionToText = Text.pack . show
 
 stripText :: Text -> Text -> Text
 stripText x y =
-    let z = fromMaybe y $ Text.stripPrefix x y
-     in fromMaybe z $ Text.stripSuffix x z
+    let z = fromMaybe y (Text.stripPrefix x y)
+     in fromMaybe z (Text.stripSuffix x z)

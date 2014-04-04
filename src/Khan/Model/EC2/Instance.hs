@@ -15,9 +15,15 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.EC2.Instance
-    ( findAll
+    (
+    -- * EC2 API calls
+      findAll
+    , find
     , run
     , wait
+
+    -- * Instance address
+    , address
     ) where
 
 import           Control.Arrow                ((***))
@@ -25,12 +31,15 @@ import           Control.Monad
 import           Data.List                    (partition)
 import           Khan.Internal
 import qualified Khan.Model.EC2.SecurityGroup as Security
-import           Khan.Prelude                 hiding (min, max)
+import           Khan.Prelude                 hiding (find, min, max)
 import           Network.AWS.EC2              hiding (Instance, wait)
 
 findAll :: [Text] -> [Filter] -> AWS [RunningInstancesItemType]
 findAll ids = fmap (concatMap ritInstancesSet . dirReservationSet) .
     send . DescribeInstances ids
+
+find :: Text -> AWS (Maybe RunningInstancesItemType)
+find = fmap listToMaybe . (`findAll` []) . (:[])
 
 run :: Naming a
     => a
@@ -86,3 +95,10 @@ wait ids = do
     wait ps
   where
     pending = partition (("pending" ==) . istName . riitInstanceState)
+
+address :: Bool -> RunningInstancesItemType -> Maybe (Text, Text)
+address vpn RunningInstancesItemType{..} = (,)
+    <$> riitDnsName
+    <*> if vpn
+            then riitPrivateIpAddress
+            else riitDnsName

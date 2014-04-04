@@ -89,6 +89,7 @@ class Options a where
 data Common = Common
     { cDebug  :: !Bool
     , cSilent :: !Bool
+    , cVPN    :: !Bool
     , cRegion :: !Region
     , cLKeys  :: !LKeysDir
     , cCache  :: !CacheDir
@@ -113,6 +114,8 @@ commonParser env = Common
         "Log debug output."
     <*> switchOption "silent" False
         "Suppress standard log output."
+    <*> switchOption "no-vpn" True
+        "Use public DNS instead of private IPv4 (default) for EC2 addresses."
     <*> readOption "region" "REGION"
          ( evalue (readMay . Text.unpack) "KHAN_REGION" env
         <> short 'R'

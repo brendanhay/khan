@@ -89,7 +89,7 @@ routes Common{..} Routes{..} = do
 
     let xs = [ mk a | a@Ann{..} <- is
              , tagWeight annTags >= rWeight
-             , isJust (riitDnsName annValue)
+             , isJust (Instance.address cVPN annValue)
              ]
         ys = Map.fromListWith (<>) [(k, [v]) | (k, v) <- xs]
         zs = EDE.fromPairs ["roles" .= ys]

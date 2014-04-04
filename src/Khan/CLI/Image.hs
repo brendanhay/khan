@@ -135,9 +135,8 @@ image c@Common{..} d@Image{..} = do
 
     e <- contextAWS c $ do
         say "Finding public DNS for {}" [iid]
-        mdns <- join . listToMaybe . map riitDnsName <$>
-            Instance.findAll [iid] []
-        dns  <- noteAWS "Failed to retrieve DNS for {}" [iid] mdns
+        maddr    <- join . fmap (Instance.address cVPN) <$> Instance.find iid
+        (_, dns) <- noteAWS "Failed to retrieve Address for {}" [iid] maddr
 
         unlessM (SSH.wait iTimeout dns iUser key) $
             throwAWS "Failed to gain SSH connectivity for {}" [iid]

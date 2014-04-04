@@ -123,14 +123,14 @@ inventory Common{..} Inventory{..} = do
     instances = Instance.findAll [] [Tag.filter Tag.env [_env iEnv]]
     localhost = Map.insert "localhost" (Set.singleton $ Localhost cRegion)
 
-    hosts m RunningInstancesItemType{..} =
-        case riitDnsName of
-            Nothing   -> m
-            Just fqdn -> fromMaybe m $ do
+    hosts m i@RunningInstancesItemType{..} =
+        case Instance.address cVPN i of
+            Nothing            -> m
+            Just (fqdn, addr)  -> fromMaybe m $ do
                 t@Tags{..} <- Tag.parse riitTagSet
 
                 let n@Names{..} = names t
-                    host        = Host fqdn tagDomain n cRegion
+                    host        = Host addr tagDomain n cRegion
                     update k    = Map.insertWith (<>) k (Set.singleton host)
 
                 return $! foldl' (flip update) m

@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.CLI.Group
@@ -15,20 +16,20 @@
 
 module Khan.CLI.SSH (commands) where
 
-import           Control.Arrow
-import qualified Data.Text                 as Text
-import           Data.List                 (isPrefixOf)
-import qualified Filesystem.Path.CurrentOS as Path
+import           Control.Arrow  ()
+import           Data.List                    (isPrefixOf)
+import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Internal
-import qualified Khan.Model.EC2.Instance   as Instance
-import qualified Khan.Model.Key            as Key
-import           Khan.Model.SSH            (Mode(..))
-import qualified Khan.Model.SSH            as SSH
-import qualified Khan.Model.Tag            as Tag
+import qualified Khan.Model.EC2.Instance      as Instance
+import qualified Khan.Model.Key               as Key
+import           Khan.Model.SSH               (Mode(..))
+import qualified Khan.Model.SSH               as SSH
+import qualified Khan.Model.Tag               as Tag
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           System.Environment
-import           System.IO                 hiding (FilePath)
+import           System.IO                    hiding (FilePath)
+import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>), group)
 
 data SSH = SSH
     { sshRKeys :: !RKeysBucket
@@ -103,20 +104,18 @@ commands env = mconcat
 ssh :: Common -> SSH -> AWS ()
 ssh Common{..} s@SSH{..} = do
     key <- maybe (Key.path sshRKeys s cLKeys) return sshKey
-    addresses sshEnv sshRole >>= go key
+    info cVPN sshEnv sshRole >>= go key
   where
     go _ []  = log_ "No hosts found."
     go k [x] = exec k x
-    go k dns = do
-        forM_ cs $ \(n, addr) ->
-            log "{}) {}" [B n, P (Text.unpack addr)]
-        x <- choose
-        a <- noteAWS "Invalid host selection '{}'." [x] $ x `lookup` cs
-        exec k a
-      where
-        cs = map (first show) $ zip ([1..] :: [Int]) dns
+    go k xs = do
+        mapM_ (pPrint . pretty) xs
+        c <- choose
+        x <- noteAWS "Invalid host selection '{}'." [c] $
+            find ((c ==) . show . ordinal) xs
+        exec k x
 
-    exec k x = SSH.execSSH x sshUser k sshArgs
+    exec k x = SSH.execSSH (address x) sshUser k sshArgs
 
     choose = liftIO $ do
         hSetBuffering stdout NoBuffering
@@ -127,12 +126,12 @@ scp :: Common -> SCP -> AWS ()
 scp Common{..} s@SCP{..} = do
     verify
     key <- maybe (Key.path scpRKeys s cLKeys) return scpKey
-    addresses scpEnv scpRole >>= go key
+    info cVPN scpEnv scpRole >>= go key
   where
     go _ [] = log_ "No hosts found."
     go k xs = mapM (async . exec k) xs >>= mapM_ wait_
 
-    exec k x = SSH.execSCP scpMode x scpUser k scpArgs
+    exec k x = SSH.execSCP scpMode (address x) scpUser k scpArgs
 
     -- FIXME: ghetto check to ensure bash expansion hasn't occured accidently
     -- for a remote home directory
@@ -144,9 +143,32 @@ scp Common{..} s@SCP{..} = do
     path (Upload   _ p) = Path.encodeString p
     path (Download p _) = Path.encodeString p
 
-addresses :: Env -> Role -> AWS [Text]
-addresses (_env -> env) (_role -> role) =
-    mapMaybe riitDnsName <$> Instance.findAll []
-        [ Tag.filter Tag.env  [env]
-        , Tag.filter Tag.role [role]
-        ]
+data Info = Info !Int !(Text, Text) !RunningInstancesItemType
+
+ordinal :: Info -> Int
+ordinal (Info n _ _) = n
+
+address :: Info -> Text
+address (Info _ a _) = snd a
+
+info :: Bool -> Env -> Role -> AWS [Info]
+info vpn env role = mapMaybe f . zip [1..] <$> Instance.findAll []
+    [ Tag.filter Tag.env  [_env env]
+    , Tag.filter Tag.role [_role role]
+    ]
+  where
+    f (n, x) = Info n
+        <$> Instance.address vpn x
+        <*> pure x
+
+instance Pretty Info where
+    pretty (Info n (v, a) RunningInstancesItemType{..}) = " " <> int n <> ")"
+        <+> addr
+        <+> pretty riitInstanceId
+        <+> pretty riitImageId
+        <+> pretty (istName riitInstanceState)
+      where
+        addr | v /= a    = wrap a <+> pretty (stripText ".amazonaws.com" v)
+             | otherwise = wrap v
+
+        wrap x = "[" <> pretty x <> "]"

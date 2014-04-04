@@ -93,6 +93,7 @@ data Common = Common
     , cLKeys  :: !LKeysDir
     , cCache  :: !CacheDir
     , cConfig :: !ConfigDir
+    , cVPN    :: !Bool
     } deriving (Show)
 
 newtype RKeysBucket = RKeysBucket { rKeysBucket :: Text }
@@ -131,6 +132,8 @@ commonParser env = Common
         <> epath "KHAN_CONFIG" env
         <> short 'C'
          ) "Path to configuration files.")
+    <*> switchOption "no-vpn" True
+        "Use public DNS instead of private IPv4 (default) for EC2 addresses."
 
 instance Options Common where
     validate Common{..} = do

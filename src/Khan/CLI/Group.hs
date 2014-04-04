@@ -56,7 +56,9 @@ updateParser env = Update
     <*> ansibleOption
 
 instance Options Update where
-    discover _ _ u = return $! u { uRules = Security.merge (uRules u) }
+    discover _ Common{..} u@Update{..} = return $! u
+        { uRules = Security.prefix cRegion uEnv (Security.merge uRules)
+        }
 
 instance Naming Update where
     names Update{..} = unversioned uRole uEnv
@@ -89,4 +91,4 @@ update :: Common -> Update -> AWS ()
 update c u@Update{..} =
     let name = groupName (names u)
      in capture uAnsible c "security group {}" [name] $
-            Security.update name uRules
+          Security.update name uRules

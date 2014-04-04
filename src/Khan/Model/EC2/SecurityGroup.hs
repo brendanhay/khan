@@ -31,6 +31,7 @@ module Khan.Model.EC2.SecurityGroup
 
     -- * Rules
     , merge
+    , prefix
     ) where
 
 import Control.Arrow
@@ -122,3 +123,16 @@ merge = map (foldr1 flatten) . filter (not . null) . groupBy eq . nub . sort
     flatten x y = y { iptGroups = g iptGroups, iptIpRanges = g iptIpRanges }
       where
         g h = nub (h x ++ h y)
+
+prefix :: Region -> Env -> [IpPermissionType] -> [IpPermissionType]
+prefix reg env = map (\x -> x { iptGroups = map rename (iptGroups x) })
+  where
+    rename g@UserIdGroupPair{..}
+        | uigGroupName == Just (abbreviate reg) = g
+        | uigGroupName == Just (_env env)       = g
+        | otherwise = g { uigGroupName = naming <$> uigGroupName }
+
+    naming = groupName
+        . (`unversioned` env)
+        . newRole
+        . stripText (_env env <> "-")

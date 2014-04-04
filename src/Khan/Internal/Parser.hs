@@ -62,7 +62,7 @@ instance TextParser EC2.Protocol where
             "tcp"  -> return EC2.TCP
             "udp"  -> return EC2.UDP
             "icmp" -> return EC2.ICMP
-            s      -> fail (Text.unpack s)
+            _      -> return EC2.TCP
 
 instance TextParser Protocol where
     parser = do

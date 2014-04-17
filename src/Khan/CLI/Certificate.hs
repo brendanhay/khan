@@ -81,7 +81,7 @@ commands = group "certificate" "IAM Server Certificates." $ mconcat
     , command "upload" upload uploadParser
         "Upload an IAM Server Certificate."
     , command "delete" delete deleteParser
-        "Delete an IAM Server Certificate"
+        "Delete an IAM Server Certificate."
     ]
 
 info :: Common -> Info -> AWS ()

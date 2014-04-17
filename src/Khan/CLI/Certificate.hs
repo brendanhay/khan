@@ -61,12 +61,27 @@ instance Options Upload where
               (`checkPath` " specified by --chain must exist.")
               uChain
 
+data Delete = Delete
+    { dDomain :: !Text
+    } deriving (Show)
+
+deleteParser :: Parser Delete
+deleteParser = Delete
+    <$> textOption "domain" (short 'd')
+        "Certificates's domain name."
+
+instance Options Delete where
+    validate Delete{..} =
+        check dDomain "--domain must be specified."
+
 commands :: Mod CommandFields Command
 commands = group "certificate" "IAM Server Certificates." $ mconcat
     [ command "info" info infoParser
         "Display information about an IAM Server Certificate."
     , command "upload" upload uploadParser
         "Upload an IAM Server Certificate."
+    , command "delete" delete deleteParser
+        "Delete an IAM Server Certificate"
     ]
 
 info :: Common -> Info -> AWS ()
@@ -78,3 +93,6 @@ upload :: Common -> Upload -> AWS ()
 upload _ Upload{..} = Cert.find uDomain >>=
     maybe (Cert.upload uDomain uPublic uPrivate uChain)
           (const $ throwAWS "Certificate already exists: {}" [uDomain])
+
+delete :: Common -> Delete -> AWS ()
+delete _ Delete{..} = Cert.delete dDomain

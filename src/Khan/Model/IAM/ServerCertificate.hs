@@ -14,6 +14,7 @@
 module Khan.Model.IAM.ServerCertificate
     ( find
     , upload
+    , delete
     ) where
 
 import           Khan.Internal
@@ -56,3 +57,7 @@ upload dom pubp privp chainp = do
     loadChain (Just p) = Just <$> loadKey p "Reading certificate chain from {}"
     loadChain Nothing  = return Nothing
 
+delete :: Text -> AWS ()
+delete dom = do
+    say "Deleting Certificate {}" [dom]
+    send_ (DeleteServerCertificate dom)

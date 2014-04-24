@@ -29,6 +29,7 @@ import qualified Khan.Model.EC2.Image                as Image
 import qualified Khan.Model.EC2.Instance             as Instance
 import qualified Khan.Model.EC2.SecurityGroup        as Security
 import qualified Khan.Model.ELB.LoadBalancer         as Balancer
+import           Khan.Model.ELB.Types                as Balancer
 import           Khan.Model.IAM.Role                 (Paths(..))
 import qualified Khan.Model.IAM.Role                 as Role
 import qualified Khan.Model.IAM.ServerCertificate    as Cert
@@ -64,23 +65,21 @@ instance Naming Info where
     names Info{..} = unversioned iRole iEnv
 
 data Deploy = Deploy
-    { dRKeys    :: !RKeysBucket
-    , dRole     :: !Role
-    , dEnv      :: !Env
-    , dDomain   :: !Text
-    , dVersion  :: !Version
-    , dZones    :: !String
-    , dGrace    :: !Integer
-    , dMin      :: !Integer
-    , dMax      :: !Integer
-    , dDesired  :: !Integer
-    , dCooldown :: !Integer
-    , dType     :: !InstanceType
-    , dTrust    :: !TrustPath
-    , dPolicy   :: !PolicyPath
-    , dBalance  :: !Bool
-    , dFrontend :: !Frontend
-    , dBackend  :: !Backend
+    { dRKeys     :: !RKeysBucket
+    , dRole      :: !Role
+    , dEnv       :: !Env
+    , dDomain    :: !Text
+    , dVersion   :: !Version
+    , dZones     :: !String
+    , dGrace     :: !Integer
+    , dMin       :: !Integer
+    , dMax       :: !Integer
+    , dDesired   :: !Integer
+    , dCooldown  :: !Integer
+    , dType      :: !InstanceType
+    , dTrust     :: !TrustPath
+    , dPolicy    :: !PolicyPath
+    , dBalancers :: [Balancer.Mapping]
     }
 
 deployParser :: EnvMap -> Parser Deploy
@@ -107,12 +106,8 @@ deployParser env = Deploy
         "Instance Type to provision when auto scaling occurs."
     <*> trustOption
     <*> policyOption
-    <*> switchOption "elb" False
-        "Create and assign an Elastic Load Balancer to the cluster."
-    <*> customOption "frontend" "FE" parseString (value $ FE HTTPS 443)
-        "Frontend shizzle."
-    <*> customOption "backend" "BE" parseString (value $ BE HTTP 8080 "/i/status")
-        "Backend shizzle."
+    <*> many (customOption "elb" "ELB" parseString mempty
+        "Balancer shizzle (e.g. 'https:443 to http:8080/status')")
 
 instance Options Deploy where
     discover _ Common{..} d@Deploy{..} = do
@@ -235,11 +230,11 @@ info Common{..} Info{..} = do
     unwrap = (tagGroup . annTags *** annValue) . join (,)
 
     groups m = ASG.findAll (Map.keys m)
-         $= Conduit.mapMaybe Tag.annotate
-         $$ Conduit.mapM_ $ \ag -> do
-            let AutoScalingGroup{..} = annValue ag
+        $= Conduit.mapMaybe Tag.annotate
+        $$ Conduit.mapM_ $ \ag -> do
+            let asg@AutoScalingGroup{..} = annValue ag
 
-            xs <- mapMaybe Tag.annotate <$>
+            is <- mapMaybe Tag.annotate <$>
                 noteAWS "Missing Auto Scaling Group entries: {}"
                     [B asgAutoScalingGroupName]
                     (Map.lookup asgAutoScalingGroupName m)
@@ -247,17 +242,16 @@ info Common{..} Info{..} = do
             pPrint (overview ag)
 
             if null asgLoadBalancerNames
-               then log_ "No associated Elastic Load Balancers found."
-               else do
-                   bs <- Balancer.findAll asgLoadBalancerNames
-                      $$ Conduit.consume
-                   pPrint $ header (Proxy :: Proxy LoadBalancerDescription)
-                        <-> body bs
+                then log_ "No associated Elastic Load Balancers found."
+                else do
+                    bs <- Balancer.findAll (Balancer.namesFromASG asg) $$ Conduit.consume
+                    pPrint $ header (Proxy :: Proxy LoadBalancerDescription)
+                         <-> body bs
 
-            if null xs
-               then log_ "No associated Auto Scaling Instances found."
-               else pPrint $ header (Proxy :: Proxy RunningInstancesItemType)
-                         <-> body xs
+            if null is
+                then log_ "No associated Auto Scaling Instances found."
+                else pPrint $ header (Proxy :: Proxy RunningInstancesItemType)
+                          <-> body is
 
 deploy :: Common -> Deploy -> AWS ()
 deploy Common{..} d@Deploy{..} = ensure >> create
@@ -272,32 +266,33 @@ deploy Common{..} d@Deploy{..} = ensure >> create
 
     create = do
         k <- async $ Key.create dRKeys d cLKeys
-        p <- async $ Role.find d <|> Role.update d dTrust dPolicy
+        r <- async $ Role.find d <|> Role.update d dTrust dPolicy
         g <- async $ Security.createDefaults d
-        a <- async $ Image.find [] [ec2Filter "name" [imageName]]
+        i <- async $ Image.find [] [ec2Filter "name" [imageName]]
 
         wait_ k
-        wait_ p <* say "Found IAM Profile {}" [profileName]
+        wait_ r <* say "Found IAM Profile {}" [profileName]
         wait_ g
 
-        ami <- diritImageId <$> wait a
+        ami <- diritImageId <$> wait i
         say "Found AMI {} named {}" [ami, imageName]
 
-        when dBalance balance
+        when (not $ null dBalancers) balance
 
         Config.create d ami dType
-        ASG.create d dBalance dDomain zones dCooldown dDesired dGrace dMin dMax
+        ASG.create d dBalancers dDomain zones dCooldown dDesired dGrace dMin dMax
 
     balance = do
-        s <- async $ Cert.find dDomain
-        b <- async $ Balancer.find d
+        ac <- async $ Cert.find dDomain
+        ab <- async $ mapM (Balancer.find . Balancer.mkName d) dBalancers
 
-        c <- wait s >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
-        m <- wait b
+        c  <- wait ac >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
+        bs <- wait ab
 
-        if isJust m
-            then say "Load Balancer {} already exists." [B balancerName]
-            else Balancer.create d zones dFrontend dBackend c
+        forM_ (dBalancers `zip` map isJust bs) $ \(b, exists) ->
+            if exists
+                then say "Load Balancer {} already exists." [B $ Balancer.mkName d b]
+                else Balancer.create d zones b c
 
     Names{..} = names d
 
@@ -332,21 +327,19 @@ promote _ c@Cluster{..} = do
             = throwAWS "Unable to find Auto Scaling Group Version {}." [cVersion]
 
     rebalance next = do
-        let dom  = tagDomain $ annTags next
-            fqdn = dnsName <> "." <> dom
-        mb <- Balancer.find c
-        maybe (return ())
-              (\LoadBalancerDescription{..} -> do
-                   tgt <- noteAWS "Load Balancer {} doesn't contain a DNS entry."
-                       [lbdLoadBalancerName] lbdDNSName
-                   cid <- noteAWS "Load Balancer doesn't contain a Hosted Zone."
-                       [lbdLoadBalancerName] lbdCanonicalHostedZoneNameID
-                   zid <- HZone.findId dom
-                   say "Assigning Record Set {} to {}" [fqdn, tgt]
-                   void $ RSet.set zid dnsName
-                       [ AliasRecordSet fqdn A (AliasTarget (hostedZoneId cid) tgt False) Nothing
-                       ])
-              mb
+        let dom = tagDomain $ annTags next
+        mb <- Balancer.findAll (Balancer.namesFromASG (annValue next)) $$ Conduit.consume
+        forM_ mb $ \lbd -> do
+            tgt <- noteAWS "Load Balancer {} doesn't contain a DNS entry."
+                [lbdLoadBalancerName lbd] (lbdDNSName lbd)
+            cid <- noteAWS "Load Balancer {} doesn't contain a Hosted Zone."
+                [lbdLoadBalancerName lbd] (lbdCanonicalHostedZoneNameID lbd)
+            zid <- HZone.findId dom
+            dns <- Balancer.fqdn c dom lbd
+            say "Assigning Record Set {} to {}" [dns, tgt]
+            void $ RSet.set zid dnsName
+                [ AliasRecordSet dns A (AliasTarget (hostedZoneId cid) tgt False) Nothing
+                ]
 
     promote' name next = do
         say "Searching for Instances tagged with {}" [name]
@@ -395,26 +388,18 @@ retire _ c@Cluster{..} = do
     ag <- ASG.find c >>= noteAWS "Unable to find Auto Scaling Group {}" [appName]
         . join
         . fmap Tag.annotate
-
     dg <- async $ ASG.delete c >> Config.delete c
-
-    mb <- Balancer.find c
-    db <- async $ Balancer.delete c
-
-    maybe (return ())
-          (\LoadBalancerDescription{..} -> do
-               let dom = tagDomain (annTags ag)
-                   dns = dnsName <> "." <> dom
-               zid <- HZone.findId dom
-               mr  <- RSet.find zid (match lbdDNSName dns)
-               maybe (return ())
-                     (\r -> do
-                          say "Deleting Record Set {} from Hosted Zone {}"
-                              [dns, unHostedZoneId zid]
-                          void $ RSet.modify zid [Change DeleteAction r])
-                     mr)
-          mb
-
+    ab <- Balancer.findAll (Balancer.namesFromASG (annValue ag)) $$ Conduit.consume
+    db <- async $ forM_ ab $ traverse_ Balancer.delete . Balancer.nameFromDescription
+    forM_ ab $ \lbd -> do
+        let dom = tagDomain (annTags ag)
+        dns <- Balancer.fqdn c dom lbd
+        zid <- HZone.findId dom
+        mr  <- RSet.find zid (match (lbdDNSName lbd) dns)
+        for_ mr $ \r -> do
+            say "Deleting Record Set {} from Hosted Zone {}"
+                [dns, unHostedZoneId zid]
+            void $ RSet.modify zid [Change DeleteAction r]
     wait_ dg
     wait_ db
   where

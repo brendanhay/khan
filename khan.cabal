@@ -1,5 +1,5 @@
 name:                  khan
-version:               0.2.8
+version:               0.3.0
 synopsis:              Opinionated Provisioning
 homepage:              http://github.com/brendanhay/khan
 license:               OtherLicense
@@ -55,6 +55,7 @@ library
       , Khan.Model.ELB.HealthCheck
       , Khan.Model.ELB.LoadBalancer
       , Khan.Model.ELB.LoadBalancerPolicy
+      , Khan.Model.ELB.Types
       , Khan.Model.IAM.Role
       , Khan.Model.IAM.ServerCertificate
       , Khan.Model.Key

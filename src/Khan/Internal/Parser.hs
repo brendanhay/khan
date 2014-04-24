@@ -12,7 +12,8 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Parser
-    ( parseString
+    ( TextParser (..)
+    , parseString
     , parseText
     ) where
 
@@ -20,7 +21,6 @@ import           Control.Monad
 import           Data.Attoparsec.Text
 import qualified Data.Text            as Text
 import           Data.Tuple
-import           Khan.Internal.Types
 import           Khan.Prelude         hiding (find, min, max)
 import           Network.AWS.EC2      hiding (Protocol(..), Instance)
 import qualified Network.AWS.EC2      as EC2
@@ -63,22 +63,6 @@ instance TextParser EC2.Protocol where
             "udp"  -> return EC2.UDP
             "icmp" -> return EC2.ICMP
             _      -> return EC2.TCP
-
-instance TextParser Protocol where
-    parser = do
-        p <- takeTill (== ':') <* char ':'
-        case p of
-            "http"  -> return HTTP
-            "https" -> return HTTPS
-            "tcp"   -> return TCP
-            "ssl"   -> return SSL
-            s       -> fail (Text.unpack s)
-
-instance TextParser Frontend where
-    parser = FE <$> parser <*> decimal <* endOfInput
-
-instance TextParser Backend where
-    parser = BE <$> parser <*> decimal <*> takeText
 
 segment :: Parser Text
 segment = Text.pack <$> many1 (satisfy $ notInClass ":|,")

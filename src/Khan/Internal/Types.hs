@@ -37,9 +37,6 @@ module Khan.Internal.Types
    , PolicyPath    (..)
    , Env           (_env)
    , Role          (_role)
-   , Protocol      (..)
-   , Frontend      (..)
-   , Backend       (..)
 
    -- * Smart constructors
    , versioned
@@ -49,12 +46,8 @@ module Khan.Internal.Types
 
    -- * Ghetto lenses
    , modified
-   , protocol
-   , port
-   , healthCheck
 
    -- * Text helpers
-   , protocolToText
    , regionToText
    , stripText
    ) where
@@ -66,10 +59,7 @@ import qualified Data.HashMap.Strict          as Map
 import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
-import qualified Data.Text.Lazy               as LText
-import           Data.Text.Buildable          (Buildable(..))
 import qualified Data.Text.Lazy.Builder       as Build
-import           Data.Text.Lazy.Builder.Int   (decimal)
 import qualified Filesystem.Path.CurrentOS    as Path
 import           GHC.Generics                 (Generic)
 import           Khan.Prelude
@@ -172,16 +162,16 @@ instance Naming Tags where
     names Tags{..} = createNames tagRole tagEnv tagVersion
 
 data Names = Names
-    { envName      :: !Text
-    , keyName      :: !Text
-    , roleName     :: !Text
-    , profileName  :: !Text
-    , groupName    :: !Text
-    , imageName    :: !Text
-    , appName      :: !Text
-    , balancerName :: !Text
-    , dnsName      :: !Text
-    , versionName  :: Maybe Text
+    { envName          :: !Text
+    , keyName          :: !Text
+    , roleName         :: !Text
+    , profileName      :: !Text
+    , groupName        :: !Text
+    , imageName        :: !Text
+    , appName          :: !Text
+    , balancerBaseName :: !Text
+    , dnsName          :: !Text
+    , versionName      :: Maybe Text
     } deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Names where
@@ -192,16 +182,16 @@ instance ToJSON Names where
 
 createNames :: Role -> Env -> Maybe Version -> Names
 createNames (_role -> role) (_env -> env) ver = Names
-    { envName      = env
-    , keyName      = env <> "-khan"
-    , roleName     = role
-    , profileName  = envRole
-    , groupName    = envRole
-    , imageName    = roleVer
-    , appName      = env <> "-" <> roleVer
-    , balancerName = envRole <> version '-' alphaVersion
-    , dnsName      = Text.replace "_" "-" envRole
-    , versionName  = showVersion <$> ver
+    { envName          = env
+    , keyName          = env <> "-khan"
+    , roleName         = role
+    , profileName      = envRole
+    , groupName        = envRole
+    , imageName        = roleVer
+    , appName          = env <> "-" <> roleVer
+    , balancerBaseName = envRole <> version '-' alphaVersion
+    , dnsName          = Text.replace "_" "-" envRole
+    , versionName      = showVersion <$> ver
     }
   where
     envRole = env <> "-" <> role
@@ -284,42 +274,6 @@ newRole = Role . Text.map f
   where
     f '-' = '_'
     f c   = c
-
-data Protocol
-    = HTTP
-    | HTTPS
-    | TCP
-    | SSL
-      deriving (Show)
-
-instance Buildable Protocol where
-    build = fromString . show
-
-class Listener a where
-    protocol :: a -> Protocol
-    port     :: a -> Integer
-
-data Frontend = FE !Protocol !Integer
-    deriving (Show)
-
-instance Listener Frontend where
-    protocol (FE s _) = s
-    port     (FE _ p) = p
-
-data Backend  = BE !Protocol !Integer !Text
-    deriving (Show)
-
-instance Listener Backend where
-    protocol (BE s _ _) = s
-    port     (BE _ p _) = p
-
-healthCheck :: Backend -> Text
-healthCheck (BE s p c) = LText.toStrict
-     . Build.toLazyText
-     $ build s <> ":" <> decimal p <> build c
-
-protocolToText :: Listener a => a -> Text
-protocolToText = Text.toLower . Text.pack . show . protocol
 
 regionToText :: Region -> Text
 regionToText = Text.pack . show

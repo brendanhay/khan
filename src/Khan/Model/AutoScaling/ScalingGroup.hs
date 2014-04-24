@@ -25,6 +25,7 @@ module Khan.Model.AutoScaling.ScalingGroup
 import           Data.Conduit
 import qualified Data.Conduit.List           as Conduit
 import           Khan.Internal
+import qualified Khan.Model.ELB.Types        as Balancer
 import qualified Khan.Model.Tag              as Tag
 import           Khan.Prelude                hiding (find, min, max)
 import           Network.AWS.AutoScaling
@@ -45,7 +46,7 @@ find (names -> Names{..}) = findAll [appName] $$ Conduit.head
 
 create :: Naming a
        => a
-       -> Bool
+       -> [Balancer.Mapping]
        -> Text
        -> [AvailabilityZone]
        -> Integer
@@ -73,7 +74,9 @@ create (names -> n@Names{..}) elb dom zones cool desired grace min max = do
         , casgVPCZoneIdentifier       = Nothing
         }
   where
-    (chk, elbs) = if elb then ("ELB", [balancerName]) else ("EC2", [])
+    (chk, elbs) = if not (null elb)
+                      then ("ELB", map (Balancer.nameText . Balancer.mkName n) elb)
+                      else ("EC2", [])
 
     tags = map (uncurry $ tag appName) (Tag.defaults n dom)
 

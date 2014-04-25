@@ -46,7 +46,7 @@ find (names -> Names{..}) = findAll [appName] $$ Conduit.head
 
 create :: Naming a
        => a
-       -> [Balancer.Mapping]
+       -> [Balancer.Name]
        -> Text
        -> [AvailabilityZone]
        -> Integer
@@ -55,7 +55,7 @@ create :: Naming a
        -> Integer
        -> Integer
        -> AWS ()
-create (names -> n@Names{..}) elb dom zones cool desired grace min max = do
+create (names -> n@Names{..}) bs dom zones cool desired grace min max = do
     say "Creating Auto Scaling Group {}" [appName]
     send_ CreateAutoScalingGroup
         { casgAutoScalingGroupName    = appName
@@ -74,8 +74,8 @@ create (names -> n@Names{..}) elb dom zones cool desired grace min max = do
         , casgVPCZoneIdentifier       = Nothing
         }
   where
-    (chk, elbs) = if not (null elb)
-                      then ("ELB", map (Balancer.nameText . Balancer.mkName n) elb)
+    (chk, elbs) = if not (null bs)
+                      then ("ELB", map Balancer.nameText bs)
                       else ("EC2", [])
 
     tags = map (uncurry $ tag appName) (Tag.defaults n dom)

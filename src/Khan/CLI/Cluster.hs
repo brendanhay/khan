@@ -65,21 +65,21 @@ instance Naming Info where
     names Info{..} = unversioned iRole iEnv
 
 data Deploy = Deploy
-    { dRKeys     :: !RKeysBucket
-    , dRole      :: !Role
-    , dEnv       :: !Env
-    , dDomain    :: !Text
-    , dVersion   :: !Version
-    , dZones     :: !String
-    , dGrace     :: !Integer
-    , dMin       :: !Integer
-    , dMax       :: !Integer
-    , dDesired   :: !Integer
-    , dCooldown  :: !Integer
-    , dType      :: !InstanceType
-    , dTrust     :: !TrustPath
-    , dPolicy    :: !PolicyPath
-    , dBalancers :: [Balancer.Mapping]
+    { dRKeys    :: !RKeysBucket
+    , dRole     :: !Role
+    , dEnv      :: !Env
+    , dDomain   :: !Text
+    , dVersion  :: !Version
+    , dZones    :: !String
+    , dGrace    :: !Integer
+    , dMin      :: !Integer
+    , dMax      :: !Integer
+    , dDesired  :: !Integer
+    , dCooldown :: !Integer
+    , dType     :: !InstanceType
+    , dTrust    :: !TrustPath
+    , dPolicy   :: !PolicyPath
+    , dBalance  :: [Balancer.Mapping]
     }
 
 deployParser :: EnvMap -> Parser Deploy
@@ -277,26 +277,26 @@ deploy Common{..} d@Deploy{..} = ensure >> create
         ami <- diritImageId <$> wait i
         say "Found AMI {} named {}" [ami, imageName]
 
-        when (not $ null dBalancers) balance
+        when (not $ null dBalance) balance
 
         Config.create d ami dType
-        ASG.create d dBalancers dDomain zones dCooldown dDesired dGrace dMin dMax
+        ASG.create d balancers dDomain zones dCooldown dDesired dGrace dMin dMax
 
     balance = do
         ac <- async $ Cert.find dDomain
-        ab <- async $ mapM (Balancer.find . Balancer.mkName d) dBalancers
+        ab <- async $ mapM (Balancer.find . Balancer.mkName d) dBalance
 
         c  <- wait ac >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
         bs <- wait ab
 
-        forM_ (dBalancers `zip` map isJust bs) $ \(b, exists) ->
+        forM_ (dBalance `zip` map isJust bs) $ \(b, exists) ->
             if exists
                 then say "Load Balancer {} already exists." [B $ Balancer.mkName d b]
                 else Balancer.create d zones b c
 
     Names{..} = names d
-
-    zones = map (AZ cRegion) dZones
+    balancers = map (Balancer.mkName d) dBalance
+    zones     = map (AZ cRegion) dZones
 
 promote :: Common -> Cluster -> AWS ()
 promote _ c@Cluster{..} = do

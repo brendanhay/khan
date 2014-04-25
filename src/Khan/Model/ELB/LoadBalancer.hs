@@ -70,16 +70,16 @@ create (names -> n@Names{..}) zones m@(Mapping fe be) cert = do
         , clbSubnets           = mempty
         }
     Policy.create name
-    Policy.assign name (port fe)
-    Check.configure name (healthCheck be)
+    Policy.assign name (frontendPort fe)
+    Check.configure name (backendHealthCheck be)
     say "Load Balancer available via DNS {}"
         [clbrDNSName $ clbrCreateLoadBalancerResult blc]
   where
     listener = Listener
-        { lInstancePort     = port be
-        , lInstanceProtocol = Just (protocolText (protocol be))
-        , lLoadBalancerPort = port fe
-        , lProtocol         = protocolText (protocol fe)
+        { lInstancePort     = toInteger (backendPort be)
+        , lInstanceProtocol = Just (protocolText (backendProtocol be))
+        , lLoadBalancerPort = toInteger (frontendPort fe)
+        , lProtocol         = protocolText (frontendProtocol fe)
         , lSSLCertificateId = Just (scmArn cert)
         }
 

@@ -99,6 +99,7 @@ library
       , http-conduit
       , http-types
       , mtl
+      , network
       , old-locale
       , optparse-applicative >= 0.8
       , prelude-prime

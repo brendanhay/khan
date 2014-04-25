@@ -21,15 +21,15 @@ import Khan.Model.ELB.Types
 import Khan.Prelude
 import Network.AWS.ELB
 
-configure :: Name -> Text -> AWS ()
-configure name url = do
-    say "Configuring Health Check on {} for Balancer {}" [B url, B name]
+configure :: Name -> HealthCheckTarget -> AWS ()
+configure name tgt = do
+    say "Configuring Health Check on {} for Balancer {}" [B tgt, B name]
     send_ $ ConfigureHealthCheck chk (nameText name)
   where
     chk = HealthCheck
         { hcHealthyThreshold   = 3  -- Required healthy responses.
         , hcUnhealthyThreshold = 2  -- Required unhealthy responses.
         , hcInterval           = 10 -- Seconds between checks.
-        , hcTarget             = url
+        , hcTarget             = healthCheckText tgt
         , hcTimeout            = 3  -- Seconds.
         }

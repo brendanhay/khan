@@ -18,7 +18,7 @@ module Khan.Model.ELB.LoadBalancerPolicy
     , assign
     ) where
 
-import Khan.Model.ELB.Types (Name, Port, nameText)
+import Khan.Model.ELB.Types (Name, PortNumber, nameText)
 import Khan.Prelude
 import Network.AWS.ELB
 
@@ -35,11 +35,11 @@ create name = do
     key = Just "Reference-Security-Policy"
     val = Just "ELBSecurityPolicy-2014-01"
 
-assign :: Name -> Port -> AWS ()
+assign :: Name -> PortNumber -> AWS ()
 assign name port = do
-    say "Assigning Policy {} on Port {}" [B name, B port]
+    say "Assigning Policy {} on Port {}" [B name, B $ toInteger port]
     send_ SetLoadBalancerPoliciesOfListener
         { slbpolLoadBalancerName = nameText name
-        , slbpolLoadBalancerPort = port
+        , slbpolLoadBalancerPort = toInteger port
         , slbpolPolicyNames      = Members [nameText name]
         }

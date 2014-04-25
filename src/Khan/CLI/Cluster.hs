@@ -342,9 +342,11 @@ promote _ c@Cluster{..} = do
                 ]
 
     promote' name next = do
-        say "Searching for Instances tagged with {}" [name]
+        say "Searching for running Instances tagged with {}" [name]
         is <- map riitInstanceId <$>
-            Instance.findAll [] [Tag.filter Tag.group [name]]
+            Instance.findAll [] [ Tag.filter Tag.group [name]
+                                , ec2Filter "instance-state-name" ["running"]
+                                ]
 
         say "Promoting Auto Scaling Group {}" [name]
         ag <- sendAsync $ CreateOrUpdateTags (Members [reweight promoted next])

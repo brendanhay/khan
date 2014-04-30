@@ -277,7 +277,7 @@ deploy Common{..} d@Deploy{..} = ensure >> create
         ami <- diritImageId <$> wait i
         say "Found AMI {} named {}" [ami, imageName]
 
-        when (not $ null dBalance) balance
+        unless (null dBalance) balance
 
         Config.create d ami dType
         ASG.create d balancers dDomain zones dCooldown dDesired dGrace dMin dMax

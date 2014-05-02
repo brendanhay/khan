@@ -112,9 +112,7 @@ protocolText = toLower . pack . show
 instance TextParser Mapping where
     parser = do
         fe <- parser
-        skipSpace
-        _  <- asciiCI "TO"
-        skipSpace
+        _  <- char '-'
         be <- parser
         return $ Mapping fe be
 

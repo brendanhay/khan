@@ -18,67 +18,81 @@ module Khan.Model.ELB.LoadBalancer
     , find
     , create
     , delete
+    , fqdn
     ) where
 
 import           Data.Conduit
 import qualified Data.Conduit.List                 as Conduit
+import qualified Data.Text                         as Text
 import           Khan.Internal
 import qualified Khan.Model.ELB.HealthCheck        as Check
 import qualified Khan.Model.ELB.LoadBalancerPolicy as Policy
+import           Khan.Model.ELB.Types
 import           Khan.Prelude                      hiding (find)
 import           Network.AWS.ELB
 import           Network.AWS.IAM                   (ServerCertificateMetadata(..))
 
-findAll :: [Text] -> Source AWS LoadBalancerDescription
-findAll bids = do
-    if null bids
+findAll :: [Name] -> Source AWS LoadBalancerDescription
+findAll nms = do
+    if null nms
         then log_ "Describing Load Balancers..."
-        else say  "Describing Load Balancers: {}" [L bids]
-    paginateCatch (DescribeLoadBalancers (Members bids) Nothing)
+        else say  "Describing Load Balancers: {}" [L nms]
+    paginateCatch (DescribeLoadBalancers (Members (map nameText nms)) Nothing)
         $= Conduit.mapM verify
         $= Conduit.catMaybes
         $= Conduit.concatMap (members
             . dlbrLoadBalancerDescriptions
             . dlbsDescribeLoadBalancersResult)
   where
-    verify (Right x) = return (Just x)
+    verify (Right b) = return (Just b)
     verify (Left  e)
         | "LoadBalancerNotFound" == elbeCode (elberError e) = return Nothing
         | otherwise = throwError (toError e)
 
-find :: Naming a => a -> AWS (Maybe LoadBalancerDescription)
-find (names -> Names{..}) = findAll [balancerName] $$ Conduit.head
+find :: Name -> AWS (Maybe LoadBalancerDescription)
+find name = findAll [name] $$ Conduit.head
 
 create :: Naming a
        => a
        -> [AvailabilityZone]
-       -> Frontend
-       -> Backend
+       -> Mapping
        -> ServerCertificateMetadata
        -> AWS ()
-create (names -> n@Names{..}) zones fe be cert = do
-    say "Creating Load Balancer {}: {} -> {}" [B balancerName, B fe, B be]
-    b <- send CreateLoadBalancer
+create (names -> n@Names{..}) zones m@(Mapping fe be) cert = do
+    let name = mkName n m
+    say "Creating Load Balancer {}: {} -> {}" [B name, B fe, B be]
+    blc <- send CreateLoadBalancer
         { clbAvailabilityZones = Members zones
         , clbListeners         = Members [listener]
-        , clbLoadBalancerName  = balancerName
+        , clbLoadBalancerName  = nameText name
         , clbScheme            = Nothing
         , clbSecurityGroups    = mempty
         , clbSubnets           = mempty
         }
-    Policy.create n >> Policy.assign n fe >> Check.configure n be
+    Policy.create name
+    Policy.assign name (frontendPort fe)
+    Check.configure name (backendHealthCheck be)
     say "Load Balancer available via DNS {}"
-        [clbrDNSName $ clbrCreateLoadBalancerResult b]
+        [clbrDNSName $ clbrCreateLoadBalancerResult blc]
   where
     listener = Listener
-        { lInstancePort     = port be
-        , lInstanceProtocol = Just (protocolToText be)
-        , lLoadBalancerPort = port fe
-        , lProtocol         = protocolToText fe
+        { lInstancePort     = toInteger (backendPort be)
+        , lInstanceProtocol = Just (protocolText (backendProtocol be))
+        , lLoadBalancerPort = toInteger (frontendPort fe)
+        , lProtocol         = protocolText (frontendProtocol fe)
         , lSSLCertificateId = Just (scmArn cert)
         }
 
-delete :: Naming a => a -> AWS ()
-delete (names -> Names{..}) = do
-    say "Deleting Load Balancer {}" [balancerName]
-    send_ $ DeleteLoadBalancer balancerName
+delete :: Name -> AWS ()
+delete name = do
+    say "Deleting Load Balancer {}" [name]
+    send_ $ DeleteLoadBalancer (nameText name)
+
+fqdn :: Naming a => a -> Text -> LoadBalancerDescription -> AWS Text
+-- Note: As per 'create' we only use a single listener per ELB.
+fqdn (names -> Names{..}) dom LoadBalancerDescription{..} =
+    let l = ldListener =<< listToMaybe (members lbdListenerDescriptions)
+    in maybe missing (return . mkDNS) (lProtocol <$> l)
+  where
+    mkDNS p = dnsName <> "-" <> Text.toLower p <> "." <> dom
+    missing = throwAWS "Load Balancer {} has no listener." [lbdLoadBalancerName]

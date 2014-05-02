@@ -17,19 +17,19 @@ module Khan.Model.ELB.HealthCheck
     ( configure
     ) where
 
-import Khan.Internal
+import Khan.Model.ELB.Types
 import Khan.Prelude
 import Network.AWS.ELB
 
-configure :: Naming a => a -> Backend -> AWS ()
-configure (names -> Names{..}) be = do
-    say "Configuring Health Check on {} for Balancer {}" [B be, B balancerName]
-    send_ $ ConfigureHealthCheck chk balancerName
+configure :: Name -> HealthCheckTarget -> AWS ()
+configure name tgt = do
+    say "Configuring Health Check on {} for Balancer {}" [B tgt, B name]
+    send_ $ ConfigureHealthCheck chk (nameText name)
   where
     chk = HealthCheck
         { hcHealthyThreshold   = 3  -- Required healthy responses.
         , hcUnhealthyThreshold = 2  -- Required unhealthy responses.
         , hcInterval           = 10 -- Seconds between checks.
-        , hcTarget             = healthCheck be
+        , hcTarget             = healthCheckText tgt
         , hcTimeout            = 3  -- Seconds.
         }

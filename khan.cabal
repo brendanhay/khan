@@ -55,6 +55,7 @@ library
       , Khan.Model.ELB.HealthCheck
       , Khan.Model.ELB.LoadBalancer
       , Khan.Model.ELB.LoadBalancerPolicy
+      , Khan.Model.ELB.Types
       , Khan.Model.IAM.Role
       , Khan.Model.IAM.ServerCertificate
       , Khan.Model.Key
@@ -98,6 +99,7 @@ library
       , http-conduit
       , http-types
       , mtl
+      , network
       , old-locale
       , optparse-applicative >= 0.8
       , prelude-prime

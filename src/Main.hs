@@ -110,10 +110,10 @@ parseProgram as es mr = uncurry execParserPure (parserInfo upd) as
 parserInfo :: EnvMap -> (ParserPrefs, ParserInfo (Common, Command))
 parserInfo env =
     ( prefs $ showHelpOnError <> columns 100
-    , info parser idm
+    , info khanParser idm
     )
   where
-    parser = (,)
+    khanParser = (,)
         <$> commonParser env
         <*> hsubparser
              ( Ansible.commands env

@@ -37,7 +37,7 @@ module Khan.Model.EC2.SecurityGroup
 import Control.Arrow
 import Control.Monad          (liftM2)
 import Data.List              (groupBy, sort, nub)
-import Khan.Internal   hiding (Protocol(..))
+import Khan.Internal
 import Khan.Prelude    hiding (find, min, max)
 import Network.AWS.EC2 hiding (Instance)
 

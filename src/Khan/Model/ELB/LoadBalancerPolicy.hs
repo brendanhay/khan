@@ -18,16 +18,16 @@ module Khan.Model.ELB.LoadBalancerPolicy
     , assign
     ) where
 
-import Khan.Internal
+import Khan.Model.ELB.Types (Name, PortNumber, nameText)
 import Khan.Prelude
 import Network.AWS.ELB
 
-create :: Naming a => a -> AWS ()
-create (names -> Names{..}) = do
-    say "Creating Load Balancer Policy {}" [balancerName]
+create :: Name -> AWS ()
+create name = do
+    say "Creating Load Balancer Policy {}" [name]
     send_ CreateLoadBalancerPolicy
-        { clbpLoadBalancerName = balancerName
-        , clbpPolicyName       = balancerName
+        { clbpLoadBalancerName = nameText name
+        , clbpPolicyName       = nameText name
         , clbpPolicyTypeName   = "SSLNegotiationPolicyType"
         , clbpPolicyAttributes = Members [PolicyAttribute key val]
         }
@@ -35,11 +35,11 @@ create (names -> Names{..}) = do
     key = Just "Reference-Security-Policy"
     val = Just "ELBSecurityPolicy-2014-01"
 
-assign :: Naming a => a -> Frontend -> AWS ()
-assign (names -> Names{..}) fe = do
-    say "Assigning Policy {} on Port {}" [B balancerName, B $ port fe]
+assign :: Name -> PortNumber -> AWS ()
+assign name port = do
+    say "Assigning Policy {} on Port {}" [B name, B $ toInteger port]
     send_ SetLoadBalancerPoliciesOfListener
-        { slbpolLoadBalancerName = balancerName
-        , slbpolLoadBalancerPort = port fe
-        , slbpolPolicyNames      = Members [balancerName]
+        { slbpolLoadBalancerName = nameText name
+        , slbpolLoadBalancerPort = toInteger port
+        , slbpolPolicyNames      = Members [nameText name]
         }

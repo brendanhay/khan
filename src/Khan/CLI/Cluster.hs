@@ -107,7 +107,7 @@ deployParser env = Deploy
     <*> trustOption
     <*> policyOption
     <*> many (customOption "elb" "ELB" parseString mempty
-        "Balancer shizzle (e.g. 'https:443 to http:8080/status')")
+        "Balancer shizzle (e.g. https:443-http:8080/status)")
 
 instance Options Deploy where
     discover _ Common{..} d@Deploy{..} = do

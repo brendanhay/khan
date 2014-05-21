@@ -328,18 +328,22 @@ promote _ c@Cluster{..} = do
 
     rebalance next = do
         let dom = tagDomain $ annTags next
-        mb <- Balancer.findAll (Balancer.namesFromASG (annValue next)) $$ Conduit.consume
-        forM_ mb $ \lbd -> do
-            tgt <- noteAWS "Load Balancer {} doesn't contain a DNS entry."
-                [lbdLoadBalancerName lbd] (lbdDNSName lbd)
-            cid <- noteAWS "Load Balancer {} doesn't contain a Hosted Zone."
-                [lbdLoadBalancerName lbd] (lbdCanonicalHostedZoneNameID lbd)
-            zid <- HZone.findId dom
-            dns <- Balancer.fqdn c dom lbd
-            say "Assigning Record Set {} to {}" [dns, tgt]
-            void $ RSet.set zid dnsName
-                [ AliasRecordSet dns A (AliasTarget (hostedZoneId cid) tgt False) Nothing
-                ]
+        let elbs = Balancer.namesFromASG (annValue next)
+        if null elbs
+            then log_ "No associated Elastic Load Balancers found."
+            else do
+                mb <- Balancer.findAll elbs $$ Conduit.consume
+                forM_ mb $ \lbd -> do
+                    tgt <- noteAWS "Load Balancer {} doesn't contain a DNS entry."
+                        [lbdLoadBalancerName lbd] (lbdDNSName lbd)
+                    cid <- noteAWS "Load Balancer {} doesn't contain a Hosted Zone."
+                        [lbdLoadBalancerName lbd] (lbdCanonicalHostedZoneNameID lbd)
+                    zid <- HZone.findId dom
+                    dns <- Balancer.fqdn c dom lbd
+                    say "Assigning Record Set {} to {}" [dns, tgt]
+                    void $ RSet.set zid dnsName
+                        [ AliasRecordSet dns A (AliasTarget (hostedZoneId cid) tgt False) Nothing
+                        ]
 
     promote' name next = do
         say "Searching for running Instances tagged with {}" [name]
@@ -391,7 +395,10 @@ retire _ c@Cluster{..} = do
         . join
         . fmap Tag.annotate
     dg <- async $ ASG.delete c >> Config.delete c
-    ab <- Balancer.findAll (Balancer.namesFromASG (annValue ag)) $$ Conduit.consume
+    let elbs = Balancer.namesFromASG (annValue ag)
+    ab <- if null elbs
+        then log_ "No associated Elastic Load Balancers found." >> return []
+        else Balancer.findAll elbs $$ Conduit.consume
     db <- async $ forM_ ab $ traverse_ Balancer.delete . Balancer.nameFromDescription
     forM_ ab $ \lbd -> do
         let dom = tagDomain (annTags ag)

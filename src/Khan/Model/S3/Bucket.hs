@@ -75,15 +75,16 @@ prune c b p a = do
   where
     start = GetBucket b (Delimiter '/') (prefix p) 250 Nothing
 
-    prefix (Just x) = Just . fromMaybe x $ Text.stripPrefix "/" x
+    prefix (Just x) = Just . suffixed "/" . fromMaybe x $ Text.stripPrefix "/" x
     prefix Nothing  = Nothing
+    suffixed s x = if s `Text.isSuffixOf` x then x else x <> s
 
     match Contents{..}
         | bcStorageClass == Glacier = False
         | isArtifact bcKey          = True
         | otherwise                 = False
 
-    isArtifact = Text.isPrefixOf $ fromMaybe "" p <> (a `Text.snoc` '_')
+    isArtifact = Text.isPrefixOf $ fromMaybe "" (prefix p) <> a <> "_"
 
     split   = filter (isJust . snd) . map (second version . join (,) . bcKey)
     version = hush . parseFileName . Path.fromText

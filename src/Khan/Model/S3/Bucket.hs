@@ -33,8 +33,8 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import qualified Shelly                    as Shell
 
-download :: Int -> Text -> Maybe Text -> FilePath -> AWS Bool
-download n b p dir = do
+download :: Int -> Text -> Maybe Text -> FilePath -> Bool -> AWS Bool
+download n b p dir force = do
     say "Paginating Bucket {} contents" [b]
     or <$> (paginate start
         $= Conduit.concatMap (filter match . gbrContents)
@@ -56,7 +56,7 @@ download n b p dir = do
     retrieve Contents{..} = do
         let dest = dir </> Path.fromText bcKey
         shell . Shell.mkdir_p $ Path.parent dest
-        Object.download b bcKey dest
+        Object.download b bcKey dest force
 
     chunked xs = do
         mx <- await

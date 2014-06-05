@@ -71,8 +71,7 @@ capture :: (Params ps, Changed a)
         -> ps
         -> AWS a
         -> AWS ()
-capture False _ _ _  aws = void aws
-capture True  c f ps aws = contextAWS c (aws >>= success . changed)
+capture ansible  c f ps aws = contextAWS c (aws >>= success . changed)
     >>= either failure return
     >>= exit
   where
@@ -83,12 +82,14 @@ capture True  c f ps aws = contextAWS c (aws >>= success . changed)
     failure (Ex  ex) = failure . toError $ show ex
     failure (Ers es) = failure . toError . intercalate ", " $ map show es
 
-    exit o = liftIO $ LBS.putStrLn (Aeson.encodePretty o) >>
+    exit o = liftIO $ do
+        when ansible $ LBS.putStrLn (Aeson.encodePretty o)
         case o of
-            Fail _ -> exitFailure
-            _      -> exitSuccess
+            Fail     _               -> exitFailure
+            NoChange _ | not ansible -> exitWith (ExitFailure 69)
+            _                        -> exitSuccess
 
-    changed'   g = return . Change   . format g
+    changed'  g = return . Change   . format g
     unchanged g = return . NoChange . format g
     failed    g = return . Fail     . format g
 

@@ -35,37 +35,35 @@ import           Network.HTTP.Conduit
 import           Network.HTTP.Types        (urlEncode)
 import           System.Directory
 
-download :: Text -> Text -> FilePath -> AWS Bool
-download b k (Path.encodeString -> f) = do
+download :: Text -> Text -> FilePath -> Bool -> AWS Bool
+download b k (Path.encodeString -> f) force = do
     p <- liftIO $ doesFileExist f
-    if p
-        then say "File {} already exists." [f]
-        else do
-            say "Downloading {}/{} to {}" [b, k, Text.pack f]
-            rs <- send $ GetObject b (safeKey k) []
-            responseBody rs $$+- Conduit.sinkFile f
-    return $ not p
+    when p $ say "File {} already exists." [f]
+    when (not p || force) $ do
+        say "Downloading {}/{} to {}" [b, k, Text.pack f]
+        rs <- send $ GetObject b (safeKey k) []
+        responseBody rs $$+- Conduit.sinkFile f
+    return $ not p || force
 
-upload :: Text -> Text -> FilePath -> AWS Bool
-upload b k (Path.encodeString -> f) = do
+upload :: Text -> Text -> FilePath -> Bool -> AWS Bool
+upload b k (Path.encodeString -> f) force = do
     p <- fmap isRight . sendCatch $ HeadObject b (safeKey k) []
-    if p
-        then say "Object {}/{} already exists." [b, k]
-        else do
-            say "Uploading {} to {}/{}" [Text.pack f, b, k]
-            mb  <- requestBodyFile f
-            bdy <- noteAWS "Unable to get file size: {}" [B f] mb
-            send_ $ PutObject b (safeKey k) [] bdy
-    return $ not p
+    when p $ say "Object {}/{} already exists." [b, k]
+    when (not p || force) $ do
+        say "Uploading {} to {}/{}" [Text.pack f, b, k]
+        mb  <- requestBodyFile f
+        bdy <- noteAWS "Unable to get file size: {}" [B f] mb
+        send_ $ PutObject b (safeKey k) [] bdy
+    return $ not p || force
 
-latest :: Text -> Text -> FilePath -> AWS Bool
-latest b p f = do
+latest :: Text -> Text -> FilePath -> Bool -> AWS Bool
+latest b p f force = do
     say "Paginating Bucket {} contents" [b]
     mk <- paginate start
         $= Conduit.concatMap contents
         $$ Conduit.fold max' Nothing
     maybe (throwAWS "No semantically versioned keys in Bucket {}" [B b])
-          (\(k, _) -> download b k f)
+          (\(k, _) -> download b k f force)
           mk
   where
     start  = GetBucket b (Delimiter '/') (Just prefix) 250 Nothing

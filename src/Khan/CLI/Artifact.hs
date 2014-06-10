@@ -105,15 +105,15 @@ commands = group "artifact" "Manage S3 Artifacts." $ mconcat
         "Prune old artifacts from the bucket."
     ]
 
-object :: (Text -> Text -> FilePath -> AWS Bool) -> Common -> Object -> AWS ()
+object :: (Text -> Text -> FilePath -> Bool -> AWS Bool) -> Common -> Object -> AWS ()
 object g c Object{..} =
-    capture oAnsible c "object {}/{}" [oBucket, oKey] $
-        g oBucket oKey oPath
+    capture oAnsible c "object {}/{}" [oBucket, oKey] $ do
+        g oBucket oKey oPath oForce
 
 sync :: Common -> Bucket -> AWS ()
 sync c Bucket{..} =
     capture bAnsible c "bucket {}/{}" [bBucket, fromMaybe "" bPrefix] $
-        Bucket.download bN bBucket bPrefix bDir
+        Bucket.download bN bBucket bPrefix bDir bForce
 
 prune :: Common -> Prune -> AWS ()
 prune c Prune{..} =

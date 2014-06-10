@@ -50,12 +50,14 @@ create (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
              Shell.writefile f $ ckqKeyMaterial k
              Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
         say "Wrote new Key Pair to {}" [f]
-        void $ Object.upload b (Text.pack . Path.encodeString $ Path.filename f) f
+        let key = Text.pack . Path.encodeString $ Path.filename f
+         in void $ Object.upload b key f True
 
 path :: Naming a => RKeysBucket -> a -> LKeysDir -> AWS FilePath
 path (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
     f <- filePath n dir
-    void $ Object.download b (Text.pack . Path.encodeString $ Path.filename f) f
+    let key = Text.pack . Path.encodeString $ Path.filename f
+     in void $ Object.download b key f False
     shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
     return f
 

@@ -69,8 +69,12 @@ create (names -> n@Names{..}) zones m@(Mapping fe be) cert = do
         , clbSecurityGroups    = mempty
         , clbSubnets           = mempty
         }
-    Policy.create name
+    Policy.create (Policy.sslPolicy name)
     Policy.assign name (frontendPort fe)
+    case backendProtocol be of
+        TCP -> Policy.create (Policy.proxyProtocolPolicy name)
+            >> Policy.assign name (backendPort be)
+        _   -> return ()
     Check.configure name (backendHealthCheck be)
     say "Load Balancer available via DNS {}"
         [clbrDNSName $ clbrCreateLoadBalancerResult blc]

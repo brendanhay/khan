@@ -16,24 +16,40 @@
 module Khan.Model.ELB.LoadBalancerPolicy
     ( create
     , assign
+    , sslPolicy
+    , proxyProtocolPolicy
     ) where
 
 import Khan.Model.ELB.Types (Name, PortNumber, nameText)
 import Khan.Prelude
 import Network.AWS.ELB
 
-create :: Name -> AWS ()
-create name = do
-    say "Creating Load Balancer Policy {}" [name]
-    send_ CreateLoadBalancerPolicy
-        { clbpLoadBalancerName = nameText name
-        , clbpPolicyName       = nameText name
-        , clbpPolicyTypeName   = "SSLNegotiationPolicyType"
-        , clbpPolicyAttributes = Members [PolicyAttribute key val]
-        }
+create :: CreateLoadBalancerPolicy -> AWS ()
+create p = do
+    say "Creating Load Balancer Policy {}" [clbpPolicyName p]
+    send_ p
+
+sslPolicy :: Name -> CreateLoadBalancerPolicy
+sslPolicy name = CreateLoadBalancerPolicy
+    { clbpLoadBalancerName = nameText name
+    , clbpPolicyName       = nameText name
+    , clbpPolicyTypeName   = "SSLNegotiationPolicyType"
+    , clbpPolicyAttributes = Members [PolicyAttribute key val]
+    }
   where
     key = Just "Reference-Security-Policy"
     val = Just "ELBSecurityPolicy-2014-01"
+
+proxyProtocolPolicy :: Name -> CreateLoadBalancerPolicy
+proxyProtocolPolicy name = CreateLoadBalancerPolicy
+    { clbpLoadBalancerName = nameText name
+    , clbpPolicyName       = nameText name
+    , clbpPolicyTypeName   = "ProxyProtocolPolicyType"
+    , clbpPolicyAttributes = Members [PolicyAttribute key val]
+    }
+  where
+    key = Just "ProxyProtocol"
+    val = Just "true"
 
 assign :: Name -> PortNumber -> AWS ()
 assign name port = do

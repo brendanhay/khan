@@ -7,12 +7,13 @@ FLAGS        := --disable-documentation --disable-library-coverage --reorder-goa
 DEPS         := vendor/amazonka vendor/ede
 BIN          := dist/build/$(NAME)/$(NAME)
 OUT          := dist/$(NAME)
+SDIST        := dist/$(NAME)-$(VERSION).tar.gz
 
 .PHONY: $(BIN) clean test lint
 
 all: deps $(NAME)
 
-dist: deps dist/$(DEB)
+dist: deps dist/$(DEB) $(SDIST)
 
 clean:
 	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT)
@@ -40,6 +41,9 @@ $(OUT): $(BIN)
 	 --build=$(BUILD_NUMBER) \
 	 --architecture=amd64 \
 	 --output-dir=dist
+
+$(SDIST):
+	cabal sdist
 
 deps: add-sources
 	cabal install -j $(FLAGS) --only-dependencies

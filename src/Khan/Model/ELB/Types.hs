@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 -- Module      : Khan.Model.ELB.HealthCheck
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -41,7 +42,7 @@ module Khan.Model.ELB.Types
 
 import Data.Attoparsec.Text
 import Data.String                  (fromString)
-import Data.Text                    (Text, pack, toLower, unpack, intercalate)
+import Data.Text                    (Text, intercalate, pack, toLower, unpack, stripSuffix)
 import Data.Text.Buildable          (Buildable (..))
 import Data.Text.Lazy               (toStrict)
 import Data.Text.Lazy.Builder       (toLazyText)
@@ -180,10 +181,11 @@ newtype PolicyType = PolicyType { policyTypeText :: Text }
     deriving (Eq, Show, Pretty)
 
 mkPolicyName :: BalancerName -> PolicyType -> PolicyName
-mkPolicyName b p = PolicyName . intercalate "-" $
-    [ balancerNameText b
-    , toLower $ policyTypeText p
-    ]
+mkPolicyName b p = PolicyName . intercalate "-" $ [balancerNameText b, typ]
+  where
+    typ = toLower $ case policyTypeText p of
+        (stripSuffix "PolicyType" -> Just pre) -> pre
+        x                                      -> x
 
 policyNameFromCreateRequest :: CreateLoadBalancerPolicy -> PolicyName
 policyNameFromCreateRequest = PolicyName . clbpPolicyName

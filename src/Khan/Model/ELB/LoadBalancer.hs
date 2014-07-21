@@ -30,14 +30,14 @@ import qualified Khan.Model.ELB.LoadBalancerPolicy as Policy
 import           Khan.Model.ELB.Types
 import           Khan.Prelude                      hiding (find)
 import           Network.AWS.ELB
-import           Network.AWS.IAM                   (ServerCertificateMetadata(..))
+import           Network.AWS.IAM                   (ServerCertificateMetadata (..))
 
-findAll :: [Name] -> Source AWS LoadBalancerDescription
+findAll :: [BalancerName] -> Source AWS LoadBalancerDescription
 findAll nms = do
     if null nms
         then log_ "Describing Load Balancers..."
         else say  "Describing Load Balancers: {}" [L nms]
-    paginateCatch (DescribeLoadBalancers (Members (map nameText nms)) Nothing)
+    paginateCatch (DescribeLoadBalancers (Members (map balancerNameText nms)) Nothing)
         $= Conduit.mapM verify
         $= Conduit.catMaybes
         $= Conduit.concatMap (members
@@ -49,8 +49,8 @@ findAll nms = do
         | "LoadBalancerNotFound" == elbeCode (elberError e) = return Nothing
         | otherwise = throwError (toError e)
 
-find :: Name -> AWS (Maybe LoadBalancerDescription)
-find name = findAll [name] $$ Conduit.head
+find :: BalancerName -> AWS (Maybe LoadBalancerDescription)
+find balancer = findAll [balancer] $$ Conduit.head
 
 create :: Naming a
        => a
@@ -59,23 +59,24 @@ create :: Naming a
        -> ServerCertificateMetadata
        -> AWS ()
 create (names -> n@Names{..}) zones m@(Mapping fe be) cert = do
-    let name = mkName n m
-    say "Creating Load Balancer {}: {} -> {}" [B name, B fe, B be]
+    let balancer = mkBalancerName n m
+    say "Creating Load Balancer {}: {} -> {}" [B balancer, B fe, B be]
     blc <- send CreateLoadBalancer
         { clbAvailabilityZones = Members zones
         , clbListeners         = Members [listener]
-        , clbLoadBalancerName  = nameText name
+        , clbLoadBalancerName  = balancerNameText balancer
         , clbScheme            = Nothing
         , clbSecurityGroups    = mempty
         , clbSubnets           = mempty
         }
-    Policy.create (Policy.sslPolicy name)
-    Policy.assign name (frontendPort fe)
-    case backendProtocol be of
-        TCP -> Policy.create (Policy.proxyProtocolPolicy name)
-            >> Policy.assign name (backendPort be)
-        _   -> return ()
-    Check.configure name (backendHealthCheck be)
+
+    ssl <- Policy.create $ Policy.sslPolicy balancer
+    Policy.assign ssl balancer (frontendPort fe)
+    when (backendProtocol be == TCP) $ do
+        proxy <- Policy.create $ Policy.proxyProtocolPolicy balancer
+        Policy.assign proxy balancer (backendPort be)
+
+    Check.configure balancer (backendHealthCheck be)
     say "Load Balancer available via DNS {}"
         [clbrDNSName $ clbrCreateLoadBalancerResult blc]
   where
@@ -87,10 +88,10 @@ create (names -> n@Names{..}) zones m@(Mapping fe be) cert = do
         , lSSLCertificateId = Just (scmArn cert)
         }
 
-delete :: Name -> AWS ()
-delete name = do
-    say "Deleting Load Balancer {}" [name]
-    send_ $ DeleteLoadBalancer (nameText name)
+delete :: BalancerName -> AWS ()
+delete balancer = do
+    say "Deleting Load Balancer {}" [balancer]
+    send_ $ DeleteLoadBalancer (balancerNameText balancer)
 
 fqdn :: Naming a => a -> Text -> LoadBalancerDescription -> AWS Text
 -- Note: As per 'create' we only use a single listener per ELB.

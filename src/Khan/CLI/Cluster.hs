@@ -244,7 +244,7 @@ info Common{..} Info{..} = do
             if null asgLoadBalancerNames
                 then log_ "No associated Elastic Load Balancers found."
                 else do
-                    bs <- Balancer.findAll (Balancer.namesFromASG asg) $$ Conduit.consume
+                    bs <- Balancer.findAll (Balancer.balancerNamesFromASG asg) $$ Conduit.consume
                     pPrint $ header (Proxy :: Proxy LoadBalancerDescription)
                          <-> body bs
 
@@ -284,18 +284,18 @@ deploy Common{..} d@Deploy{..} = ensure >> create
 
     balance = do
         ac <- async $ Cert.find dDomain
-        ab <- async $ mapM (Balancer.find . Balancer.mkName d) dBalance
+        ab <- async $ mapM (Balancer.find . Balancer.mkBalancerName d) dBalance
 
         c  <- wait ac >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
         bs <- wait ab
 
         forM_ (dBalance `zip` map isJust bs) $ \(b, exists) ->
             if exists
-                then say "Load Balancer {} already exists." [B $ Balancer.mkName d b]
+                then say "Load Balancer {} already exists." [B $ Balancer.mkBalancerName d b]
                 else Balancer.create d zones b c
 
     Names{..} = names d
-    balancers = map (Balancer.mkName d) dBalance
+    balancers = map (Balancer.mkBalancerName d) dBalance
     zones     = map (AZ cRegion) dZones
 
 promote :: Common -> Cluster -> AWS ()
@@ -328,7 +328,7 @@ promote _ c@Cluster{..} = do
 
     rebalance next = do
         let dom = tagDomain $ annTags next
-        let elbs = Balancer.namesFromASG (annValue next)
+        let elbs = Balancer.balancerNamesFromASG (annValue next)
         if null elbs
             then log_ "No associated Elastic Load Balancers found."
             else do
@@ -395,11 +395,11 @@ retire _ c@Cluster{..} = do
         . join
         . fmap Tag.annotate
     dg <- async $ ASG.delete c >> Config.delete c
-    let elbs = Balancer.namesFromASG (annValue ag)
+    let elbs = Balancer.balancerNamesFromASG (annValue ag)
     ab <- if null elbs
         then log_ "No associated Elastic Load Balancers found." >> return []
         else Balancer.findAll elbs $$ Conduit.consume
-    db <- async $ forM_ ab $ traverse_ Balancer.delete . Balancer.nameFromDescription
+    db <- async $ forM_ ab $ traverse_ Balancer.delete . Balancer.balancerNameFromDescription
     forM_ ab $ \lbd -> do
         let dom = tagDomain (annTags ag)
         dns <- Balancer.fqdn c dom lbd

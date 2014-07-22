@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 -- Module      : Khan.Model.ELB.HealthCheck
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -27,15 +28,21 @@ module Khan.Model.ELB.Types
     , protocolText
 
       -- * Naming
-    , Name (nameText)
-    , mkName
-    , namesFromASG
-    , nameFromDescription
+    , BalancerName (balancerNameText)
+    , mkBalancerName
+    , balancerNamesFromASG
+    , balancerNameFromDescription
+
+    , PolicyName   (policyNameText)
+    , mkPolicyName
+    , policyNameFromCreateRequest
+
+    , PolicyType   (.. )
     ) where
 
 import Data.Attoparsec.Text
 import Data.String                  (fromString)
-import Data.Text                    (Text, toLower, pack, unpack)
+import Data.Text                    (Text, intercalate, pack, toLower, unpack, stripSuffix)
 import Data.Text.Buildable          (Buildable (..))
 import Data.Text.Lazy               (toStrict)
 import Data.Text.Lazy.Builder       (toLazyText)
@@ -56,7 +63,7 @@ data Protocol
     | HTTPS
     | TCP
     | SSL
-    deriving (Show)
+    deriving (Eq, Show)
 
 instance Buildable Protocol where
     build = fromString . show
@@ -152,15 +159,33 @@ instance Pretty Backend where
 -------------------------------------------------------------------------------
 -- Naming
 
-newtype Name = Name { nameText :: Text } deriving (Eq, Show, Pretty)
+newtype BalancerName = BalancerName { balancerNameText :: Text }
+    deriving (Eq, Show, Pretty)
 
-namesFromASG :: AutoScalingGroup -> [Name]
-namesFromASG = map Name . asgLoadBalancerNames
+balancerNamesFromASG :: AutoScalingGroup -> [BalancerName]
+balancerNamesFromASG = map BalancerName . asgLoadBalancerNames
 
-nameFromDescription :: LoadBalancerDescription -> Maybe Name
-nameFromDescription = fmap Name . lbdLoadBalancerName
+balancerNameFromDescription :: LoadBalancerDescription -> Maybe BalancerName
+balancerNameFromDescription = fmap BalancerName . lbdLoadBalancerName
 
-mkName :: Naming a => a -> Mapping -> Name
-mkName n = mk . frontendProtocol . frontend
+mkBalancerName :: Naming a => a -> Mapping -> BalancerName
+mkBalancerName n = mk . frontendProtocol . frontend
   where
-    mk p = Name $ balancerBaseName (names n) <> "-" <> protocolText p
+    mk p = BalancerName $ balancerBaseName (names n) <> "-" <> protocolText p
+
+
+newtype PolicyName = PolicyName { policyNameText :: Text }
+    deriving (Eq, Show, Pretty)
+
+newtype PolicyType = PolicyType { policyTypeText :: Text }
+    deriving (Eq, Show, Pretty)
+
+mkPolicyName :: BalancerName -> PolicyType -> PolicyName
+mkPolicyName b p = PolicyName . intercalate "-" $ [balancerNameText b, typ]
+  where
+    typ = toLower $ case policyTypeText p of
+        (stripSuffix "PolicyType" -> Just pre) -> pre
+        x                                      -> x
+
+policyNameFromCreateRequest :: CreateLoadBalancerPolicy -> PolicyName
+policyNameFromCreateRequest = PolicyName . clbpPolicyName

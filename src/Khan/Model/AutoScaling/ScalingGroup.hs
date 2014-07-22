@@ -46,7 +46,7 @@ find (names -> Names{..}) = findAll [appName] $$ Conduit.head
 
 create :: Naming a
        => a
-       -> [Balancer.Name]
+       -> [Balancer.BalancerName]
        -> Text
        -> [AvailabilityZone]
        -> Integer
@@ -75,7 +75,7 @@ create (names -> n@Names{..}) bs dom zones cool desired grace min max = do
         }
   where
     (chk, elbs) = if not (null bs)
-                      then ("ELB", map Balancer.nameText bs)
+                      then ("ELB", map Balancer.balancerNameText bs)
                       else ("EC2", [])
 
     tags = map (uncurry $ tag appName) (Tag.defaults n dom)

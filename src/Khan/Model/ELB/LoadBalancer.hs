@@ -71,10 +71,10 @@ create (names -> n@Names{..}) zones m@(Mapping fe be) cert = do
         }
 
     ssl <- Policy.create $ Policy.sslPolicy balancer
-    Policy.assign ssl balancer (frontendPort fe)
+    Policy.assign $ Policy.FrontendPolicy fe ssl balancer
     when (backendProtocol be == TCP) $ do
         proxy <- Policy.create $ Policy.proxyProtocolPolicy balancer
-        Policy.assign proxy balancer (backendPort be)
+        Policy.assign $ Policy.BackendPolicy be proxy balancer
 
     Check.configure balancer (backendHealthCheck be)
     say "Load Balancer available via DNS {}"

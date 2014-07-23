@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs             #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -13,7 +14,8 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.ELB.LoadBalancerPolicy
-    ( create
+    ( PolicyTarget (..)
+    , create
     , assign
     , sslPolicy
     , proxyProtocolPolicy
@@ -23,6 +25,10 @@ import Khan.Model.ELB.Types
 import Khan.Prelude
 import Network.AWS.ELB
 
+
+data PolicyTarget a where
+    BackendPolicy  :: Backend  -> PolicyName -> BalancerName -> PolicyTarget Backend
+    FrontendPolicy :: Frontend -> PolicyName -> BalancerName -> PolicyTarget Frontend
 
 create :: CreateLoadBalancerPolicy -> AWS PolicyName
 create rq = do
@@ -56,11 +62,22 @@ proxyProtocolPolicy balancer = CreateLoadBalancerPolicy
     val = Just "true"
 
 
-assign :: PolicyName -> BalancerName -> PortNumber -> AWS ()
-assign policy balancer port = do
-    say "Assigning Policy {} on Port {} of Balancer {}" [B policy, B $ toInteger port, B balancer]
+assign :: PolicyTarget a -> AWS ()
+
+assign (BackendPolicy be policy balancer) = do
+    let port = toInteger $ backendPort be
+    say "Assigning Backend Policy {} on Port {} of Balancer {}" [B policy, B port, B balancer]
+    send_ SetLoadBalancerPoliciesForBackendServer
+        { slbpfbsLoadBalancerName = balancerNameText balancer
+        , slbpfbsInstancePort     = port
+        , slbpfbsPolicyNames      = Members [policyNameText policy]
+        }
+
+assign (FrontendPolicy fe policy balancer) = do
+    let port = toInteger $ frontendPort fe
+    say "Assigning Frontend Policy {} on Port {} of Balancer {}" [B policy, B port, B balancer]
     send_ SetLoadBalancerPoliciesOfListener
         { slbpolLoadBalancerName = balancerNameText balancer
-        , slbpolLoadBalancerPort = toInteger port
+        , slbpolLoadBalancerPort = port
         , slbpolPolicyNames      = Members [policyNameText policy]
         }

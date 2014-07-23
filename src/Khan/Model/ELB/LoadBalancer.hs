@@ -99,5 +99,5 @@ fqdn (names -> Names{..}) dom LoadBalancerDescription{..} =
     let l = ldListener =<< listToMaybe (members lbdListenerDescriptions)
     in maybe missing (return . mkDNS) (lProtocol <$> l)
   where
-    mkDNS p = dnsName <> "-" <> Text.toLower p <> "." <> dom
+    mkDNS p = dnsName <> "-" <> Text.toLower p <> "." <> dom <> "."
     missing = throwAWS "Load Balancer {} has no listener." [lbdLoadBalancerName]

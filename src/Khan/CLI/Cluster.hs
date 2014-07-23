@@ -341,9 +341,8 @@ promote _ c@Cluster{..} = do
                     zid <- HZone.findId dom
                     dns <- Balancer.fqdn c dom lbd
                     say "Assigning Record Set {} to {}" [dns, tgt]
-                    void $ RSet.set zid dnsName
-                        [ AliasRecordSet dns A (AliasTarget (hostedZoneId cid) tgt False) Nothing
-                        ]
+                    void $ RSet.update zid
+                        (AliasRecordSet dns A (AliasTarget (hostedZoneId cid) tgt False) Nothing)
 
     promote' name next = do
         say "Searching for running Instances tagged with {}" [name]

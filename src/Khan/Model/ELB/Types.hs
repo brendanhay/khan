@@ -41,8 +41,9 @@ module Khan.Model.ELB.Types
     ) where
 
 import Data.Attoparsec.Text
+import Data.Monoid
 import Data.String                  (fromString)
-import Data.Text                    (Text, intercalate, pack, toLower, unpack, stripSuffix)
+import Data.Text                    (Text, intercalate, pack, stripSuffix, toLower, unpack)
 import Data.Text.Buildable          (Buildable (..))
 import Data.Text.Lazy               (toStrict)
 import Data.Text.Lazy.Builder       (toLazyText)
@@ -101,18 +102,6 @@ frontendProtocol (FE ep) = endpointProtocol ep
 frontendPort :: Frontend -> PortNumber
 frontendPort (FE ep) = endpointPort ep
 
-mkHealthCheck :: Endpoint -> Text -> HealthCheckTarget
-mkHealthCheck (EP pr po) path =
-    HCT . toStrict . toLazyText $ build (proto pr)
-        <> ":"
-        <> Build.decimal po
-        <> build path
-  where
-    proto HTTP  = HTTP
-    proto HTTPS = HTTPS
-    proto TCP   = HTTP
-    proto SSL   = HTTPS
-
 protocolText :: Protocol -> Text
 protocolText = toLower . pack . show
 
@@ -129,8 +118,8 @@ instance TextParser Frontend where
 instance TextParser Backend where
     parser = do
         ep <- parser
-        hc <- char '/' *> takeWhile (inClass "-a-zA-Z_0-9/")
-        return $ BE ep (mkHealthCheck ep ("/" <> hc))
+        hc <- char ',' *> parser
+        return $ BE ep hc
 
 instance TextParser Endpoint where
     parser = do
@@ -143,6 +132,31 @@ instance TextParser Endpoint where
             "tcp"   -> return $ EP TCP   port
             "ssl"   -> return $ EP SSL   port
             s       -> fail (unpack s)
+
+instance TextParser HealthCheckTarget where
+    parser = http <|> tcp
+      where
+        http = do
+            proto <- (const HTTP  <$> string "http")
+                 <|> (const HTTPS <$> string "https")
+            _     <- char ':'
+            port  <- decimal
+            path  <- char '/' *> takeWhile (inClass "-a-z-A-Z_0-9/")
+            return $ mk proto port (Just ("/" <> path))
+
+        tcp = do
+            proto <- (const TCP <$> string "tcp")
+                 <|> (const SSL <$> string "ssl")
+            _     <- char ':'
+            port  <- decimal
+            return $ mk proto port Nothing
+
+        mk :: Protocol -> PortNumber -> Maybe Text -> HealthCheckTarget
+        mk proto port path = HCT . toStrict . toLazyText $
+               build proto
+            <> ":"
+            <> Build.decimal port
+            <> maybe mempty build path
 
 instance Pretty Protocol where
     pretty = text . show

@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Khan.CLI.Metadata (commands) where
 
@@ -14,20 +15,22 @@ module Khan.CLI.Metadata (commands) where
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-import qualified Data.Aeson               as Aeson
-import qualified Data.ByteString.Lazy     as LBS
-import qualified Data.HashMap.Strict      as Map
-import qualified Data.Text                as Text
-import qualified Data.Text.Encoding       as Text
-import qualified Data.Text.Lazy.Builder   as Build
-import qualified Data.Text.Lazy.IO        as LText
+import qualified Data.Aeson                       as Aeson
+import           Data.Aeson                       (Value(String))
+import qualified Data.ByteString.Lazy             as LBS
+import qualified Data.HashMap.Strict              as Map
+import qualified Data.Text                        as Text
+import qualified Data.Text.Encoding               as Text
+import qualified Data.Text.Lazy.Builder           as Build
+import qualified Data.Text.Lazy.IO                as LText
 import           Khan.Internal
-import qualified Khan.Model.Tag           as Tag
+import qualified Khan.Model.Ansible.Serialisation as Ansible
+import qualified Khan.Model.Tag                   as Tag
 import           Khan.Prelude
 import           Network.AWS
-import           Network.AWS.EC2.Metadata (Dynamic(..), toPath)
-import qualified Network.AWS.EC2.Metadata as Meta
-import qualified Text.EDE.Filters         as EDE
+import           Network.AWS.EC2.Metadata         (Dynamic(..), toPath)
+import qualified Network.AWS.EC2.Metadata         as Meta
+import qualified Text.EDE.Filters                 as EDE
 
 data Describe = Describe
     { dMultiLine :: !Bool
@@ -49,7 +52,7 @@ commands = command "metadata" describe describeParser
     "Collect and display various metadata about the running instance."
 
 describe :: Common -> Describe -> AWS ()
-describe _ Describe{..} = do
+describe Common{..} Describe{..} = do
     bs  <- liftEitherT $ Meta.dynamic Document
     debug "Received dynamic document:\n{}" [Text.decodeUtf8 bs]
 
@@ -57,25 +60,30 @@ describe _ Describe{..} = do
     iid <- instanceId doc
     ts  <- Tag.require iid
 
-    liftIO
-        . LText.putStrLn
-        . Build.toLazyText
-        . renderEnv dMultiLine
-        $ toEnv ts <> doc
+    liftIO . LText.putStrLn
+           . Build.toLazyText
+           . renderEnv dMultiLine
+           $ toEnv ts <> hostVars ts <> doc
   where
     decode = noteError "Unable to decode: "
         . Aeson.decode
         . LBS.fromStrict
 
-    filtered m = Map.fromList
-        [(key k, fromJust v) | (k, v) <- Map.toList m, isJust v]
+    filtered m =
+        let key = awsPrefix . Text.toUpper . EDE.underscore
+         in Map.fromList [(key k, v) | (k, Just v) <- Map.toList m]
 
-    key = mappend "AWS_" . Text.toUpper . EDE.underscore
+    instanceId = lookupKey (awsPrefix "INSTANCE_ID")
+    awsPrefix  = mappend "AWS_"
+
+    lookupKey k = noteError ("Unable to find " <> k <> " in: ") . Map.lookup k
 
     noteError e = hoistError
         . note (toError . Text.unpack $ e
                <> "http://169.254.169.254/latest/dynamic/"
                <> toPath Document)
 
-    instanceId = noteError "Unable to find AWS_INSTANCE_ID in: "
-        . Map.lookup "AWS_INSTANCE_ID"
+    hostVars =
+        let f (k, String v) = Just (Text.toUpper k, v)
+            f _             = Nothing
+         in Map.fromList . mapMaybe f . Ansible.hostVars cRegion . names

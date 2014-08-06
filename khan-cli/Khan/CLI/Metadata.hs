@@ -33,12 +33,17 @@ import qualified Text.EDE.Filters                 as EDE
 
 data Describe = Describe
     { dMultiLine :: !Bool
+    , dCache     :: !CacheDir
+    , dForce     :: !Bool
     }
 
-describeParser :: Parser Describe
-describeParser = Describe
+describeParser :: EnvMap -> Parser Describe
+describeParser env = Describe
     <$> switchOption "multiline" False
         "Write each output KEY=VALUE on a separate line."
+    <*> cacheOption env
+    <*> switchOption "force" False
+        "Force update of any previously cached results."
 
 instance Options Describe where
     discover False _ _ =
@@ -46,8 +51,8 @@ instance Options Describe where
     discover True  _ d =
         return d
 
-commands :: Mod CommandFields Command
-commands = command "metadata" describe describeParser
+commands :: EnvMap -> Mod CommandFields Command
+commands env = command "metadata" describe (describeParser env)
     "Collect and display various metadata about the running instance."
 
 describe :: Common -> Describe -> AWS ()
@@ -57,12 +62,10 @@ describe Common{..} Describe{..} = do
 
     doc <- filtered <$> decode bs
     iid <- instanceId doc
-    ts  <- Tag.require iid
+    ts  <- Tag.cached Tag.require iid
 
-    liftIO . LText.putStrLn
-           . Build.toLazyText
-           . renderEnv dMultiLine
-           $ toEnv ts <> hostVars ts <> doc
+    liftIO . LText.putStrLn . renderEnv dMultiLine $
+        toEnv ts <> hostVars ts <> doc
   where
     decode = noteError "Unable to decode: "
         . Aeson.decode

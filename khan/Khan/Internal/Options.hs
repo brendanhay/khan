@@ -125,10 +125,7 @@ commonParser env = Common
         <> epath "KHAN_LKEYS" env
         <> short 'L'
          ) "Path to certificates.")
-    <*> (CacheDir <$> pathOption "cache"
-         ( value "/var/cache/khan"
-        <> epath "KHAN_CACHE" env
-         ) "Path to cache.")
+    <*> cacheOption env
     <*> (ConfigDir <$> pathOption "config"
          ( value "/etc/khan"
         <> epath "KHAN_CONFIG" env
@@ -232,6 +229,13 @@ versionOption = customOption "version" "SEMVER" p mempty
 keyOption :: Parser (Maybe FilePath)
 keyOption = optional $ pathOption "key" (short 'i')
     "Path to the private key to use."
+
+cacheOption :: EnvMap -> Parser CacheDir
+cacheOption env = CacheDir
+    <$> pathOption "cache"
+      ( value "/var/cache/khan"
+     <> epath "KHAN_CACHE" env
+      ) "Path to cache."
 
 trustOption :: Parser TrustPath
 trustOption = TrustPath <$> pathOption "trust"  (value "")

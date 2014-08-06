@@ -33,6 +33,7 @@ module Khan.Model.Tag
     , filter
 
     -- * Tags
+    , cached
     , require
     , instances
     , images
@@ -43,11 +44,13 @@ import           Control.Monad.Except
 import qualified Data.Attoparsec.Text  as AText
 import qualified Data.HashMap.Strict   as Map
 import           Data.SemVer
+import           Filesystem            as FS
 import           Khan.Internal         hiding (group)
 import           Khan.Model.Tag.Tagged
 import           Khan.Prelude          hiding (filter)
 import           Network.AWS
 import           Network.AWS.EC2
+import           System.IO
 
 annotate :: Tagged a => a -> Maybe (Ann a)
 annotate x = Ann x <$> parse x
@@ -84,6 +87,21 @@ group   = "aws:autoscaling:groupName"
 
 filter :: Text -> [Text] -> Filter
 filter k = ec2Filter ("tag:" <> k)
+
+cached :: CacheDir -> Text -> AWS Tags
+cached (CacheDir dir) iid = do
+    say "Lookup cached tags from {} for Instance {}..." [path, iid]
+    load >>= fromMaybe (require iid >>= store)
+  where
+    load =
+        if FS.isFile path
+            then parse . tags <$> FS.readTextFile path
+            else Nothing
+
+    store ts = FS.withTextFile path WriteMode $ \hd ->
+        LText.hPutStr hd (renderEnv True ts)
+
+    path = dir </> ".tags"
 
 require :: Text -> AWS Tags
 require iid = do

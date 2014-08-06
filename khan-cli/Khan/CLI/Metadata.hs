@@ -20,7 +20,6 @@ import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.HashMap.Strict              as Map
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
-import qualified Data.Text.Lazy.Builder           as Build
 import qualified Data.Text.Lazy.IO                as LText
 import           Khan.Internal
 import qualified Khan.Model.Ansible.Serialisation as Ansible
@@ -33,15 +32,13 @@ import qualified Text.EDE.Filters                 as EDE
 
 data Describe = Describe
     { dMultiLine :: !Bool
-    , dCache     :: !CacheDir
     , dForce     :: !Bool
     }
 
-describeParser :: EnvMap -> Parser Describe
-describeParser env = Describe
+describeParser :: Parser Describe
+describeParser = Describe
     <$> switchOption "multiline" False
         "Write each output KEY=VALUE on a separate line."
-    <*> cacheOption env
     <*> switchOption "force" False
         "Force update of any previously cached results."
 
@@ -51,8 +48,8 @@ instance Options Describe where
     discover True  _ d =
         return d
 
-commands :: EnvMap -> Mod CommandFields Command
-commands env = command "metadata" describe (describeParser env)
+commands :: Mod CommandFields Command
+commands = command "metadata" describe describeParser
     "Collect and display various metadata about the running instance."
 
 describe :: Common -> Describe -> AWS ()
@@ -62,7 +59,7 @@ describe Common{..} Describe{..} = do
 
     doc <- filtered <$> decode bs
     iid <- instanceId doc
-    ts  <- Tag.cached Tag.require iid
+    ts  <- bool (Tag.cached cCache iid) (Tag.require iid) dForce
 
     liftIO . LText.putStrLn . renderEnv dMultiLine $
         toEnv ts <> hostVars ts <> doc

@@ -46,6 +46,7 @@ module Khan.Internal.Options
     , envOption
     , versionOption
     , keyOption
+    , cacheOption
     , trustOption
     , policyOption
     , ansibleOption

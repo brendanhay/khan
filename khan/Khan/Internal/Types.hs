@@ -60,7 +60,7 @@ import           Data.Hashable
 import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
-import           Data.Text.Lazy               as LText
+import qualified Data.Text.Lazy               as LText
 import qualified Data.Text.Lazy.Builder       as Build
 import qualified Filesystem.Path.CurrentOS    as Path
 import           GHC.Generics                 (Generic)

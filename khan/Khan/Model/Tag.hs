@@ -1,8 +1,11 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE ExtendedDefaultRules       #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ViewPatterns               #-}
+
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 -- Module      : Khan.Model.Tag
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -41,16 +44,20 @@ module Khan.Model.Tag
     ) where
 
 import           Control.Monad.Except
-import qualified Data.Attoparsec.Text  as AText
-import qualified Data.HashMap.Strict   as Map
+import qualified Data.Attoparsec.Text      as AText
+import qualified Data.HashMap.Strict       as Map
 import           Data.SemVer
-import           Filesystem            as FS
-import           Khan.Internal         hiding (group)
+import qualified Data.Text                 as Text
+import           Data.Text.Lazy.IO         as LText
+import           Filesystem                as FS
+import qualified Filesystem.Path.CurrentOS as Path
+import           Khan.Internal             hiding (group)
 import           Khan.Model.Tag.Tagged
-import           Khan.Prelude          hiding (filter)
+import           Khan.Prelude              hiding (filter)
 import           Network.AWS
 import           Network.AWS.EC2
-import           System.IO
+
+default (Text)
 
 annotate :: Tagged a => a -> Maybe (Ann a)
 annotate x = Ann x <$> parse x
@@ -90,16 +97,20 @@ filter k = ec2Filter ("tag:" <> k)
 
 cached :: CacheDir -> Text -> AWS Tags
 cached (CacheDir dir) iid = do
-    say "Lookup cached tags from {} for Instance {}..." [path, iid]
-    load >>= fromMaybe (require iid >>= store)
+    say "Lookup cached tags from {} for Instance {}..."
+        [Path.encodeString path, Text.unpack iid]
+    load >>= maybe store return
   where
-    load =
-        if FS.isFile path
-            then parse . tags <$> FS.readTextFile path
-            else Nothing
+    load = liftIO $ do
+        FS.isFile path >>=
+            bool (return Nothing)
+                 (parse . tags <$> FS.readTextFile path)
 
-    store ts = FS.withTextFile path WriteMode $ \hd ->
-        LText.hPutStr hd (renderEnv True ts)
+    store = do
+        ts <- require iid
+        liftIO . FS.withTextFile path WriteMode $ \hd ->
+            LText.hPutStr hd (renderEnv True ts)
+        return ts
 
     path = dir </> ".tags"
 

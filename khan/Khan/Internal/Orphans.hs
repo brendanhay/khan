@@ -1,6 +1,8 @@
+{-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE NoImplicitPrelude    #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE StandaloneDeriving   #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -17,9 +19,11 @@
 module Khan.Internal.Orphans where
 
 import           Data.Aeson
+import           Data.Hashable
 import qualified Data.Text           as Text
 import           Data.Text.Buildable
 import qualified Data.Text.Lazy      as LText
+import           GHC.Generics        (Generic)
 import           Khan.Prelude
 import           Network.AWS.EC2
 import           Shelly
@@ -38,3 +42,7 @@ instance ToJSON InstanceType where
 
 instance ToJSON AvailabilityZone where
     toJSON = toJSON . show
+
+deriving instance Generic Region
+
+instance Hashable Region

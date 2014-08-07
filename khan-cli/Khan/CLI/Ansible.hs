@@ -25,11 +25,12 @@ import           Control.Monad              (mplus)
 import qualified Data.Aeson.Encode.Pretty   as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.HashMap.Strict        as Map
-import qualified Data.Set                   as Set
+import qualified Data.HashSet               as Set
 import qualified Data.Text                  as Text
 import qualified Data.Text.Format           as Format
-import qualified Data.Text.Lazy.IO          as LText
+import qualified Data.Text.Lazy             as LText
 import           Data.Time.Clock.POSIX
+import qualified Filesystem                 as FS
 import qualified Filesystem.Path.CurrentOS  as Path
 import           Khan.Internal
 import           Khan.Model.Ansible
@@ -39,7 +40,6 @@ import qualified Khan.Model.Tag             as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2            hiding (Failed, Image)
-import           System.Directory
 import qualified System.Posix.Files         as Posix
 import           System.Process             (callCommand)
 
@@ -155,38 +155,36 @@ ansible c@Common{..} a@Ansible{..} = do
     k <- maybe (Key.path aRKeys a cLKeys) return aKey
     i <- inventoryPath cCache aEnv
 
-    let script = Path.encodeString $ i <.> "sh"
-        inv    = Path.encodeString i
+    let script = i <.> "sh"
 
-    whenM ((|| aForce) <$> exceeds inv) $ do
-        log "Limit of {}s exceeded for {}, refreshing..." [show aRetain, inv]
+    whenM ((|| aForce) <$> exceeds i) $ do
+        log "Limit of {}s exceeded for {}, refreshing..." [P aRetain, B i]
         inventory c $ Inventory aEnv True True Nothing
 
-    debug "Writing inventory script to {}" [script]
-    liftIO . LText.writeFile script $
+    debug "Writing inventory script to {}" [B script]
+    liftIO . FS.writeTextFile script . LText.toStrict $
         Format.format "#!/usr/bin/env bash\nset -e\nexec cat {}\n" [i]
 
-    debug "Setting +rwx on {}" [script]
-    liftIO $ Posix.setFileMode script Posix.ownerModes
+    debug "Setting +rwx on {}" [B script]
+    liftIO $ Posix.setFileMode (Path.encodeString script) Posix.ownerModes
 
-    let cmd = unwords [ "ANSIBLE_FORCE_COLOR=1", unwords (bin : args k script)
-                      ]
+    let cmd = unwords ["ANSIBLE_FORCE_COLOR=1", unwords (bin : args k script)]
 
     log "{}" [cmd]
     liftEitherT . sync $ callCommand cmd
   where
-    bin = Text.unpack $ fromMaybe "ansible" aBin
+    bin = Text.unpack (fromMaybe "ansible" aBin)
 
     args k s = aArgs +$+
-        [ ("-i", s)
+        [ ("-i",            Path.encodeString s)
         , ("--private-key", Path.encodeString k)
         ]
 
     exceeds i = liftIO $ do
-        p <- doesFileExist i
+        p <- FS.isFile i
         if not p
             then return True
             else do
-                s  <- Posix.getFileStatus i
+                s  <- Posix.getFileStatus (Path.encodeString i)
                 ts <- getPOSIXTime
                 return $ ts - Posix.modificationTimeHiRes s > fromIntegral aRetain

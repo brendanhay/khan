@@ -26,6 +26,7 @@ import qualified Data.Conduit.List         as Conduit
 import           Data.SemVer
 import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
+import qualified Filesystem                as FS
 import           Filesystem.Path.CurrentOS
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
@@ -33,17 +34,16 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import           Network.HTTP.Conduit
 import           Network.HTTP.Types        (urlEncode)
-import           System.Directory
 
 download :: Text -> Text -> FilePath -> Bool -> AWS Bool
-download b k (Path.encodeString -> f) force = do
-    p <- liftIO $ doesFileExist f
-    when p $ say "File {} already exists." [f]
+download b k f force = do
+    p <- liftIO (FS.isFile f)
+    when p $ say "File {} already exists." [B f]
     when (not p || force) $ do
-        say "Downloading {}/{} to {}" [b, k, Text.pack f]
+        say "Downloading {}/{} to {}" [P b, P k, B f]
         rs <- send $ GetObject b (safeKey k) []
-        responseBody rs $$+- Conduit.sinkFile f
-    return $ not p || force
+        responseBody rs $$+- Conduit.sinkFile (Path.encodeString f)
+    return (not p || force)
 
 upload :: Text -> Text -> FilePath -> Bool -> AWS Bool
 upload b k (Path.encodeString -> f) force = do

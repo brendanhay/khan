@@ -3,27 +3,29 @@ NAME         := khan
 VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
 BUILD_NUMBER ?= 0
 DEB          := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
-FLAGS        := --disable-documentation --disable-library-coverage --reorder-goals
+FLAGS        := --disable-documentation --disable-library-coverage
 DEPS         := vendor/amazonka vendor/ede
 BIN          := dist/build/$(NAME)/$(NAME)
 OUT          := dist/$(NAME)
 SDIST        := dist/$(NAME)-$(VERSION).tar.gz
 
-.PHONY: $(BIN) clean test lint
+.PHONY: $(BIN) clean test
 
-all: deps $(NAME)
+all: $(NAME)
 
-dist: deps dist/$(DEB) $(SDIST)
+build: $(NAME)
+
+install: add-sources
+	cabal install -j $(FLAGS) --only-dependencies
+
+test:
+	cabal install --enable-tests $(FLAGS)
 
 clean:
 	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT)
 	cabal clean
 
-test:
-	cabal install --enable-tests $(FLAGS)
-
-lint:
-	hlint src
+dist: install dist/$(DEB) $(SDIST)
 
 $(NAME): $(BIN)
 	ln -fs $< $@
@@ -45,12 +47,8 @@ $(OUT): $(BIN)
 $(SDIST):
 	cabal sdist
 
-deps: add-sources
-	cabal install -j $(FLAGS) --only-dependencies
-
 add-sources: cabal.sandbox.config $(DEPS)
-	cabal sandbox add-source vendor/amazonka
-	cabal sandbox add-source vendor/ede
+	$(foreach dir,$(DEPS),cabal sandbox add-source $(dir);)
 
 cabal.sandbox.config:
 	cabal sandbox init

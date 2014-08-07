@@ -13,10 +13,8 @@ log
 dist
 .cabal-sandbox
 /certs
-/.khan
 /vendor
 /cache
-/metadata/latest
 
 # CTAGS
 TAGS
@@ -37,12 +35,6 @@ tags
 # Output
 *.pem
 *.json
-
-# Binaries
-/khan
-
-# Ruby
-/metadata/Gemfile.lock
 
 # Vagrant
 .vagrant

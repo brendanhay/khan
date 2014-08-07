@@ -1,7 +1,7 @@
 SHELL  := /usr/bin/env bash
 BUNDLE := .bundle
 
-default: $(BUNDLE)
+install: $(BUNDLE)
 
 $(BUNDLE):
 	bundle install --path=$@

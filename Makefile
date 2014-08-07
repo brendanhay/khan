@@ -11,9 +11,9 @@ SDIST        := dist/$(NAME)-$(VERSION).tar.gz
 
 .PHONY: $(BIN) clean test
 
-all: $(NAME)
+all: build
 
-build: $(NAME)
+build: $(BIN)
 
 install: add-sources
 	cabal install -j $(FLAGS) --only-dependencies
@@ -22,13 +22,10 @@ test:
 	cabal install --enable-tests $(FLAGS)
 
 clean:
-	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT)
+	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT) bin
 	cabal clean
 
 dist: install dist/$(DEB) $(SDIST)
-
-$(NAME): $(BIN)
-	ln -fs $< $@
 
 $(BIN):
 	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS)))
@@ -55,3 +52,14 @@ cabal.sandbox.config:
 
 vendor/%:
 	git clone https://github.com/brendanhay/$*.git $@
+
+link: $(addprefix bin/,khan khan-metadata-sync khan-metadata-server)
+
+bin/khan: bin
+	ln -fs $(BIN) $@
+
+bin/khan-metadata-sync: bin
+	ln -fs dist/build/khan-metadata-sync/khan-metadata-sync $@
+
+bin:
+	-mkdir $@

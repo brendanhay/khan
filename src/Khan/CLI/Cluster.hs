@@ -70,7 +70,7 @@ data Deploy = Deploy
     , dEnv      :: !Env
     , dDomain   :: !Text
     , dVersion  :: !Version
-    , dZones    :: !String
+    , dZones    :: [Char]
     , dGrace    :: !Integer
     , dMin      :: !Integer
     , dMax      :: !Integer
@@ -90,7 +90,7 @@ deployParser env = Deploy
     <*> textOption "domain" (short 'd')
         "Instance's DNS domain."
     <*> versionOption
-    <*> stringOption "zones" (value "")
+    <*> stringOption "zones" (value [])
          "Availability Zone suffixes the cluster will encompass."
     <*> integralOption "grace" (value 20)
         "Seconds after an auto scaling activity until healthchecks are activated."

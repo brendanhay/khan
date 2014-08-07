@@ -17,7 +17,6 @@ module Khan.CLI.Routing (commands) where
 
 import           Data.Aeson
 import qualified Data.HashMap.Strict             as Map
-import           Data.String
 import qualified Data.Text                       as Text
 import qualified Data.Text.Lazy.IO               as LText
 import qualified Filesystem.Path.CurrentOS       as Path
@@ -34,7 +33,7 @@ data Routes = Routes
     { rEnv      :: !Env
     , rDomain   :: Maybe Text
     , rRoles    :: [Text]
-    , rZones    :: !String
+    , rZones    :: Maybe [Char]
     , rWeight   :: !Int
     , rTemplate :: !FilePath
     }
@@ -46,8 +45,8 @@ routesParser env = Routes
         "DNS domain restriction.")
     <*> many (textOption "role" (short 'r')
         "Role to restrict to.")
-    <*> stringOption "zones" (value "")
-        "Availability zones suffixes restriction."
+    <*> optional (stringOption "zones" mempty
+        "Availability zones suffixes restriction.")
     <*> integralOption "min-weight" (value 1)
         "Minimum weight restriction."
     <*> pathOption "template" (action "file" <> value "" <> short 't')
@@ -55,23 +54,30 @@ routesParser env = Routes
 
 instance Options Routes where
     discover aws Common{..} r@Routes{..} = do
-        zs <- AZ.getSuffixes rZones
-        debug "Using Availability Zones '{}'" [zs]
-        if not aws
-            then return $! r { rZones = zs, rTemplate = f }
-            else do
-                iid      <- liftEitherT $ meta InstanceId
-                Tags{..} <- Tag.require iid
-                return $! r
-                    { rDomain   = Just tagDomain
-                    , rEnv      = tagEnv
-                    , rZones    = zs
-                    , rTemplate = f
-                    }
+        mzs <- zones rZones
+        if aws
+            then tags mzs
+            else return $! r { rZones = mzs, rTemplate = tmpl }
       where
-        f = if invalid rTemplate
-                then configDir cConfig </> Path.decodeString "haproxy.ede"
-                else rTemplate
+        zones Nothing   = return Nothing
+        zones (Just xs) = do
+            zs <- AZ.getSuffixes xs
+            debug "Using Availability Zones '{}'" [zs]
+            return (Just zs)
+
+        tags mzs = do
+            iid      <- liftEitherT $ meta InstanceId
+            Tags{..} <- Tag.require iid
+            return $! r
+                { rDomain   = Just tagDomain
+                , rEnv      = tagEnv
+                , rZones    = mzs
+                , rTemplate = tmpl
+                }
+
+        tmpl | valid rTemplate = rTemplate
+             | otherwise       =
+                 configDir cConfig </> Path.decodeString "haproxy.ede"
 
     validate Routes{..} = do
         check rEnv   "--env must be specified."
@@ -96,14 +102,14 @@ routes Common{..} Routes{..} = do
 
     renderTemplate zs rTemplate >>= liftIO . LText.putStrLn
   where
-    filters reg = catMaybes
-        [ Just . Filter "availability-zone" $ zones reg
-        , Just $ Tag.filter Tag.env [_env rEnv]
+    filters r = catMaybes
+        [ Just $ Tag.filter Tag.env [_env rEnv]
         , fmap (Tag.filter Tag.domain . (:[])) rDomain
+        , fmap (Filter "availability-zone") (zones r)
         , role
         ]
 
-    zones reg = map (Text.pack . show . AZ reg) rZones
+    zones r = map (Text.pack . show . AZ r) <$> rZones
 
     role | [] <- rRoles = Nothing
          | otherwise    = Just (Tag.filter Tag.role rRoles)

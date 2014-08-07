@@ -13,14 +13,18 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.EC2.AvailabilityZone
-    ( findAll
-    , getSuffixes
+    ( getSuffixes
+    , findAll
     ) where
 
 import qualified Data.Text       as Text
 import           Khan.Internal
 import           Khan.Prelude    hiding (min, max)
 import           Network.AWS.EC2 hiding (Instance)
+
+getSuffixes :: [Char] -> AWS [Char]
+getSuffixes [] = map (azSuffix . azitZoneName) <$> findAll
+getSuffixes xs = return xs
 
 findAll :: AWS [AvailabilityZoneItemType]
 findAll = do
@@ -31,8 +35,3 @@ findAll = do
             [ ec2Filter "region-name" [reg]
             , ec2Filter "state" ["available"]
             ]
-
-getSuffixes :: String -> AWS String
-getSuffixes sufs
-    | invalid sufs = map (azSuffix . azitZoneName) <$> findAll
-    | otherwise    = return sufs

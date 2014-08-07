@@ -45,6 +45,7 @@ library
       , Khan.Model.ELB.LoadBalancer
       , Khan.Model.ELB.LoadBalancerPolicy
       , Khan.Model.ELB.Types
+      , Khan.Model.Host
       , Khan.Model.IAM.Role
       , Khan.Model.IAM.ServerCertificate
       , Khan.Model.Key
@@ -72,9 +73,9 @@ library
         aeson                >= 0.7
       , aeson-pretty
       , ansi-wl-pprint
-      , amazonka             >= 0.4.5
+      , amazonka             >= 0.4.8
       , attoparsec
-      , base                 >= 4.6 && < 5
+      , base                 >= 4.7 && < 5
       , bytestring
       , conduit              >= 1.1
       , conduit-extra
@@ -104,72 +105,76 @@ library
     if impl(ghc < 7.7)
        build-depends: tagged
 
-executable khan
-    default-language:  Haskell2010
-    main-is:           Main.hs
-    hs-source-dirs:    khan-cli
+-- executable khan
+--     default-language:  Haskell2010
+--     main-is:           Main.hs
+--     hs-source-dirs:    khan-cli
 
-    ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N1
+--     ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N1
 
-    other-modules:
-        Khan.CLI.Ansible
-      , Khan.CLI.Artifact
-      , Khan.CLI.Certificate
-      , Khan.CLI.Cluster
-      , Khan.CLI.DNS
-      , Khan.CLI.Group
-      , Khan.CLI.Image
-      , Khan.CLI.Launch
-      , Khan.CLI.Metadata
-      , Khan.CLI.Profile
-      , Khan.CLI.Routing
-      , Khan.CLI.SSH
+--     other-modules:
+--         Khan.CLI.Ansible
+--       , Khan.CLI.Artifact
+--       , Khan.CLI.Certificate
+--       , Khan.CLI.Cluster
+--       , Khan.CLI.DNS
+--       , Khan.CLI.Group
+--       , Khan.CLI.Image
+--       , Khan.CLI.Launch
+--       , Khan.CLI.Metadata
+--       , Khan.CLI.Profile
+--       , Khan.CLI.Routing
+--       , Khan.CLI.SSH
 
-    build-depends:
-        aeson
-      , aeson-pretty
-      , amazonka
-      , ansi-wl-pprint
-      , base                 >= 4.6 && < 5
-      , bytestring
-      , conduit
-      , ede
-      , errors
-      , khan
-      , optparse-applicative
-      , process
-      , semigroups
-      , system-filepath
-      , system-fileio
-      , text
-      , text-format
-      , time
-      , unix
-      , unordered-containers
+--     build-depends:
+--         aeson
+--       , aeson-pretty
+--       , amazonka
+--       , ansi-wl-pprint
+--       , base                 >= 4.7 && < 5
+--       , bytestring
+--       , conduit
+--       , ede
+--       , errors
+--       , khan
+--       , optparse-applicative
+--       , process
+--       , semigroups
+--       , system-filepath
+--       , system-fileio
+--       , text
+--       , text-format
+--       , time
+--       , unix
+--       , unordered-containers
 
 executable khan-metadata-sync
     default-language:  Haskell2010
     main-is:           Main.hs
     hs-source-dirs:    khan-metadata-sync
 
-    ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N -ddump-splices
 
     build-depends:
-        base                 >= 4.6 && < 5
+        amazonka
+      , base                 >= 4.7 && < 5
       , khan
       , optparse-applicative
-
-test-suite tests
-    default-language:  Haskell2010
-    type:              exitcode-stdio-1.0
-    hs-source-dirs:    test
-    main-is:           Main.hs
-    ghc-options:       -Wall -rtsopts -threaded
-
-    build-depends:
-        base             >= 4.6 && < 5
-      , khan
-      , smallcheck
-      , tasty
-      , tasty-smallcheck
+      , semigroups
+      , template-haskell
       , text
+
+-- test-suite tests
+--     default-language:  Haskell2010
+--     type:              exitcode-stdio-1.0
+--     hs-source-dirs:    test
+--     main-is:           Main.hs
+--     ghc-options:       -Wall -rtsopts -threaded
+
+--     build-depends:
+--         base             >= 4.7 && < 5
+--       , khan
+--       , smallcheck
+--       , tasty
+--       , tasty-smallcheck
+--       , text

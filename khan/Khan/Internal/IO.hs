@@ -76,7 +76,7 @@ expandPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
 expandPath f =
     case "~/" `Text.stripPrefix` toTextIgnore f of
         Nothing -> return f
-        Just x  -> liftIO FS.getHomeDirectory >>= shell . absPath
+        Just _  -> liftIO FS.getHomeDirectory >>= shell . absPath
 
 writeFile :: (Functor m, MonadIO m) => FilePath -> Text -> Text -> m ()
 writeFile file mode contents = shell $ do

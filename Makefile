@@ -13,7 +13,7 @@ SDIST        := dist/$(NAME)-$(VERSION).tar.gz
 
 all: build
 
-build: $(BIN)
+build: $(BIN) link
 
 install: add-sources
 	cabal install -j $(FLAGS) --only-dependencies
@@ -53,13 +53,16 @@ cabal.sandbox.config:
 vendor/%:
 	git clone https://github.com/brendanhay/$*.git $@
 
-link: $(addprefix bin/,khan khan-metadata-sync khan-metadata-server)
+link: bin/khan bin/metadata-sync bin/metadata-server
 
 bin/khan: bin
-	ln -fs $(BIN) $@
+	ln -fs ../$(BIN) $@
 
-bin/khan-metadata-sync: bin
-	ln -fs dist/build/khan-metadata-sync/khan-metadata-sync $@
+bin/metadata-sync: bin
+	ln -fs ../dist/build/khan-metadata-sync/khan-metadata-sync $@
+
+bin/metadata-server: bin
+	ln -fs ../khan-metadata-server/script/instance-data.sh $@
 
 bin:
 	-mkdir $@

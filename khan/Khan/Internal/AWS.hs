@@ -42,7 +42,7 @@ module Khan.Internal.AWS
     , which
     ) where
 
-import           Control.Monad.Error
+import           Control.Monad.Except
 import qualified Data.Text.Encoding        as Text
 import           Data.Text.Format          (Format, format)
 import           Data.Text.Format.Params

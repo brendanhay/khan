@@ -39,7 +39,7 @@ module Khan.Model.Tag
     , defaults
     ) where
 
-import           Control.Monad.Error
+import           Control.Monad.Except
 import qualified Data.Attoparsec.Text  as AText
 import qualified Data.HashMap.Strict   as Map
 import           Data.SemVer

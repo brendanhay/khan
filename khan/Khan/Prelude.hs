@@ -59,7 +59,7 @@ module Khan.Prelude
 import Control.Applicative       as Applicative
 import Control.Error             as Error
 import Control.Monad             ((<=<), (>=>), forever, join, when, unless, void)
-import Control.Monad.Error       (throwError)
+import Control.Monad.Except       (throwError)
 import Control.Monad.IO.Class    as MonadIO
 import Control.Monad.Trans.Class (lift)
 import Data.ByteString           (ByteString)

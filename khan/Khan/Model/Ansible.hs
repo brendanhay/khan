@@ -37,7 +37,7 @@ module Khan.Model.Ansible
     , overrides
     ) where
 
-import           Control.Monad.Error
+import           Control.Monad.Except
 import qualified Data.Aeson.Encode.Pretty         as Aeson
 import qualified Data.ByteString.Lazy.Char8       as LBS
 import           Data.List                        (intercalate)

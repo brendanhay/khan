@@ -38,7 +38,7 @@ data Launch = Launch
     , lGroups    :: [Text]
     , lType      :: !InstanceType
     , lOptimised :: !Bool
-    , lZones     :: !String
+    , lZones     :: [Char]
     , lTrust     :: !TrustPath
     , lPolicy    :: !PolicyPath
     , lAnsible   :: !Bool
@@ -61,7 +61,7 @@ launchParser env = Launch
         "Instance's type."
     <*> switchOption "optimised" False
         "EBS optimisation."
-    <*> stringOption "zones" (value "")
+    <*> stringOption "zones" (value [])
         "Availability zones suffixes to provision into."
     <*> trustOption
     <*> policyOption

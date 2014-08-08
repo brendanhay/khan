@@ -44,7 +44,7 @@ data Image = Image
     , iPreserve :: !Bool
     , iNDevices :: !Integer
     , iArgs     :: [String]
-    , iZones    :: !String
+    , iZones    :: [Char]
     , iUser     :: !Text
     , iTimeout  :: !Int
     }
@@ -66,7 +66,7 @@ imageParser env = Image
         "Number of ephemeral devices to register the AMI with."
     <*> argsOption str (action "file")
         "Pass through arugments to ansible."
-    <*> stringOption "zones" (value "")
+    <*> stringOption "zones" (value [])
         "Availability zones suffixes to provision into."
     <*> userOption
     <*> integralOption "timeout" (value 180)

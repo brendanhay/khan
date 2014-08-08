@@ -56,6 +56,7 @@ import           Data.Aeson
 import           Data.Aeson.Types             (Options(..), defaultOptions)
 import           Data.HashMap.Strict          (HashMap)
 import qualified Data.HashMap.Strict          as Map
+import           Data.Hashable
 import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
@@ -173,6 +174,8 @@ data Names = Names
     , dnsName          :: !Text
     , versionName      :: Maybe Text
     } deriving (Eq, Ord, Show, Generic)
+
+instance Hashable Names
 
 instance ToJSON Names where
     toJSON = genericToJSON $ defaultOptions

@@ -1,38 +1,46 @@
-SHELL        := /usr/bin/env bash
-NAME         := khan
-VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
+SHELL           := /usr/bin/env bash
+NAME            := khan
+VERSION         := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
 BUILD_NUMBER ?= 0
-DEB          := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
-FLAGS        := --disable-documentation --disable-library-coverage --reorder-goals
-DEPS         := vendor/amazonka vendor/ede
-BIN          := dist/build/$(NAME)/$(NAME)
-OUT          := dist/$(NAME)
-SDIST        := dist/$(NAME)-$(VERSION).tar.gz
+DEB             := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
+SDIST           := dist/$(NAME)-$(VERSION).tar.gz
+FLAGS           := --disable-documentation --disable-library-coverage
+DEPS            := vendor/amazonka vendor/ede
 
-.PHONY: $(BIN) clean test lint
+BIN_CLI         := dist/build/$(NAME)/$(NAME)
+BIN_SYNC        := dist/build/khan-metadata-sync/khan-metadata-sync
+BIN             := $(BIN_CLI) $(BIN_SYNC)
 
-all: deps $(NAME)
+OUT_CLI         := dist/$(NAME)
+OUT_SYNC        := dist/khan-metadata-sync
+OUT             := $(OUT_CLI) $(OUT_SYNC)
 
-dist: deps dist/$(DEB) $(SDIST)
+.PHONY: $(BIN) $(OUT) clean test
 
-clean:
-	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT)
-	cabal clean
+all: build
+
+build: $(BIN) link
+
+install: add-sources
+	cabal install -j $(FLAGS) --only-dependencies
 
 test:
 	cabal install --enable-tests $(FLAGS)
 
-lint:
-	hlint src
+clean:
+	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT) bin
+	cabal clean
 
-$(NAME): $(BIN)
-	ln -fs $< $@
+dist: install dist/$(DEB) $(SDIST)
 
 $(BIN):
 	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS)))
 
-$(OUT): $(BIN)
-	strip -o $(OUT) $< && upx $<
+$(OUT_CLI): $(BIN_CLI)
+	strip -o $(OUT_CLI) $< && upx $<
+
+$(OUT_SYNC): $(BIN_SYNC)
+	strip -o $(OUT_SYNC) $< && upx $<
 
 %.deb: $(OUT)
 	makedeb --name=$(NAME) \
@@ -45,15 +53,25 @@ $(OUT): $(BIN)
 $(SDIST):
 	cabal sdist
 
-deps: add-sources
-	cabal install -j $(FLAGS) --only-dependencies
-
 add-sources: cabal.sandbox.config $(DEPS)
-	cabal sandbox add-source vendor/amazonka
-	cabal sandbox add-source vendor/ede
+	$(foreach dir,$(DEPS),cabal sandbox add-source $(dir);)
 
 cabal.sandbox.config:
 	cabal sandbox init
 
 vendor/%:
 	git clone https://github.com/brendanhay/$*.git $@
+
+link: bin/khan bin/metadata-sync bin/metadata-server
+
+bin/khan: bin
+	ln -fs ../$(BIN_CLI) $@
+
+bin/metadata-sync: bin
+	ln -fs ../$(BIN_SYNC) $@
+
+bin/metadata-server: bin
+	ln -fs ../khan-metadata-server/script/instance-data.sh $@
+
+bin:
+	-mkdir $@

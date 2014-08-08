@@ -1,5 +1,5 @@
 name:                  khan
-version:               0.4.2
+version:               0.1.0
 synopsis:              Opinionated Provisioning
 homepage:              http://github.com/brendanhay/khan
 license:               OtherLicense
@@ -24,28 +24,17 @@ source-repository head
 
 library
     default-language:  Haskell2010
-    hs-source-dirs:    src
+    hs-source-dirs:    khan
+
     ghc-options:       -Wall
 
     exposed-modules:
         Data.SemVer
 
-      , Khan.CLI.Ansible
-      , Khan.CLI.Artifact
-      , Khan.CLI.Certificate
-      , Khan.CLI.Cluster
-      , Khan.CLI.DNS
-      , Khan.CLI.Group
-      , Khan.CLI.Image
-      , Khan.CLI.Launch
-      , Khan.CLI.Metadata
-      , Khan.CLI.Profile
-      , Khan.CLI.Routing
-      , Khan.CLI.SSH
-
       , Khan.Internal
 
       , Khan.Model.Ansible
+      , Khan.Model.Ansible.Serialisation
       , Khan.Model.AutoScaling.LaunchConfig
       , Khan.Model.AutoScaling.ScalingGroup
       , Khan.Model.EC2.AvailabilityZone
@@ -56,6 +45,7 @@ library
       , Khan.Model.ELB.LoadBalancer
       , Khan.Model.ELB.LoadBalancerPolicy
       , Khan.Model.ELB.Types
+      , Khan.Model.Host
       , Khan.Model.IAM.Role
       , Khan.Model.IAM.ServerCertificate
       , Khan.Model.Key
@@ -65,8 +55,10 @@ library
       , Khan.Model.S3.Object
       , Khan.Model.SSH
       , Khan.Model.Tag
+      , Khan.Model.Tag.Tagged
 
       , Khan.Prelude
+      , Khan.Prelude.Log
 
     other-modules:
         Khan.Internal.AWS
@@ -77,25 +69,19 @@ library
       , Khan.Internal.Pretty
       , Khan.Internal.Types
 
-      , Khan.Model.Ansible.Serialisation
-      , Khan.Model.Tag.Tagged
-
-      , Khan.Prelude.Log
-
     build-depends:
         aeson                >= 0.7
       , aeson-pretty
-      , amazonka             >= 0.4.5
       , ansi-wl-pprint
+      , amazonka             >= 0.4.8
       , attoparsec
-      , base                 >= 4.6 && < 5
+      , base                 >= 4.7 && < 5
       , bytestring
       , conduit              >= 1.1
       , conduit-extra
-      , containers
-      , directory
       , ede                  >= 0.1.3
       , errors
+      , hashable
       , http-client          == 0.3.1.*
       , http-conduit
       , http-types
@@ -108,31 +94,76 @@ library
       , random
       , semigroups
       , shelly
+      , system-fileio
       , system-filepath      >= 0.4.9
       , text                 >= 1.0
       , text-format
       , time
       , transformers
-      , unix
       , unordered-containers
-      , wl-pprint-text
 
     if impl(ghc < 7.7)
        build-depends: tagged
 
 executable khan
     default-language:  Haskell2010
-    main-is:           src/Main.hs
-    ghc-options:       -Wall -rtsopts -threaded
+    main-is:           Main.hs
+    hs-source-dirs:    khan-cli
+
+    ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N1
+
+    other-modules:
+        Khan.CLI.Ansible
+      , Khan.CLI.Artifact
+      , Khan.CLI.Certificate
+      , Khan.CLI.Cluster
+      , Khan.CLI.DNS
+      , Khan.CLI.Group
+      , Khan.CLI.Image
+      , Khan.CLI.Launch
+      , Khan.CLI.Metadata
+      , Khan.CLI.Profile
+      , Khan.CLI.Routing
+      , Khan.CLI.SSH
 
     build-depends:
-        amazonka
-      , base                 >= 4.6 && < 5
+        aeson
+      , aeson-pretty
+      , amazonka
+      , ansi-wl-pprint
+      , base                 >= 4.7 && < 5
+      , bytestring
+      , conduit
+      , ede
       , errors
       , khan
       , optparse-applicative
-      , text                 >= 1.0
+      , process
+      , semigroups
+      , system-fileio
+      , system-filepath
+      , text
+      , text-format
+      , time
+      , unix
       , unordered-containers
+
+executable khan-metadata-sync
+    default-language:  Haskell2010
+    main-is:           Main.hs
+    hs-source-dirs:    khan-metadata-sync
+
+    ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N -ddump-splices
+
+    build-depends:
+        base                 >= 4.7 && < 5
+      , bytestring
+      , http-conduit
+      , khan
+      , optparse-applicative
+      , system-fileio
+      , system-filepath
+      , text
 
 test-suite tests
     default-language:  Haskell2010
@@ -142,7 +173,7 @@ test-suite tests
     ghc-options:       -Wall -rtsopts -threaded
 
     build-depends:
-        base             >= 4.6 && < 5
+        base             >= 4.7 && < 5
       , khan
       , smallcheck
       , tasty

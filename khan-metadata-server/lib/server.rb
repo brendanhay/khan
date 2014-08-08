@@ -28,7 +28,7 @@ DEVICE =
   if ARGV.length > 0
     ARGV.first.chomp
   else
-    puts 'Usage: server.sh <NETWORK_DEVICE>'
+    puts 'Usage: server.rb <NETWORK_DEVICE>'
     exit 1
   end
 
@@ -72,7 +72,7 @@ def self.run
     end
 
     dir = Rack::Builder.new do
-      run Rack::Metadata.new(File.expand_path(File.dirname(__FILE__)))
+      run Rack::Metadata.new(File.expand_path(File.dirname(__FILE__)) + 'www')
     end
 
     files = Rack::Chunked.new(Rack::ContentLength.new(dir))

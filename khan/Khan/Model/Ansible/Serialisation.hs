@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
@@ -18,15 +19,15 @@
 
 module Khan.Model.Ansible.Serialisation where
 
-import           Data.Aeson            as Aeson
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as Map
-import           Data.Set              (Set)
-import qualified Data.Set              as Set
-import qualified Data.Text.Lazy        as LText
-import           Khan.Internal.AWS
-import           Khan.Internal.Options
-import           Khan.Internal.Types
+import           Data.Aeson          as Aeson
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as Map
+import           Data.HashSet        (HashSet)
+import qualified Data.HashSet        as Set
+import           Data.Hashable
+import qualified Data.Text.Lazy      as LText
+import           GHC.Generics        (Generic)
+import           Khan.Internal
 import           Khan.Prelude
 import           Network.AWS
 
@@ -57,13 +58,15 @@ data Host
       }
     | Localhost
       { hvRegion :: !Region
-      } deriving (Eq, Ord)
+      } deriving (Eq, Ord, Generic)
+
+instance Hashable Host
 
 hostFQDN :: Host -> Text
 hostFQDN Host      {..} = hvFQDN
 hostFQDN Localhost {}   = "localhost"
 
-instance ToJSON (Inv (HashMap Text (Set Host))) where
+instance ToJSON (Inv (HashMap Text (HashSet Host))) where
     toJSON (Meta m) = object ["_meta" .= object ["hostvars" .= vars]]
       where
         vars = foldl' (flip f) Map.empty . Set.unions $ Map.elems m
@@ -74,7 +77,7 @@ instance ToJSON (Inv (HashMap Text (Set Host))) where
         f (Object x) (Object y) = Object $ x <> y
         f _          x          = x
 
-instance ToJSON (Inv (Set Host)) where
+instance ToJSON (Inv (HashSet Host)) where
     toJSON i = case i of
         (Meta _) -> f Meta
         (JS   _) -> f JS

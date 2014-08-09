@@ -76,14 +76,9 @@ instance Pretty Protocol where
     pretty = text . show
 
 instance TextParser Protocol where
-    parser = do
-        x <- takeTill (== ':') <* char ':'
-        case x of
-            "http"  -> return HTTP
-            "https" -> return HTTPS
-            "tcp"   -> return TCP
-            "ssl"   -> return SSL
-            s       -> fail (Text.unpack s)
+    parser = f "http" HTTP <|> f "https" HTTPS <|> f "tcp" TCP <|> f "ssl" SSL
+      where
+        f x y = string x >> return y
 
 data Mapping = Mapping
     { frontend :: !Frontend

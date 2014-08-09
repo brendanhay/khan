@@ -266,7 +266,7 @@ checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT AWSError m ()
 checkIO io e = liftIO io >>= (`check` e)
 
 checkPath :: MonadIO m => FilePath -> String -> EitherT AWSError m ()
-checkPath p e = check p msg >> checkIO (not <$> FS.isFile p) msg
+checkPath p e = check p msg >> checkIO (FS.isFile p) msg
   where
     msg = Text.unpack (Text.concat ["path '", toTextIgnore p, "'"]) ++ e
 

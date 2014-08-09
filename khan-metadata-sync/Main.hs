@@ -54,8 +54,10 @@ main = do
         !lbs <- simpleHttp ("http://169.254.169.254/" ++ Text.unpack p)
 
         say "Writing {} ..." [p]
-        FS.withFile (d </> Path.fromText p) WriteMode (`LBS.hPut` lbs)
+        FS.withFile (d </> Path.fromText (suffix p)) WriteMode (`LBS.hPut` lbs)
 
         when ("/" `Text.isSuffixOf` p) $
             mapM_ (retrieve d . mappend p)
                   (Text.lines . LText.toStrict $ LText.decodeUtf8 lbs)
+
+    suffix x = fromMaybe x (Text.stripSuffix "/" x)

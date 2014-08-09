@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 -- Module      : Khan.Model.ELB.HealthCheck
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -13,79 +13,138 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Model.ELB.Types
-    ( -- * Frontend to Backend Mapping
+    (
+    -- * Frontend to Backend Mapping
       Mapping           (..)
+
     , Frontend
+    , frontendProtocol
+    , frontendPort
+
     , Backend
-    , HealthCheckTarget (healthCheckText)
-    , Protocol          (..)
-    , PortNumber
     , backendProtocol
     , backendPort
     , backendHealthCheck
-    , frontendProtocol
-    , frontendPort
+
+    , HealthCheckTarget
+    , healthCheckText
+
+    , PortNumber
+    , Protocol          (..)
     , protocolText
 
       -- * Naming
-    , BalancerName (balancerNameText)
+    , BalancerName
     , mkBalancerName
+    , balancerNameText
     , balancerNamesFromASG
     , balancerNameFromDescription
 
-    , PolicyName   (policyNameText)
+    , PolicyType        (..)
+    , PolicyName
     , mkPolicyName
+    , policyNameText
     , policyNameFromCreateRequest
-
-    , PolicyType   (.. )
     ) where
 
-import Data.Attoparsec.Text
-import Data.Monoid
-import Data.String                  (fromString)
-import Data.Text                    (Text, intercalate, pack, stripSuffix, toLower, unpack)
-import Data.Text.Buildable          (Buildable (..))
-import Data.Text.Lazy               (toStrict)
-import Data.Text.Lazy.Builder       (toLazyText)
-import Khan.Internal
-import Network.AWS.AutoScaling      (AutoScalingGroup (..))
-import Network.AWS.ELB              hiding (Listener)
-import Network.Socket               (PortNumber (..))
-import Prelude                      hiding (takeWhile)
-import Text.PrettyPrint.ANSI.Leijen (Pretty (..), text)
-
-import qualified Data.Text.Lazy.Builder.Int as Build
-
--------------------------------------------------------------------------------
--- Frontend to Backend Mapping
+import           Data.Attoparsec.Text
+import           Data.Monoid
+import           Data.String
+import qualified Data.Text                    as Text
+import           Data.Text.Buildable          (Buildable(..))
+import qualified Data.Text.Lazy               as LText
+import qualified Data.Text.Lazy.Builder       as Build
+import qualified Data.Text.Lazy.Builder.Int   as Build
+import           Khan.Internal
+import           Khan.Prelude                 hiding (takeWhile)
+import           Network.AWS.AutoScaling      (AutoScalingGroup(..))
+import           Network.AWS.ELB              hiding (Listener)
+import           Network.Socket               (PortNumber(..))
+import           Text.PrettyPrint.ANSI.Leijen (Pretty(..), text)
 
 data Protocol
     = HTTP
     | HTTPS
     | TCP
     | SSL
-    deriving (Eq, Show)
+      deriving (Eq, Show)
 
 instance Buildable Protocol where
     build = fromString . show
+
+instance Pretty Protocol where
+    pretty = text . show
+
+instance TextParser Protocol where
+    parser = do
+        x <- takeTill (== ':') <* char ':'
+        case x of
+            "http"  -> return HTTP
+            "https" -> return HTTPS
+            "tcp"   -> return TCP
+            "ssl"   -> return SSL
+            s       -> fail (Text.unpack s)
 
 data Mapping = Mapping
     { frontend :: !Frontend
     , backend  :: !Backend
     } deriving (Show)
 
+instance TextParser Mapping where
+    parser = Mapping <$> (parser <* char '-') <*> parser
+
 newtype Frontend = FE Endpoint deriving (Show)
+
+instance TextParser Frontend where
+    parser = FE <$> parser
+
+instance Pretty Frontend where
+    pretty (FE ep) = "frontend/" <> pretty ep
+
+data Backend = BE !Endpoint !HealthCheckTarget deriving (Show)
+
+instance Pretty Backend where
+    pretty (BE ep _) = "backend/" <> pretty ep
+
+instance TextParser Backend where
+    parser = BE <$> parser <*> (char ',' *> parser)
 
 newtype HealthCheckTarget = HCT
     { healthCheckText :: Text
     } deriving (Show, Pretty)
 
-data Backend = BE !Endpoint !HealthCheckTarget deriving (Show)
+instance TextParser HealthCheckTarget where
+    parser = do
+        x <- parser <* char ':'
+        mk x <$> decimal <*> target x
+      where
+        mk :: Protocol -> PortNumber -> Maybe Text -> HealthCheckTarget
+        mk x p f = HCT
+             . LText.toStrict
+             . Build.toLazyText
+             $ build x
+            <> ":"
+            <> Build.decimal p
+            <> maybe mempty build f
+
+        target x = case x of
+            HTTP  -> Just <$> path
+            HTTPS -> Just <$> path
+            TCP   -> pure Nothing
+            SSL   -> pure Nothing
+
+        path = mappend "/" <$> (char '/' *> takeWhile (inClass "-a-z-A-Z_0-9/"))
 
 data Endpoint = EP
     { endpointProtocol :: !Protocol
     , endpointPort     :: !PortNumber
     } deriving (Show)
+
+instance Pretty Endpoint where
+    pretty (EP pr po) = pretty pr <> ":" <> pretty (toInteger po)
+
+instance TextParser Endpoint where
+    parser = EP <$> (parser <* char ':') <*> decimal
 
 backendProtocol :: Backend -> Protocol
 backendProtocol (BE ep _) = endpointProtocol ep
@@ -103,75 +162,7 @@ frontendPort :: Frontend -> PortNumber
 frontendPort (FE ep) = endpointPort ep
 
 protocolText :: Protocol -> Text
-protocolText = toLower . pack . show
-
-instance TextParser Mapping where
-    parser = do
-        fe <- parser
-        _  <- char '-'
-        be <- parser
-        return $ Mapping fe be
-
-instance TextParser Frontend where
-    parser = FE <$> parser
-
-instance TextParser Backend where
-    parser = do
-        ep <- parser
-        hc <- char ',' *> parser
-        return $ BE ep hc
-
-instance TextParser Endpoint where
-    parser = do
-        prot <- takeTill (== ':')
-        _    <- char ':'
-        port <- decimal
-        case prot of
-            "http"  -> return $ EP HTTP  port
-            "https" -> return $ EP HTTPS port
-            "tcp"   -> return $ EP TCP   port
-            "ssl"   -> return $ EP SSL   port
-            s       -> fail (unpack s)
-
-instance TextParser HealthCheckTarget where
-    parser = http <|> tcp
-      where
-        http = do
-            proto <- (const HTTP  <$> string "http")
-                 <|> (const HTTPS <$> string "https")
-            _     <- char ':'
-            port  <- decimal
-            path  <- char '/' *> takeWhile (inClass "-a-z-A-Z_0-9/")
-            return $ mk proto port (Just ("/" <> path))
-
-        tcp = do
-            proto <- (const TCP <$> string "tcp")
-                 <|> (const SSL <$> string "ssl")
-            _     <- char ':'
-            port  <- decimal
-            return $ mk proto port Nothing
-
-        mk :: Protocol -> PortNumber -> Maybe Text -> HealthCheckTarget
-        mk proto port path = HCT . toStrict . toLazyText $
-               build proto
-            <> ":"
-            <> Build.decimal port
-            <> maybe mempty build path
-
-instance Pretty Protocol where
-    pretty = text . show
-
-instance Pretty Endpoint where
-    pretty (EP pr po) = pretty pr <> ":" <> pretty (toInteger po)
-
-instance Pretty Frontend where
-    pretty (FE ep) = "frontend/" <> pretty ep
-
-instance Pretty Backend where
-    pretty (BE ep _) = "backend/" <> pretty ep
-
--------------------------------------------------------------------------------
--- Naming
+protocolText = Text.toLower . Text.pack . show
 
 newtype BalancerName = BalancerName { balancerNameText :: Text }
     deriving (Eq, Show, Pretty)
@@ -185,8 +176,7 @@ balancerNameFromDescription = fmap BalancerName . lbdLoadBalancerName
 mkBalancerName :: Naming a => a -> Mapping -> BalancerName
 mkBalancerName n = mk . frontendProtocol . frontend
   where
-    mk p = BalancerName $ balancerBaseName (names n) <> "-" <> protocolText p
-
+    mk p = BalancerName (balancerBaseName (names n) <> "-" <> protocolText p)
 
 newtype PolicyName = PolicyName { policyNameText :: Text }
     deriving (Eq, Show, Pretty)
@@ -195,11 +185,10 @@ newtype PolicyType = PolicyType { policyTypeText :: Text }
     deriving (Eq, Show, Pretty)
 
 mkPolicyName :: BalancerName -> PolicyType -> PolicyName
-mkPolicyName b p = PolicyName . intercalate "-" $ [balancerNameText b, typ]
+mkPolicyName b p = PolicyName (Text.intercalate "-" [balancerNameText b, t])
   where
-    typ = toLower $ case policyTypeText p of
-        (stripSuffix "PolicyType" -> Just pre) -> pre
-        x                                      -> x
+    t = Text.toLower (fromMaybe x ("PolicyType" `Text.stripSuffix` x))
+    x = policyTypeText p
 
 policyNameFromCreateRequest :: CreateLoadBalancerPolicy -> PolicyName
 policyNameFromCreateRequest = PolicyName . clbpPolicyName

@@ -171,7 +171,7 @@ test-suite tests
     type:              exitcode-stdio-1.0
     hs-source-dirs:    test
     main-is:           Main.hs
-    ghc-options:       -Wall -rtsopts -threaded
+    ghc-options:       -Wall -threaded -rtsopts
 
     build-depends:
         base             >= 4.7 && < 5

@@ -153,7 +153,7 @@ executable khan-metadata-sync
     main-is:           Main.hs
     hs-source-dirs:    khan-metadata-sync
 
-    ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N -ddump-splices
+    ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N
 
     build-depends:
         ansi-wl-pprint

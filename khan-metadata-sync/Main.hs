@@ -32,15 +32,14 @@ data Action
     | Dir  { _action :: Text }
 
 instance Semi.Semigroup Action where
-    (<>) a b = bool Dir File (file b) $
-        stripText "/" (_action a) <> "/" <> _action b
+    (<>) a b = bool Dir File (file b) $ strip (_action a) <> "/" <> _action b
 
 instance Pretty Action where
     pretty = pretty . _action
 
 action :: Text -> Action
 action t
-    | "/" `Text.isSuffixOf` t = Dir  t
+    | "/" `Text.isSuffixOf` t = Dir  (strip t)
     | otherwise               = File t
 
 url :: Action -> String
@@ -48,11 +47,14 @@ url = mappend "http://169.254.169.254/" . Text.unpack . _action
 
 path :: Action -> FilePath
 path a = bool id (`Path.addExtension` ".list") (file a) $
-    Path.fromText (_action a)
+    Path.fromText (strip (_action a))
 
 file :: Action -> Bool
 file File{} = True
 file _      = False
+
+strip :: Text -> Text
+strip x = fromMaybe x ("/" `Text.stripSuffix` x)
 
 main :: IO ()
 main = do

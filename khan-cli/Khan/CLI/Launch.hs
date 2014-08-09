@@ -57,8 +57,7 @@ launchParser env = Launch
         "Number of instances to launch."
     <*> many (textOption "group" mempty
         "Security groups. (discovered)")
-    <*> readOption "type" "TYPE" (value M1_Small)
-        "Instance's type."
+    <*> instanceOption
     <*> switchOption "optimised" False
         "EBS optimisation."
     <*> stringOption "zones" (value [])

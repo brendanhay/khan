@@ -102,8 +102,7 @@ deployParser env = Deploy
         "Desired number of instances."
     <*> integralOption "cooldown" (value 60)
         "Seconds between subsequent auto scaling activities."
-    <*> readOption "instance" "TYPE" (value M1_Medium)
-        "Instance Type to provision when auto scaling occurs."
+    <*> instanceOption
     <*> trustOption
     <*> policyOption
     <*> many (customOption "elb" "ELB" parseString mempty

@@ -1,7 +1,6 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 
 -- Module      : Khan.Model.ELB.LoadBalancerPolicy
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -25,10 +24,16 @@ import Khan.Model.ELB.Types
 import Khan.Prelude
 import Network.AWS.ELB
 
-
 data PolicyTarget a where
-    BackendPolicy  :: Backend  -> PolicyName -> BalancerName -> PolicyTarget Backend
-    FrontendPolicy :: Frontend -> PolicyName -> BalancerName -> PolicyTarget Frontend
+    BackendPolicy  :: Backend
+                   -> PolicyName
+                   -> BalancerName
+                   -> PolicyTarget Backend
+
+    FrontendPolicy :: Frontend
+                   -> PolicyName
+                   -> BalancerName
+                   -> PolicyTarget Frontend
 
 create :: CreateLoadBalancerPolicy -> AWS PolicyName
 create rq = do

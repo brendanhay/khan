@@ -116,7 +116,7 @@ update name (sort -> rules) = do
 merge :: [IpPermissionType] -> [IpPermissionType]
 merge = map (foldr1 flatten) . filter (not . null) . groupBy eq . nub . sort
   where
-    eq a b = and [g iptIpProtocol, g iptFromPort, g iptToPort]
+    eq a b = g iptIpProtocol && g iptFromPort && g iptToPort
       where
         g h = uncurry (==) $ join (***) h (a, b)
 

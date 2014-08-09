@@ -1,7 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Khan.Model.ELB.HealthCheck
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>

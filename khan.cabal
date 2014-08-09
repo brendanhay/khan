@@ -156,11 +156,12 @@ executable khan-metadata-sync
     ghc-options:       -Wall -threaded -rtsopts -with-rtsopts=-N -ddump-splices
 
     build-depends:
-        base                 >= 4.7 && < 5
-      , bytestring
+        ansi-wl-pprint
+      , base                 >= 4.7 && < 5
       , http-conduit
       , khan
       , optparse-applicative
+      , semigroups
       , system-fileio
       , system-filepath
       , text

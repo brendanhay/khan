@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Main
 -- Copyright   : (c) 2013-2014 Brendan Hay <brendan.g.hay@gmail.com>
@@ -14,21 +15,48 @@
 
 module Main (main) where
 
-import qualified Data.ByteString.Lazy      as LBS
-import qualified Data.Text                 as Text
-import qualified Data.Text.Lazy            as LText
-import qualified Data.Text.Lazy.Encoding   as LText
-import qualified Filesystem                as FS
-import qualified Filesystem.Path.CurrentOS as Path
-import           Khan.Internal
+import qualified Data.Semigroup               as Semi
+import qualified Data.Text                    as Text
+import qualified Data.Text.Lazy               as LText
+import qualified Data.Text.Lazy.Encoding      as LText
+import qualified Filesystem                   as FS
+import qualified Filesystem.Path.CurrentOS    as Path
+import           Khan.Internal                hiding (action)
 import           Khan.Prelude
-import           Network.HTTP.Conduit      (simpleHttp)
-import           Options.Applicative
-import           System.IO
+import           Network.HTTP.Conduit         (simpleHttp)
+import           Options.Applicative          (execParser, info)
+import           Text.PrettyPrint.ANSI.Leijen (Pretty(..))
+
+data Action
+    = File { _action :: Text }
+    | Dir  { _action :: Text }
+
+instance Semi.Semigroup Action where
+    (<>) a b = bool Dir File (file b) $
+        stripText "/" (_action a) <> "/" <> _action b
+
+instance Pretty Action where
+    pretty = pretty . _action
+
+action :: Text -> Action
+action t
+    | "/" `Text.isSuffixOf` t = Dir  t
+    | otherwise               = File t
+
+url :: Action -> String
+url = mappend "http://169.254.169.254/" . Text.unpack . _action
+
+path :: Action -> FilePath
+path a = bool id (`Path.addExtension` ".list") (file a) $
+    Path.fromText (_action a)
+
+file :: Action -> Bool
+file File{} = True
+file _      = False
 
 main :: IO ()
 main = do
-    !d <- execParser (info (directory <**> helper) idm)
+    !d <- execParser (info (options <**> helper) idm)
 
     enableLogging
 
@@ -42,22 +70,23 @@ main = do
     FS.setWorkingDirectory d
 
     log_ "Starting metadata sync ..."
-    retrieve d "latest/"
+    retrieve (action "latest/")
   where
-    directory = pathOption "dir"
+    options = pathOption "dir"
         ( value "./instance-data"
        <> short 'd'
         ) "Path to output the synced metadata."
 
-    retrieve d p = do
-        say "Retrieving {} ..." [p]
-        !lbs <- simpleHttp ("http://169.254.169.254/" ++ Text.unpack p)
+    retrieve a = do
+        say "Retrieving {} ..." [a]
+        !txt <- strict <$> simpleHttp (url a)
+        write a txt
+        unless (file a) $
+            mapM_ (retrieve . (a Semi.<>) . action)
+                  (Text.lines txt)
 
+    write (path -> p) txt = do
         say "Writing {} ..." [p]
-        FS.withFile (d </> Path.fromText (suffix p)) WriteMode (`LBS.hPut` lbs)
+        FS.writeTextFile p txt
 
-        when ("/" `Text.isSuffixOf` p) $
-            mapM_ (retrieve d . mappend p)
-                  (Text.lines . LText.toStrict $ LText.decodeUtf8 lbs)
-
-    suffix x = fromMaybe x (Text.stripSuffix "/" x)
+    strict !lbs = LText.toStrict (LText.decodeUtf8 lbs)

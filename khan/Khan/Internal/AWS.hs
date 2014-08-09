@@ -30,6 +30,7 @@ module Khan.Internal.AWS
     , abbreviate
 
     -- * Errors
+    , liftAWS
     , throwAWS
     , noteAWS
 
@@ -39,7 +40,7 @@ module Khan.Internal.AWS
     , verifyIAM
 
     -- * Shell
-    , which
+--    , which
     ) where
 
 import           Control.Monad.Except
@@ -47,7 +48,6 @@ import qualified Data.Text.Encoding        as Text
 import           Data.Text.Format          (Format, format)
 import           Data.Text.Format.Params
 import qualified Data.Text.Lazy            as LText
-import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.IO
 import           Khan.Internal.Options
 import           Khan.Prelude              hiding (min, max)
@@ -57,7 +57,6 @@ import           Network.AWS.EC2           as EC2
 import           Network.AWS.EC2.Metadata  (Meta(..))
 import qualified Network.AWS.EC2.Metadata  as Meta
 import           Network.AWS.IAM
-import qualified Shelly                    as Shell
 
 ec2Filter :: Text -> [Text] -> EC2.Filter
 ec2Filter = EC2.Filter
@@ -80,6 +79,10 @@ abbreviate Singapore       = "sg"
 abbreviate Tokyo           = "tyo"
 abbreviate Sydney          = "syd"
 abbreviate SaoPaulo        = "sao"
+
+--liftAWS :: MonadIO m => IO a -> EitherT String m a
+liftAWS :: IO a -> AWS a
+liftAWS = liftEitherT . sync
 
 throwAWS :: (Params a, MonadError AWSError m) => Format -> a -> m b
 throwAWS f = throwError . Err . LText.unpack . format f
@@ -112,6 +115,6 @@ verify k f = g
                 | otherwise = throwError $ toError x
 
 -- FIXME: Move to IO module
-which :: String -> AWS ()
-which cmd = shell (Shell.which $ Path.decodeString cmd) >>=
-    void . noteAWS "Command {} doesn't exist." [B cmd]
+-- which :: String -> AWS ()
+-- which cmd = shell (FS.which $ Path.decodeString cmd) >>=
+--     void . noteAWS "Command {} doesn't exist." [B cmd]

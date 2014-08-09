@@ -15,11 +15,11 @@
 
 module Khan.CLI.Artifact (commands) where
 
-import           Khan.Internal
+import           Khan.Internal        hiding (sync)
 import           Khan.Model.Ansible
 import qualified Khan.Model.S3.Bucket as Bucket
 import qualified Khan.Model.S3.Object as Object
-import           Khan.Prelude         hiding (sync)
+import           Khan.Prelude
 import           Network.AWS.S3       (AWS)
 
 data Object = Object

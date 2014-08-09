@@ -26,14 +26,12 @@ module Khan.Prelude
     , forever
     , join
     , when
-    , whenM
     , unless
-    , unlessM
     , void
     , lift
+    , liftM
 
     -- * Errors
-    , sync
     , throwError
 
     -- * Environment
@@ -45,6 +43,11 @@ module Khan.Prelude
 
     -- * Formatting
     , formatUTC
+
+    -- * Filepaths
+    , (</>)
+    , (<.>)
+    , toTextIgnore
 
     -- * Re-exported Modules
     , module Applicative
@@ -58,8 +61,8 @@ module Khan.Prelude
 
 import Control.Applicative       as Applicative
 import Control.Error             as Error
-import Control.Monad             ((<=<), (>=>), forever, join, when, unless, void)
-import Control.Monad.Except       (throwError)
+import Control.Monad             ((<=<), (>=>), forever, join, when, unless, void, liftM)
+import Control.Monad.Except      (throwError)
 import Control.Monad.IO.Class    as MonadIO
 import Control.Monad.Trans.Class (lift)
 import Data.ByteString           (ByteString)
@@ -69,21 +72,23 @@ import Data.Maybe                as Maybe
 import Data.Monoid               as Monoid
 import Data.Text                 (Text)
 import Data.Time
-import Filesystem.Path.CurrentOS (FilePath)
+import Filesystem.Path.CurrentOS (FilePath, (</>), (<.>), toText)
 import Khan.Prelude.Log          as Log
 import Prelude.Prime             as Prime hiding (FilePath, error, log, writeFile)
-import Shelly                    (whenM, unlessM)
 import System.Locale
 
 accessKey, secretKey :: String
 accessKey = "ACCESS_KEY_ID"
 secretKey = "SECRET_ACCESS_KEY"
 
-sync :: MonadIO m => IO a -> EitherT String m a
-sync = fmapLT show . syncIO
-
 diff :: Eq a => [a] -> [a] -> ([a], [a])
 diff xs ys = (xs \\ ys, ys \\ xs)
 
 formatUTC :: UTCTime -> String
 formatUTC = formatTime defaultTimeLocale "%d.%m.%Y %X"
+
+toTextIgnore :: FilePath -> Text
+toTextIgnore f =
+    case toText f of
+        Left  t -> t
+        Right t -> t

@@ -16,16 +16,16 @@
 module Khan.Internal.IO
     (
     -- * Shell
-      sh
-    , shell
+      sync
+    , which
 
     -- * Concurrency
     , delaySeconds
 
     -- * Files
     , defaultPath
-    , expandPath
     , writeFile
+    , setFileMode
 
     -- * Psuedo Randomisation
     , randomSelect
@@ -33,11 +33,6 @@ module Khan.Internal.IO
 
     -- * Templates
     , renderTemplate
-
-    -- Re-exported
-    , Sh
-    , (</>)
-    , (<.>)
     ) where
 
 import           Control.Concurrent        (threadDelay)
@@ -53,16 +48,22 @@ import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS               (AWS, liftEitherT)
-import           Shelly                    (Sh, (</>), (<.>), absPath, toTextIgnore)
-import qualified Shelly                    as Shell
+import           System.Exit
+import qualified System.Posix.Files        as Posix
+import           System.Posix.Types        (FileMode)
+import           System.Process            (system)
 import qualified System.Random             as Random
 import qualified Text.EDE                  as EDE
 
-sh :: MonadIO m => Sh a -> EitherT String m a
-sh = fmapLT show . syncIO . shell
+sync :: IO a -> EitherT String IO a
+sync = fmapLT show . syncIO
 
-shell :: MonadIO m => Sh a -> m a
-shell = Shell.shelly
+which :: String -> EitherT String IO ()
+which cmd = do
+    c <- sync (system cmd)
+    case c of
+        ExitFailure _ -> throwError ("Failed to find command: " ++ cmd)
+        ExitSuccess   -> return ()
 
 delaySeconds :: MonadIO m => Int -> m ()
 delaySeconds n = liftIO $ threadDelay (n * 1000000)
@@ -72,23 +73,22 @@ defaultPath p def
     | invalid p = def
     | otherwise = p
 
-expandPath :: (Functor m, MonadIO m) => FilePath -> m FilePath
-expandPath f =
-    case "~/" `Text.stripPrefix` toTextIgnore f of
-        Nothing -> return f
-        Just _  -> liftIO FS.getHomeDirectory >>= shell . absPath
-
-writeFile :: (Functor m, MonadIO m) => FilePath -> Text -> Text -> m ()
-writeFile file mode contents = shell $ do
-    backup file
-    Shell.mkdir_p $ Path.parent file
-    Shell.writefile file contents
-    Shell.run_ "chmod" [mode, toTextIgnore file]
+writeFile :: MonadIO m => FilePath -> FileMode -> Text -> m ()
+writeFile f m txt = liftIO $ do
+    backup f
+    FS.createTree (Path.parent f)
+    FS.writeTextFile f txt
+    setFileMode f m
   where
-    backup f = Shell.unlessM (Shell.test_e f) $ do
-        ts <- liftIO (truncate <$> getPOSIXTime :: IO Integer)
-        Shell.mv f $ f <.> Text.pack (show ts)
-        backup f
+    backup p = do
+        e <- FS.isFile p
+        when e (unique p >>= FS.copyFile p)
+
+    unique p = Path.addExtension p . name <$> getPOSIXTime
+    name  ts = Text.pack (show (truncate ts :: Integer))
+
+setFileMode :: MonadIO m => FilePath -> FileMode -> m ()
+setFileMode f = liftIO . Posix.setFileMode (Path.encodeString f)
 
 randomSelect :: MonadIO m => [a] -> m a
 randomSelect xs = liftIO $ (xs !!) <$> Random.randomRIO (0, length xs - 1)
@@ -105,5 +105,5 @@ randomShuffle xs = liftIO $
 
 renderTemplate :: Object -> FilePath -> AWS LText.Text
 renderTemplate o (Path.encodeString -> f) = liftEitherT $ do
-    et <- sync $ EDE.eitherParseFile f
+    et <- sync (EDE.eitherParseFile f)
     hoistEither . join $ (`EDE.eitherRender` o) <$> et

@@ -93,13 +93,13 @@ library
       , process              >= 1.2
       , random
       , semigroups
-      , shelly
       , system-fileio
       , system-filepath      >= 0.4.9
       , text                 >= 1.0
       , text-format
       , time
       , transformers         == 0.4.*
+      , unix
       , unordered-containers
 
     if impl(ghc < 7.7)

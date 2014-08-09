@@ -17,10 +17,10 @@ module Khan.Model.IAM.ServerCertificate
     , delete
     ) where
 
+import qualified Filesystem      as FS
 import           Khan.Internal
 import           Khan.Prelude    hiding (find)
 import           Network.AWS.IAM
-import qualified Shelly          as Shell
 
 find :: Text -> AWS (Maybe ServerCertificateMetadata)
 find dom = do
@@ -38,10 +38,11 @@ find dom = do
 
 upload :: Text -> FilePath -> FilePath -> Maybe FilePath -> AWS ()
 upload dom pubp privp chainp = do
-    (pub, priv, chain) <- liftEitherT . sh $
+    (pub, priv, chain) <- liftAWS $
         (,,) <$> loadKey pubp "Reading public key from {}"
              <*> loadKey privp "Reading private key from {}"
              <*> loadChain chainp
+
     say "Upload Certificate {}" [dom]
     send_ UploadServerCertificate
         { uscCertificateBody       = pub
@@ -50,9 +51,10 @@ upload dom pubp privp chainp = do
         , uscPath                  = Nothing
         , usdServerCertificateName = dom
         }
+
     say "Created Certificate {}" [dom]
   where
-    loadKey path fmt = Shell.readfile path <* say fmt [path]
+    loadKey path fmt = FS.readTextFile path <* say fmt [path]
 
     loadChain (Just p) = Just <$> loadKey p "Reading certificate chain from {}"
     loadChain Nothing  = return Nothing

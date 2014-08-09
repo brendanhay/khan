@@ -150,14 +150,16 @@ playbook c a@Ansible{..} = ansible c $ a
 
 ansible :: Common -> Ansible -> AWS ()
 ansible c@Common{..} a@Ansible{..} = do
-    which bin
+    liftEitherT (which bin)
 
     k <- maybe (Key.path aRKeys a cLKeys) return aKey
     i <- inventoryPath cCache aEnv
 
     let script = i <.> "sh"
 
-    whenM ((|| aForce) <$> exceeds i) $ do
+    p <- (|| aForce) <$> exceeds i
+
+    when p $ do
         log "Limit of {}s exceeded for {}, refreshing..." [P aRetain, B i]
         inventory c $ Inventory aEnv True True Nothing
 

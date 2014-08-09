@@ -68,14 +68,13 @@ import           Data.SemVer
 import           Data.String
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
-import           Khan.Internal.IO
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
 import           Options.Applicative       as Export hiding (command, info, header, infoParser, execParser)
 import qualified Options.Applicative       as Options
 import           Prelude                   (error)
-import qualified Shelly                    as Shell
+import qualified Filesystem as FS
 
 data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command
@@ -267,9 +266,9 @@ checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT AWSError m ()
 checkIO io e = liftIO io >>= (`check` e)
 
 checkPath :: MonadIO m => FilePath -> String -> EitherT AWSError m ()
-checkPath p e = check p msg >> checkIO (not <$> shell (Shell.test_e p)) msg
+checkPath p e = check p msg >> checkIO (not <$> FS.isFile p) msg
   where
-    msg = Text.unpack (Text.concat ["path '", Shell.toTextIgnore p, "'"]) ++ e
+    msg = Text.unpack (Text.concat ["path '", toTextIgnore p, "'"]) ++ e
 
 etext :: HasValue f => Text -> EnvMap -> Mod f Text
 etext = evalue Just

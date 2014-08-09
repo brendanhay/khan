@@ -31,7 +31,7 @@ import           Khan.Internal
 import qualified Khan.Model.S3.Object      as Object
 import           Khan.Prelude
 import           Network.AWS.S3
-import qualified Shelly                    as Shell
+import qualified Filesystem as FS
 
 download :: Int -> Text -> Maybe Text -> FilePath -> Bool -> AWS Bool
 download n b p dir force = do
@@ -55,7 +55,7 @@ download n b p dir force = do
 
     retrieve Contents{..} = do
         let dest = dir </> Path.fromText bcKey
-        shell . Shell.mkdir_p $ Path.parent dest
+        liftAWS . FS.createTree $ Path.parent dest
         Object.download b bcKey dest force
 
     chunked xs = do

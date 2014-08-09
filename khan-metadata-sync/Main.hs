@@ -46,7 +46,7 @@ url :: Action -> String
 url = mappend "http://169.254.169.254/" . Text.unpack . _action
 
 path :: Action -> FilePath
-path a = bool id (`Path.addExtension` ".list") (file a) $
+path a = bool id (`Path.addExtension` "list") (file a) $
     Path.fromText (strip (_action a))
 
 file :: Action -> Bool

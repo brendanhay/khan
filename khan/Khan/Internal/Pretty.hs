@@ -28,6 +28,7 @@ module Khan.Internal.Pretty
     , pLn
 
     -- * Documents
+    , Column (..)
     , pretty
     , title
     , header
@@ -35,12 +36,19 @@ module Khan.Internal.Pretty
     , overview
     , line
 
+    -- * Classes
+    , Header
+    , Body
+
     -- * Proxy
-    , Proxy (..)
+    , Proxy  (..)
 
     -- * Combinators
     , (<->)
     , indent
+    , cols
+    , hcols
+    , vrow
     ) where
 
 import           Data.Aeson

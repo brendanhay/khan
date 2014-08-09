@@ -1,6 +1,9 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE ExtendedDefaultRules       #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 -- Module      : Khan.Model.Host
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -24,6 +27,8 @@ module Khan.Model.Host
     , findAll
     ) where
 
+import           Data.Proxy
+import qualified Data.Text                    as Text
 import           Khan.Internal
 import qualified Khan.Model.EC2.Instance      as Instance
 import qualified Khan.Model.Tag               as Tag
@@ -32,19 +37,37 @@ import           Network.AWS.EC2
 import           System.IO                    hiding (FilePath)
 import           Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (<>), group)
 
-data Info = Info !Int !(Text, Text) !RunningInstancesItemType
+default (Text)
 
-instance Pretty Info where
-    pretty (Info n (v, a) RunningInstancesItemType{..}) = " " <> int n <> ")"
-        <+> addr
-        <+> pretty riitInstanceId
-        <+> pretty riitImageId
-        <+> pretty (istName riitInstanceState)
-      where
-        addr | v /= a    = wrap a <+> pretty (stripText ".amazonaws.com" v)
-             | otherwise = wrap v
+data Info = Info !Int !(Text, Text) (Ann RunningInstancesItemType)
 
-        wrap x = "[" <> pretty x <> "]"
+instance Header Info where
+    header _ = hcols 15
+        [ W 3  (H "n:")
+        , W 18 (H "dns:")
+        , W 18 (H "ssh-address:")
+        , W 8  (H "state:")
+        , W 8  (H "weight:")
+        , W 10 (H "version:")
+        , H "instance-id:"
+        , H "image-id:"
+        , H "type:"
+        , W 19 (H "launched:")
+        ]
+
+instance Body Info where
+    body (Info n (v, a) (Ann RunningInstancesItemType{..} Tags{..})) = hcols 15
+        [ W 3  (C $ int n <> ")")
+        , W 18 (C $ Text.takeWhile (/= '.') v)
+        , W 18 (C a)
+        , W 8  (C $ istName riitInstanceState)
+        , W 8  (C tagWeight)
+        , W 10 (C tagVersion)
+        , C riitInstanceId
+        , C riitImageId
+        , C riitInstanceType
+        , W 19 (C riitLaunchTime)
+        ]
 
 ordinal :: Info -> Int
 ordinal (Info n _ _) = n
@@ -58,7 +81,7 @@ choose vpn env role f = findAll vpn env role >>= go
     go []  = log_ "No hosts found."
     go [x] = f x
     go xs  = do
-        mapM_ (pPrint . pretty) xs
+        pPrint (title "ssh" <-> header (Proxy :: Proxy Info) <-> body xs)
         c <- ask
         x <- noteAWS "Invalid host selection '{}'." [c] $
             find ((c ==) . show . ordinal) xs
@@ -77,4 +100,4 @@ findAll vpn env role = mapMaybe f . zip [1..] <$> Instance.findAll []
   where
     f (n, x) = Info n
         <$> Instance.address vpn x
-        <*> pure x
+        <*> Tag.annotate x

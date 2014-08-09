@@ -50,6 +50,7 @@ module Khan.Internal.Options
     , policyOption
     , ansibleOption
     , userOption
+    , instanceOption
     , rKeysOption
 
     -- * Validation
@@ -248,6 +249,10 @@ ansibleOption = switchOption "ansible" False
 userOption :: Parser Text
 userOption = textOption "user" (value "ubuntu" <> short 'u')
     "SSH User."
+
+instanceOption :: Parser InstanceType
+instanceOption = readOption "instance" "TYPE" (value M3_Medium)
+    "Instance type to use."
 
 rKeysOption :: EnvMap -> Parser RKeysBucket
 rKeysOption env = RKeysBucket <$> textOption "remote-keys"

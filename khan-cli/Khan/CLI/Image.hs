@@ -96,7 +96,7 @@ commands env = command "image" image (imageParser env)
 
 image :: Common -> Image -> AWS ()
 image c@Common{..} d@Image{..} = do
-    which "ansible-playbook"
+    liftEitherT (which "ansible-playbook")
 
     say "Checking if target Image {} exists..." [imageName]
     as <- Image.findAll [] [Filter "name" [imageName]]
@@ -138,7 +138,8 @@ image c@Common{..} d@Image{..} = do
         maddr    <- join . fmap (Instance.address cVPN) <$> Instance.find iid
         (_, dns) <- noteAWS "Failed to retrieve Address for {}" [iid] maddr
 
-        unlessM (SSH.wait iTimeout dns iUser key) $
+        p <- SSH.wait iTimeout dns iUser key
+        unless p $
             throwAWS "Failed to gain SSH connectivity for {}" [iid]
 
         say "Running Playbook {}" [iPlaybook]

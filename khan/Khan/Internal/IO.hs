@@ -17,6 +17,7 @@ module Khan.Internal.IO
     (
     -- * Shell
       sync
+    , which
 
     -- * Concurrency
     , delaySeconds
@@ -29,7 +30,6 @@ module Khan.Internal.IO
     -- * Psuedo Randomisation
     , randomSelect
     , randomShuffle
-
 
     -- * Templates
     , renderTemplate
@@ -48,13 +48,22 @@ import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS               (AWS, liftEitherT)
+import           System.Exit
 import qualified System.Posix.Files        as Posix
 import           System.Posix.Types        (FileMode)
+import           System.Process            (system)
 import qualified System.Random             as Random
 import qualified Text.EDE                  as EDE
 
 sync :: IO a -> EitherT String IO a
 sync = fmapLT show . syncIO
+
+which :: String -> EitherT String IO ()
+which cmd = do
+    c <- sync (system cmd)
+    case c of
+        ExitFailure _ -> throwError ("Failed to find command: " ++ cmd)
+        ExitSuccess   -> return ()
 
 delaySeconds :: MonadIO m => Int -> m ()
 delaySeconds n = liftIO $ threadDelay (n * 1000000)

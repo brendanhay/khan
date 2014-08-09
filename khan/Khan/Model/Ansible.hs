@@ -45,7 +45,6 @@ import           Data.Text.Format
 import           Data.Text.Format.Params
 import qualified Filesystem.Path.CurrentOS        as Path
 import           Khan.Internal.AWS
-import           Khan.Internal.IO
 import           Khan.Internal.Options
 import           Khan.Internal.Types
 import           Khan.Model.Ansible.Serialisation

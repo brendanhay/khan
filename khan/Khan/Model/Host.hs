@@ -81,7 +81,10 @@ choose vpn env role f = findAll vpn env role >>= go
     go []  = log_ "No hosts found."
     go [x] = f x
     go xs  = do
-        pPrint (title "ssh" <-> header (Proxy :: Proxy Info) <-> body xs)
+        pPrint $ title "ssh"
+             <-> header (Proxy :: Proxy Info)
+             <-> body xs
+             <-> mempty
         c <- ask
         x <- noteAWS "Invalid host selection '{}'." [c] $
             find ((c ==) . show . ordinal) xs

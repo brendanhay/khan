@@ -122,15 +122,6 @@ backendPort (BE ep _) = endpointPort ep
 backendHealthCheck :: Backend -> HealthCheckTarget
 backendHealthCheck (BE _ hc) = hc
 
-backendProtocol :: Backend -> Protocol
-backendProtocol (BE ep _) = endpointProtocol ep
-
-backendPort :: Backend -> PortNumber
-backendPort (BE ep _) = endpointPort ep
-
-backendHealthCheck :: Backend -> HealthCheckTarget
-backendHealthCheck (BE _ hc) = hc
-
 newtype HealthCheckTarget = HCT
     { healthCheckText :: Text
     } deriving (Show, Pretty)

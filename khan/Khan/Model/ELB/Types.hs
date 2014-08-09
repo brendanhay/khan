@@ -96,6 +96,15 @@ instance TextParser Frontend where
 instance Pretty Frontend where
     pretty (FE ep) = "frontend/" <> pretty ep
 
+frontendProtocol :: Frontend -> Protocol
+frontendProtocol (FE ep) = endpointProtocol ep
+
+frontendPort :: Frontend -> PortNumber
+frontendPort (FE ep) = endpointPort ep
+
+protocolText :: Protocol -> Text
+protocolText = Text.toLower . Text.pack . show
+
 data Backend = BE !Endpoint !HealthCheckTarget deriving (Show)
 
 instance Pretty Backend where
@@ -103,6 +112,24 @@ instance Pretty Backend where
 
 instance TextParser Backend where
     parser = BE <$> parser <*> (char ',' *> parser)
+
+backendProtocol :: Backend -> Protocol
+backendProtocol (BE ep _) = endpointProtocol ep
+
+backendPort :: Backend -> PortNumber
+backendPort (BE ep _) = endpointPort ep
+
+backendHealthCheck :: Backend -> HealthCheckTarget
+backendHealthCheck (BE _ hc) = hc
+
+backendProtocol :: Backend -> Protocol
+backendProtocol (BE ep _) = endpointProtocol ep
+
+backendPort :: Backend -> PortNumber
+backendPort (BE ep _) = endpointPort ep
+
+backendHealthCheck :: Backend -> HealthCheckTarget
+backendHealthCheck (BE _ hc) = hc
 
 newtype HealthCheckTarget = HCT
     { healthCheckText :: Text
@@ -140,24 +167,6 @@ instance Pretty Endpoint where
 
 instance TextParser Endpoint where
     parser = EP <$> (parser <* char ':') <*> decimal
-
-backendProtocol :: Backend -> Protocol
-backendProtocol (BE ep _) = endpointProtocol ep
-
-backendPort :: Backend -> PortNumber
-backendPort (BE ep _) = endpointPort ep
-
-backendHealthCheck :: Backend -> HealthCheckTarget
-backendHealthCheck (BE _ hc) = hc
-
-frontendProtocol :: Frontend -> Protocol
-frontendProtocol (FE ep) = endpointProtocol ep
-
-frontendPort :: Frontend -> PortNumber
-frontendPort (FE ep) = endpointPort ep
-
-protocolText :: Protocol -> Text
-protocolText = Text.toLower . Text.pack . show
 
 newtype BalancerName = BalancerName { balancerNameText :: Text }
     deriving (Eq, Show, Pretty)

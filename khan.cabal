@@ -85,7 +85,7 @@ library
       , http-client          == 0.3.*
       , http-conduit
       , http-types
-      , mtl
+      , mtl                  >= 2.2.1
       , network
       , old-locale
       , optparse-applicative >= 0.8

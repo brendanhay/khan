@@ -19,14 +19,14 @@ module Khan.Model.Key
     , path
     ) where
 
+import           Data.Bits
 import qualified Data.Text                 as Text
-import           Data.Time.Clock.POSIX
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
 import qualified Khan.Model.S3.Object      as Object
 import           Khan.Prelude              hiding (min, max)
 import           Network.AWS.EC2           hiding (Instance)
-import qualified Shelly                    as Shell
+import           System.Posix.Files        (ownerReadMode, ownerWriteMode)
 
 create :: Naming a => RKeysBucket -> a -> LKeysDir -> AWS FilePath
 create (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
@@ -41,27 +41,20 @@ create (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
         say "Key Pair {} exists, not updating." [keyName]
 
     write f k = do
-        shell $ do
-             p <- Shell.test_e f
-             when p $ do
-                 ts :: Integer <- truncate <$> liftIO getPOSIXTime
-                 Shell.mv f $ f <.> Text.pack (show ts)
-             Shell.mkdir_p $ Path.parent f
-             Shell.writefile f $ ckqKeyMaterial k
-             Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
+        writeFile f (ownerReadMode  .|. ownerWriteMode) (ckqKeyMaterial k)
         say "Wrote new Key Pair to {}" [f]
         let key = Text.pack . Path.encodeString $ Path.filename f
-         in void $ Object.upload b key f True
+        void $ Object.upload b key f True
 
 path :: Naming a => RKeysBucket -> a -> LKeysDir -> AWS FilePath
 path (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
     f <- filePath n dir
     let key = Text.pack . Path.encodeString $ Path.filename f
-     in void $ Object.download b key f False
-    shell $ Shell.run_ "chmod" ["0600", Shell.toTextIgnore f]
+    void $ Object.download b key f False
+    setFileMode f (ownerReadMode  .|. ownerWriteMode)
     return f
 
 filePath :: Names -> FilePath -> AWS FilePath
 filePath Names{..} dir = do
     r <- Text.pack . show <$> getRegion
-    return $ dir </> Shell.fromText (Text.concat [r, "_", keyName, ".pem"])
+    return $ dir </> Path.fromText (Text.concat [r, "_", keyName, ".pem"])

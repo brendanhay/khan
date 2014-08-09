@@ -26,7 +26,6 @@ import qualified Data.Text.Lazy      as LText
 import           GHC.Generics        (Generic)
 import           Khan.Prelude
 import           Network.AWS.EC2
-import           Shelly
 
 instance Buildable [Text] where
     build = build . Text.intercalate ", "

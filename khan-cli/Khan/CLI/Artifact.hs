@@ -105,9 +105,12 @@ commands = group "artifact" "Manage S3 Artifacts." $ mconcat
         "Prune old artifacts from the bucket."
     ]
 
-object :: (Text -> Text -> FilePath -> Bool -> AWS Bool) -> Common -> Object -> AWS ()
+object :: (Text -> Text -> FilePath -> Bool -> AWS Bool)
+       -> Common
+       -> Object
+       -> AWS ()
 object g c Object{..} =
-    capture oAnsible c "object {}/{}" [oBucket, oKey] $ do
+    capture oAnsible c "object {}/{}" [oBucket, oKey] $
         g oBucket oKey oPath oForce
 
 sync :: Common -> Bucket -> AWS ()

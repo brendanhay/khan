@@ -58,13 +58,9 @@ path :: Action -> FilePath
 path a = bool (`Path.addExtension` "list") id (file a) $
     Path.fromText (strip (_action a))
 
-parent :: Action -> FilePath
-parent (File f) = Path.directory (Path.fromText f)
-parent (Dir  d) = Path.fromText d
-
-file :: Action -> Bool
-file File{} = True
-file _      = False
+isFile :: Action -> Bool
+isFile File{} = True
+isFile _      = False
 
 strip :: Text -> Text
 strip x = fromMaybe x ("/" `Text.stripSuffix` x)
@@ -92,10 +88,12 @@ main = do
         !txt <- strict . responseBody <$>
             httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
 
-        lift $ FS.createTree (parent a)
-            >> FS.writeTextFile (d </> path a) txt
+        let p = d </> path a
 
-        unless (file a) $
+        lift $ FS.createTree (Path.directory p)
+            >> FS.writeTextFile p txt
+
+        unless (isFile a) $
             mapM_ (retrieve d m . (a Semi.<>) . action)
                   (Text.lines txt)
 

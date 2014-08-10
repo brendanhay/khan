@@ -49,6 +49,9 @@ path :: Action -> FilePath
 path a = bool (`Path.addExtension` "list") id (file a) $
     Path.fromText (strip (_action a))
 
+parent :: Action -> FilePath
+parent = Path.directory . Path.fromText . _action
+
 file :: Action -> Bool
 file File{} = True
 file _      = False
@@ -65,9 +68,6 @@ main = do
     log_ "Checking if running on an EC2 instance ..."
     !_ <- simpleHttp "http://instance-data/"
 
-    say "Ensuring {} exists ..." [d]
-    FS.createTree d
-
     say "Changing working directory to {} ..." [d]
     FS.setWorkingDirectory d
 
@@ -82,7 +82,7 @@ main = do
     retrieve a = do
         say "Retrieving {} ..." [a]
         !txt <- strict <$> simpleHttp (url a)
-        write a txt
+        ensure a >> write a txt
         unless (file a) $
             mapM_ (retrieve . (a Semi.<>) . action)
                   (Text.lines txt)
@@ -90,5 +90,9 @@ main = do
     write (path -> p) txt = do
         say "Writing {} ..." [p]
         FS.writeTextFile p txt
+
+    ensure (parent -> p) = do
+        say "Ensuring {} exists ..." [p]
+        FS.createTree p
 
     strict !lbs = LText.toStrict (LText.decodeUtf8 lbs)

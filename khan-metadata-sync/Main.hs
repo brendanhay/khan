@@ -41,16 +41,13 @@ instance Pretty Action where
 
 action :: Text -> Action
 action t
+    | "latest/meta-data" <- t = Dir  "latest/meta-data/"
+    | "latest/dynamic"   <- t = Dir  "latest/dynamic/"
     | "/" `Text.isSuffixOf` t = Dir  (strip t)
     | otherwise               = File t
 
 url :: Action -> String
-url = mappend base . Text.unpack . override . _action
-  where
-    override x
-        | x == "latest/meta-data"
-       || x == "latest/dynamic"   = '/' `Text.cons` x
-        | otherwise               = x
+url = mappend base . Text.unpack . _action
 
 path :: Action -> FilePath
 path a = bool (`Path.addExtension` "list") id (file a) $
@@ -75,7 +72,8 @@ main = do
     log_ "Checking if running on an EC2 instance ..."
     !_ <- simpleHttp base
 
-    ensure d
+    say "Ensuring {} exists ..." [d]
+    FS.createTree d
 
     say "Changing working directory to {} ..." [d]
     FS.setWorkingDirectory d
@@ -94,8 +92,8 @@ main = do
         !txt <- strict . responseBody <$>
             httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
 
-        lift $ ensure (parent a)
-            >> write  (path a) txt
+        lift $ FS.createTree (parent a)
+            >> write (path a) txt
 
         unless (file a) $
             mapM_ (retrieve m . (a Semi.<>) . action)
@@ -107,6 +105,4 @@ main = do
         say "Writing {} ..." [p]
         FS.writeTextFile p txt
 
-    ensure p = do
-        say "Ensuring {} exists ..." [p]
-        FS.createTree p
+-- FIXME: use temporary directory and tar stuff up

@@ -87,7 +87,7 @@ main = do
             httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
 
         lift $ ensure (parent a)
-            >> write (path a) txt
+            >> write  (path a) txt
 
         unless (file a) $
             mapM_ (retrieve m . (a Semi.<>) . action)

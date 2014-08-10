@@ -23,11 +23,15 @@ import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Internal                hiding (action)
 import           Khan.Prelude
 import           Network.HTTP.Conduit         hiding (path)
-import           Options.Applicative          (execParser, info)
+import           System.IO.Temp               (withSystemTempDirectory)
+import           System.Process
 import           Text.PrettyPrint.ANSI.Leijen (Pretty(..))
 
 base :: String
 base = "http://instance-data/"
+
+output :: String
+output = "./metadata.gz"
 
 data Action
     = File { _action :: Text }
@@ -65,44 +69,33 @@ strip x = fromMaybe x ("/" `Text.stripSuffix` x)
 
 main :: IO ()
 main = do
-    !d <- execParser (info (options <**> helper) idm)
-
     enableLogging
 
     log_ "Checking if running on an EC2 instance ..."
     !_ <- simpleHttp base
 
-    say "Ensuring {} exists ..." [d]
-    FS.createTree d
+    withSystemTempDirectory "metadata." $ \d -> do
+        log_ "Starting metadata synchronisation ..."
+        withManager $ \m ->
+            retrieve (Path.decodeString d) m (action "latest/")
 
-    say "Changing working directory to {} ..." [d]
-    FS.setWorkingDirectory d
+        say "Compressing {} to {} ..." [d, output]
+        callCommand ("tar -cvf " ++ output ++ " " ++ d)
 
-    log_ "Starting metadata sync ..."
-    withManager (`retrieve` action "latest/")
+    log_ "Completed."
   where
-    options = pathOption "dir"
-        ( value "./instance-data"
-       <> short 'd'
-        ) "Path to output the synced metadata."
-
-    retrieve m a = do
-        say "Retrieving {} ..." [a]
+    retrieve d m a = do
+        say "[GET] {}" [a]
         rq   <- parseUrl (url a)
         !txt <- strict . responseBody <$>
             httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
 
+        say "[IO]  {} ..." [a]
         lift $ FS.createTree (parent a)
-            >> write (path a) txt
+            >> FS.writeTextFile (d </> path a) txt
 
         unless (file a) $
-            mapM_ (retrieve m . (a Semi.<>) . action)
+            mapM_ (retrieve d m . (a Semi.<>) . action)
                   (Text.lines txt)
 
     strict !lbs = LText.toStrict (LText.decodeUtf8 lbs)
-
-    write p txt = do
-        say "Writing {} ..." [p]
-        FS.writeTextFile p txt
-
--- FIXME: use temporary directory and tar stuff up

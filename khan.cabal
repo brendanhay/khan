@@ -160,10 +160,11 @@ executable khan-metadata-sync
       , base                 >= 4.7 && < 5
       , http-conduit
       , khan
-      , optparse-applicative
+      , process
       , semigroups
       , system-fileio
       , system-filepath
+      , temporary
       , text
 
 test-suite tests

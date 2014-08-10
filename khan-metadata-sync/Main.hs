@@ -47,7 +47,7 @@ action :: Text -> Action
 action t
     | "latest/meta-data" <- t = Dir  "latest/meta-data/"
     | "latest/dynamic"   <- t = Dir  "latest/dynamic/"
-    | "/" `Text.isSuffixOf` t = Dir  (strip t)
+    | "/" `Text.isSuffixOf` t = Dir  t
     | otherwise               = File t
 
 url :: Action -> String
@@ -79,18 +79,17 @@ main = do
         withManager $ \m ->
             retrieve (Path.decodeString d) m (action "latest/")
 
-        say "Compressing {} to {} ..." [d, output]
+        say "Compressing {} ..." [output]
         callCommand ("tar -cvf " ++ output ++ " " ++ d)
 
     log_ "Completed."
   where
     retrieve d m a = do
-        say "[GET] {}" [a]
+        say "Retrieve {}" [a]
         rq   <- parseUrl (url a)
         !txt <- strict . responseBody <$>
             httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
 
-        say "[IO]  {} ..." [a]
         lift $ FS.createTree (parent a)
             >> FS.writeTextFile (d </> path a) txt
 

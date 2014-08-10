@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPattners      #-}
 
 -- Module      : Main
 -- Copyright   : (c) 2013-2014 Brendan Hay <brendan.g.hay@gmail.com>
@@ -44,7 +45,7 @@ instance Pretty Action where
     pretty = pretty . _action
 
 action :: Text -> Action
-action t
+action (Text.strip -> t)
     | "latest/meta-data" <- t = Dir  "latest/meta-data/"
     | "latest/dynamic"   <- t = Dir  "latest/dynamic/"
     | "/" `Text.isSuffixOf` t = Dir  t
@@ -58,7 +59,8 @@ path a = bool (`Path.addExtension` "list") id (file a) $
     Path.fromText (strip (_action a))
 
 parent :: Action -> FilePath
-parent = Path.directory . Path.fromText . _action
+parent (File f) = Path.directory (Path.fromText f)
+parent (Dir  d) = Path.fromText d
 
 file :: Action -> Bool
 file File{} = True

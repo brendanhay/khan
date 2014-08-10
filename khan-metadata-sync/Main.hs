@@ -39,7 +39,7 @@ data Action
     | Dir  { _action :: Text }
 
 instance Semi.Semigroup Action where
-    (<>) a b = bool Dir File (file b) $ strip (_action a) <> "/" <> _action b
+    (<>) a b = bool Dir File (isFile b) $ strip (_action a) <> "/" <> _action b
 
 instance Pretty Action where
     pretty = pretty . _action
@@ -55,7 +55,7 @@ url :: Action -> String
 url = mappend base . Text.unpack . _action
 
 path :: Action -> FilePath
-path a = bool (`Path.addExtension` "list") id (file a) $
+path a = bool (`Path.addExtension` "list") id (isFile a) $
     Path.fromText (strip (_action a))
 
 isFile :: Action -> Bool

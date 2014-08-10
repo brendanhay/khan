@@ -26,6 +26,9 @@ import           Network.HTTP.Conduit         hiding (path)
 import           Options.Applicative          (execParser, info)
 import           Text.PrettyPrint.ANSI.Leijen (Pretty(..))
 
+base :: String
+base = "http://instance-data"
+
 data Action
     = File { _action :: Text }
     | Dir  { _action :: Text }
@@ -42,7 +45,12 @@ action t
     | otherwise               = File t
 
 url :: Action -> String
-url = mappend "http://169.254.169.254/" . Text.unpack . _action
+url = mappend base . Text.unpack . override . _action
+  where
+    override x
+        | x == "latest/meta-data"
+       || x == "latest/dynamic"   = '/' `Text.cons` x
+        | otherwise               = x
 
 path :: Action -> FilePath
 path a = bool (`Path.addExtension` "list") id (file a) $
@@ -65,7 +73,7 @@ main = do
     enableLogging
 
     log_ "Checking if running on an EC2 instance ..."
-    !_ <- simpleHttp "http://instance-data/"
+    !_ <- simpleHttp base
 
     ensure d
 
@@ -93,6 +101,8 @@ main = do
             mapM_ (retrieve m . (a Semi.<>) . action)
                   (Text.lines txt)
 
+    strict !lbs = LText.toStrict (LText.decodeUtf8 lbs)
+
     write p txt = do
         say "Writing {} ..." [p]
         FS.writeTextFile p txt
@@ -100,5 +110,3 @@ main = do
     ensure p = do
         say "Ensuring {} exists ..." [p]
         FS.createTree p
-
-    strict !lbs = LText.toStrict (LText.decodeUtf8 lbs)

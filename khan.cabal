@@ -131,7 +131,7 @@ executable khan
       , aeson-pretty
       , amazonka
       , ansi-wl-pprint
-      , base                 >= 4.7 && < 5
+      , base
       , bytestring
       , conduit
       , ede
@@ -157,7 +157,7 @@ executable khan-metadata-sync
 
     build-depends:
         ansi-wl-pprint
-      , base                 >= 4.7 && < 5
+      , base
       , http-conduit
       , khan
       , process
@@ -175,7 +175,7 @@ test-suite tests
     ghc-options:       -Wall -threaded -rtsopts
 
     build-depends:
-        base             >= 4.7 && < 5
+        base
       , khan
       , smallcheck
       , tasty

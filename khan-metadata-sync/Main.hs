@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Main
 -- Copyright   : (c) 2013-2014 Brendan Hay <brendan.g.hay@gmail.com>
@@ -23,7 +22,7 @@ import qualified Filesystem                   as FS
 import qualified Filesystem.Path.CurrentOS    as Path
 import           Khan.Internal                hiding (action)
 import           Khan.Prelude
-import           Network.HTTP.Conduit         (simpleHttp)
+import           Network.HTTP.Conduit         hiding (path)
 import           Options.Applicative          (execParser, info)
 import           Text.PrettyPrint.ANSI.Leijen (Pretty(..))
 
@@ -68,30 +67,37 @@ main = do
     log_ "Checking if running on an EC2 instance ..."
     !_ <- simpleHttp "http://instance-data/"
 
+    ensure d
+
     say "Changing working directory to {} ..." [d]
     FS.setWorkingDirectory d
 
     log_ "Starting metadata sync ..."
-    retrieve (action "latest/")
+    withManager (`retrieve` action "latest/")
   where
     options = pathOption "dir"
         ( value "./instance-data"
        <> short 'd'
         ) "Path to output the synced metadata."
 
-    retrieve a = do
+    retrieve m a = do
         say "Retrieving {} ..." [a]
-        !txt <- strict <$> simpleHttp (url a)
-        ensure a >> write a txt
+        rq   <- parseUrl (url a)
+        !txt <- strict . responseBody <$>
+            httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
+
+        lift $ ensure (parent a)
+            >> write (path a) txt
+
         unless (file a) $
-            mapM_ (retrieve . (a Semi.<>) . action)
+            mapM_ (retrieve m . (a Semi.<>) . action)
                   (Text.lines txt)
 
-    write (path -> p) txt = do
+    write p txt = do
         say "Writing {} ..." [p]
         FS.writeTextFile p txt
 
-    ensure (parent -> p) = do
+    ensure p = do
         say "Ensuring {} exists ..." [p]
         FS.createTree p
 

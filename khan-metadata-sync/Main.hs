@@ -27,7 +27,7 @@ import           Options.Applicative          (execParser, info)
 import           Text.PrettyPrint.ANSI.Leijen (Pretty(..))
 
 base :: String
-base = "http://instance-data"
+base = "http://instance-data/"
 
 data Action
     = File { _action :: Text }

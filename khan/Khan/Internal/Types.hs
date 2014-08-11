@@ -155,14 +155,17 @@ data Tags = Tags
     , tagGroup   :: Maybe Text
     } deriving (Eq, Ord, Show)
 
+-- Compatibility note:
+-- Weight has been removed from the tag->sourceable environment output due to
+-- to caching (see Tag.cached).
+--
+-- This is because of requiring the cached output's input to be immutable,
+-- which KHAN_WEIGHT does not guarantee.
 instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
         [ ("KHAN_ROLE", _role tagRole)
         , ("KHAN_ENV", _env tagEnv)
         , ("KHAN_DOMAIN", tagDomain)
-        -- Removed due to caching (see Tag.cached) which means a certain amount
-        -- of immutability is required.
-        --  , ("KHAN_WEIGHT", Text.pack $ show tagWeight)
         ] ++ maybeToList (("KHAN_VERSION",) . showVersion <$> tagVersion)
           ++ maybeToList (("KHAN_NAME",) <$> tagName)
 

@@ -31,8 +31,8 @@ import           Text.PrettyPrint.ANSI.Leijen (Pretty(..))
 base :: String
 base = "http://instance-data/"
 
-output :: String
-output = "./metadata.gz"
+output :: Text
+output = "./metadata.tar.gz"
 
 data Action
     = File { _action :: Text }
@@ -46,8 +46,6 @@ instance Pretty Action where
 
 action :: Text -> Action
 action (Text.strip -> t)
-    | "latest/meta-data" <- t = Dir  "latest/meta-data/"
-    | "latest/dynamic"   <- t = Dir  "latest/dynamic/"
     | "/" `Text.isSuffixOf` t = Dir  t
     | otherwise               = File t
 
@@ -72,29 +70,35 @@ main = do
     log_ "Checking if running on an EC2 instance ..."
     !_ <- simpleHttp base
 
-    withSystemTempDirectory "metadata." $ \d -> do
+    withSystemTempDirectory "metadata." $ \(Path.decodeString -> d) -> do
         log_ "Starting metadata synchronisation ..."
         withManager $ \m ->
-            retrieve (Path.decodeString d) m (action "latest/")
+            mapM_ (retrieve d m . action)
+                [ "latest/meta-data/"
+                , "latest/dynamic"
+                ]
 
         say "Compressing {} ..." [output]
-        callCommand ("tar -cvf " ++ output ++ " " ++ d)
+        readProcess "tar" (map Text.unpack ["-cvf", output, toTextIgnore d]) ""
+            >>= mapM_ putStrLn . lines
 
     log_ "Completed."
   where
     retrieve d m a = do
         say "Retrieve {}" [a]
-        rq   <- parseUrl (url a)
-        !txt <- strict . responseBody <$>
-            httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
+        rq <- parseUrl (url a)
+        rs <- httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
 
-        let p = d </> path a
-
-        lift $ FS.createTree (Path.directory p)
-            >> FS.writeTextFile p txt
-
-        unless (isFile a) $
-            mapM_ (retrieve d m . (a Semi.<>) . action)
-                  (Text.lines txt)
+        when (fromEnum (responseStatus rs) == 200) $ do
+            let txt = strict (responseBody rs)
+            write d a txt
+            unless (isFile a) $
+                mapM_ (retrieve d m . (a Semi.<>) . action)
+                      (Text.lines txt)
 
     strict !lbs = LText.toStrict (LText.decodeUtf8 lbs)
+
+    write d a txt = lift $
+        let p = d </> path a
+         in FS.createTree (Path.directory p)
+         >> FS.writeTextFile p txt

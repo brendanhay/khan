@@ -75,6 +75,7 @@ main = do
         withManager $ \m ->
             mapM_ (retrieve d m . action)
                 [ "latest/meta-data/"
+                , "latest/user-data"
                 , "latest/dynamic"
                 ]
 

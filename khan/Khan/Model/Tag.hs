@@ -106,12 +106,8 @@ cached (CacheDir dir) iid = do
   where
     load = liftIO $ do
         FS.isFile path >>=
-            bool (return (Left "missing cached .tags"))
-                 (FS.readTextFile path >>= debug)
-
-    debug ts = do
-        print (tags ts)
-        return (parse ts)
+            bool (return (Left "Missing cached .tags"))
+                 (parse <$> FS.readTextFile path)
 
     store = do
         ts <- require iid

@@ -32,7 +32,7 @@ import           Text.PrettyPrint.ANSI.Leijen (Pretty(..))
 base :: String
 base = "http://instance-data/"
 
-output :: Text
+output :: String
 output = "./metadata.tar.gz"
 
 data Action
@@ -74,17 +74,17 @@ main = do
     log_ "Checking if running on an EC2 instance ..."
     !_ <- simpleHttp base
 
-    withSystemTempDirectory "metadata." $ \(Path.decodeString -> d) -> do
+    withSystemTempDirectory "metadata." $ \d -> do
         log_ "Starting metadata synchronisation ..."
         withManager $ \m ->
-            mapM_ (retrieve d m)
+            mapM_ (retrieve (Path.decodeString d) m)
                 [ "latest/meta-data/"
                 , "latest/user-data/"
                 , "latest/dynamic"
                 ]
 
         say "Compressing {} ..." [output]
-        readProcess "tar" (map Text.unpack ["-cvf", output, toTextIgnore d]) ""
+        readProcess "tar" ["-C", d, "-cvf", output, "."] ""
             >>= mapM_ putStrLn . lines
 
     log_ "Completed."

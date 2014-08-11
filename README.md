@@ -21,7 +21,8 @@ For any problems, comments or feedback please create an issue [here on GitHub](g
 ### Library
 
 The core types and functions are located under `khan`. This provides an abstraction
-over typical command line usage and a thin layer over Amazon related functionality.
+over typical command line usage and a thin layer over Amazon related functionality
+in the form of model logic.
 
 ### CLI
 

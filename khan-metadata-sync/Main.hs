@@ -96,7 +96,7 @@ main = do
 
         let txt = strict (responseBody rs)
 
-        if | fromEnum (responseStatus rs) == 200 -> return ()
+        if | fromEnum (responseStatus rs) /= 200 -> return ()
            | isFile a  -> write d a txt
            | otherwise -> mapM_ (retrieve d m . (a Semi.<>) . action)
                                 (Text.lines txt)

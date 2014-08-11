@@ -61,20 +61,20 @@ module Khan.Internal.Options
     , module Export
     ) where
 
-import Options.Applicative.Builder.Internal (HasValue)
-import qualified Data.Attoparsec.Text      as AText
-import qualified Data.HashMap.Strict       as Map
+import qualified Data.Attoparsec.Text                 as AText
+import qualified Data.HashMap.Strict                  as Map
 import           Data.SemVer
 import           Data.String
-import qualified Data.Text                 as Text
-import qualified Filesystem.Path.CurrentOS as Path
+import qualified Data.Text                            as Text
+import qualified Filesystem                           as FS
+import qualified Filesystem.Path.CurrentOS            as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
 import           Network.AWS
-import           Options.Applicative       as Export hiding (command, info, header, infoParser, execParser)
-import qualified Options.Applicative       as Options
-import           Prelude                   (error)
-import qualified Filesystem as FS
+import           Options.Applicative                  as Export hiding (command, info, header, infoParser, execParser)
+import qualified Options.Applicative                  as Options
+import           Options.Applicative.Builder.Internal (HasValue)
+import           Prelude                              (error)
 
 data Command where
     Command :: Options a => (Common -> a -> AWS ()) -> a -> Command

@@ -60,6 +60,7 @@ import           Data.Hashable
 import           Data.SemVer
 import           Data.String
 import qualified Data.Text                    as Text
+import qualified Data.Text.Lazy               as LText
 import qualified Data.Text.Lazy.Builder       as Build
 import qualified Filesystem.Path.CurrentOS    as Path
 import           GHC.Generics                 (Generic)
@@ -116,18 +117,22 @@ instance Invalid Region where
 
 class ToEnv a where
     toEnv     :: a -> HashMap Text Text
-    renderEnv :: Bool -> a -> Build.Builder
+    renderEnv :: Bool -> a -> LText.Text
 
-    renderEnv multi = Map.foldrWithKey (key suffix) mempty . toEnv
+    renderEnv multi = Build.toLazyText
+        . Map.foldrWithKey (key suffix) mempty
+        . toEnv
       where
-        suffix | multi     = Build.singleton '\n'
-               | otherwise = Build.singleton ' '
+        suffix
+            | multi     = Build.singleton '\n'
+            | otherwise = Build.singleton ' '
 
         key suf k v = mappend
-             (Build.fromText k
+            ( Build.fromText k
            <> Build.singleton '='
            <> Build.fromText v
-           <> suf)
+           <> suf
+            )
 
 instance ToEnv (Text, Text) where
     toEnv = Map.fromList . (:[])
@@ -150,12 +155,17 @@ data Tags = Tags
     , tagGroup   :: Maybe Text
     } deriving (Eq, Ord, Show)
 
+-- Compatibility note:
+-- Weight has been removed from the tag->sourceable environment output due to
+-- to caching (see Tag.cached).
+--
+-- This is because of requiring the cached output's input to be immutable,
+-- which KHAN_WEIGHT does not guarantee.
 instance ToEnv Tags where
     toEnv Tags{..} = Map.fromList $
-        [ ("KHAN_ROLE",    _role tagRole)
-        , ("KHAN_ENV",     _env tagEnv)
-        , ("KHAN_DOMAIN",  tagDomain)
-        , ("KHAN_WEIGHT",  Text.pack $ show tagWeight)
+        [ ("KHAN_ROLE", _role tagRole)
+        , ("KHAN_ENV", _env tagEnv)
+        , ("KHAN_DOMAIN", tagDomain)
         ] ++ maybeToList (("KHAN_VERSION",) . showVersion <$> tagVersion)
           ++ maybeToList (("KHAN_NAME",) <$> tagName)
 

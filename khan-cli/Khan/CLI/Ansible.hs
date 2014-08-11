@@ -127,7 +127,7 @@ inventory Common{..} Inventory{..} = do
         case Instance.address cVPN i of
             Nothing            -> m
             Just (fqdn, addr)  -> fromMaybe m $ do
-                t@Tags{..} <- Tag.parse riitTagSet
+                t@Tags{..} <- hush (Tag.parse riitTagSet)
 
                 let n@Names{..} = names t
                     host        = Host addr tagDomain n cRegion

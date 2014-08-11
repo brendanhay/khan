@@ -72,7 +72,7 @@ def self.run
     end
 
     dir = Rack::Builder.new do
-       root = File.join(File.expand_path(File.dirname(__FILE__)), '../www')
+      root = File.join(File.expand_path(File.dirname(__FILE__)), '../www')
       run Rack::Metadata.new(root)
     end
 

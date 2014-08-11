@@ -1,8 +1,11 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE ExtendedDefaultRules       #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ViewPatterns               #-}
+
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 -- Module      : Khan.Model.Tag
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -33,6 +36,7 @@ module Khan.Model.Tag
     , filter
 
     -- * Tags
+    , cached
     , require
     , instances
     , images
@@ -43,35 +47,42 @@ import           Control.Monad.Except
 import qualified Data.Attoparsec.Text  as AText
 import qualified Data.HashMap.Strict   as Map
 import           Data.SemVer
+import qualified Data.Text             as Text
+import           Data.Text.Lazy.IO     as LText
+import           Filesystem            as FS
 import           Khan.Internal         hiding (group)
 import           Khan.Model.Tag.Tagged
 import           Khan.Prelude          hiding (filter)
 import           Network.AWS
 import           Network.AWS.EC2
 
-annotate :: Tagged a => a -> Maybe (Ann a)
-annotate x = Ann x <$> parse x
+default (Text)
 
-parse :: Tagged a => a -> Maybe Tags
+annotate :: Tagged a => a -> Maybe (Ann a)
+annotate x = Ann x <$> hush (parse x)
+
+parse :: Tagged a => a -> Either String Tags
 parse (tags -> ts) = Tags
     <$> (newRole <$> key role)
     <*> (newEnv <$> key env)
     <*> key domain
-    <*> pure (key name)
-    <*> pure lookupVersion
-    <*> pure lookupWeight
-    <*> pure (key group)
+    <*> opt (key name)
+    <*> lookupVersion
+    <*> lookupWeight
+    <*> opt (key group)
   where
-    key k = Map.lookup k ts
+    lookupVersion = opt $
+        key version >>= parseVersion
 
-    lookupVersion = join
-        . fmap (hush . parseVersion)
-        $ Map.lookup version ts
+    lookupWeight = maybe (Right 0) Right . hush $
+        key weight >>= AText.parseOnly AText.decimal
 
-    lookupWeight = fromMaybe 0
-        . join
-        . fmap (hush . AText.parseOnly AText.decimal)
-        $ Map.lookup weight ts
+    key (Text.toUpper -> mappend "KHAN_" -> k) =
+        note ("Failed to find key: " ++ Text.unpack k)
+             (Map.lookup k ts)
+
+    opt (Left  _) = Right Nothing
+    opt (Right x) = Right (Just x)
 
 env, role, domain, name, version, weight, group :: Text
 env     = "Env"
@@ -85,11 +96,32 @@ group   = "aws:autoscaling:groupName"
 filter :: Text -> [Text] -> Filter
 filter k = ec2Filter ("tag:" <> k)
 
+cached :: CacheDir -> Text -> AWS Tags
+cached (CacheDir dir) iid = do
+    say "Lookup cached tags from {} for Instance {}..." [B path, B iid]
+    r <- load
+    either (\e -> say "Error reading cached tags: {}" [e] >> store)
+           return
+           r
+  where
+    load = liftIO $ do
+        FS.isFile path >>=
+            bool (return (Left "Missing cached .tags"))
+                 (parse <$> FS.readTextFile path)
+
+    store = do
+        ts <- require iid
+        liftIO . FS.withTextFile path WriteMode $ \hd ->
+            LText.hPutStr hd (renderEnv True ts)
+        return ts
+
+    path = dir </> ".tags"
+
 require :: Text -> AWS Tags
 require iid = do
     say "Describing tags for Instance {}..." [iid]
     parse <$> send (DescribeTags [TagResourceId [iid]]) >>=
-        noteAWS "Unable to parse prerequisite tags for: {}" [iid]
+        liftEitherT . hoistEither
 
 instances :: Naming a => a -> Text -> [Text] -> AWS ()
 instances n dom ids = do

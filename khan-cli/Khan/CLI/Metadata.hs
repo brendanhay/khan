@@ -20,7 +20,6 @@ import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.HashMap.Strict              as Map
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
-import qualified Data.Text.Lazy.Builder           as Build
 import qualified Data.Text.Lazy.IO                as LText
 import           Khan.Internal
 import qualified Khan.Model.Ansible.Serialisation as Ansible
@@ -33,12 +32,15 @@ import qualified Text.EDE.Filters                 as EDE
 
 data Describe = Describe
     { dMultiLine :: !Bool
+    , dForce     :: !Bool
     }
 
 describeParser :: Parser Describe
 describeParser = Describe
     <$> switchOption "multiline" False
         "Write each output KEY=VALUE on a separate line."
+    <*> switchOption "force" False
+        "Force update of any previously cached results."
 
 instance Options Describe where
     discover False _ _ =
@@ -57,12 +59,10 @@ describe Common{..} Describe{..} = do
 
     doc <- filtered <$> decode bs
     iid <- instanceId doc
-    ts  <- Tag.require iid
+    ts  <- bool (Tag.cached cCache iid) (Tag.require iid) dForce
 
-    liftIO . LText.putStrLn
-           . Build.toLazyText
-           . renderEnv dMultiLine
-           $ toEnv ts <> hostVars ts <> doc
+    liftIO . LText.putStrLn . renderEnv dMultiLine $
+        toEnv ts <> hostVars ts <> doc
   where
     decode = noteError "Unable to decode: "
         . Aeson.decode

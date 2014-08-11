@@ -21,7 +21,7 @@ all: build
 
 build: $(BIN) link
 
-install: add-sources khan-metadata-server/.bundle
+install: add-sources
 	cabal install -j $(FLAGS) --only-dependencies
 
 test:
@@ -63,19 +63,10 @@ cabal.sandbox.config:
 vendor/%:
 	git clone https://github.com/brendanhay/$*.git $@
 
-link: bin/khan bin/khan-metadata-sync bin/khan-metadata-server
+link: bin/khan bin/khan-metadata-sync
 
-bin/khan: bin
+bin/khan:
 	ln -fs ../$(BIN_CLI) $@
 
-bin/khan-metadata-sync: bin
+bin/khan-metadata-sync:
 	ln -fs ../$(BIN_SYNC) $@
-
-bin/khan-metadata-server: bin
-	ln -fs ../khan-metadata-server/server.sh $@
-
-bin:
-	-mkdir $@
-
-khan-metadata-server/.bundle:
-	make -C khan-metadata-server

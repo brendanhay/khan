@@ -6,8 +6,9 @@
 * [Development](#development)
     - [Library](#library)
     - [CLI](#cli)
-    - [Metadata Sync](#khan-metadata-sync)
-    - [Metadata Server](#khan-metadata-server)
+    - [Metadata](#metadata)
+        - [Synchronise](#synchronise)
+        - [Server](#server)
 * [Licence](#licence)
 
 
@@ -40,7 +41,7 @@ metadata lookup mechanisms that utilise `instance-data` from `http://169.254.169
 To that end, two separate utilities are provided to emulate `instance-data` and
 make it easy to test your features locally.
 
-#### khan-metadata-sync
+#### Synchronise
 
 The synchronisation utility needs to be deployed onto the EC2 instance you wish
 to emulate. (it is part of the resulting debian package by default.)
@@ -51,7 +52,7 @@ in a compressed artifact named `metadata.tar.gz` in your `cwd`.
 The internal structure of this artifact mirrors the url layout that is available
 in the `instance-data`, and can be used by `khan-metadata-server`.
 
-#### khan-metadata-server
+#### Server
 
 A Ruby web server is provided under `khan-metadata-server`.
 

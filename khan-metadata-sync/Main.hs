@@ -16,6 +16,7 @@
 module Main (main) where
 
 import qualified Data.Semigroup               as Semi
+import           Data.String
 import qualified Data.Text                    as Text
 import qualified Data.Text.Lazy               as LText
 import qualified Data.Text.Lazy.Encoding      as LText
@@ -43,6 +44,9 @@ instance Semi.Semigroup Action where
 
 instance Pretty Action where
     pretty = pretty . _action
+
+instance IsString Action where
+    fromString = action . Text.pack
 
 action :: Text -> Action
 action (Text.strip -> t)
@@ -73,9 +77,9 @@ main = do
     withSystemTempDirectory "metadata." $ \(Path.decodeString -> d) -> do
         log_ "Starting metadata synchronisation ..."
         withManager $ \m ->
-            mapM_ (retrieve d m . action)
+            mapM_ (retrieve d m)
                 [ "latest/meta-data/"
-                , "latest/user-data"
+                , "latest/user-data/"
                 , "latest/dynamic"
                 ]
 

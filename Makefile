@@ -72,7 +72,7 @@ bin/khan-metadata-sync: bin
 	ln -fs ../$(BIN_SYNC) $@
 
 bin/khan-metadata-server: bin
-	ln -fs ../khan-metadata-server/script/instance-data.sh $@
+	ln -fs ../khan-metadata-server/server.sh $@
 
 bin:
 	-mkdir $@

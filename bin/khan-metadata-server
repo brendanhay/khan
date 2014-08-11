@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../khan-metadata-server"
+BUNDLE=${DIR}/.bundle
+
+export BUNDLE_GEMFILE=${DIR}/Gemfile
+
+if [ ! -e "${BUNDLE}" ]; then
+    bundle install --path=${BUNDLE}
+fi
+
+exec sudo BUNDLE_GEMFILE=${BUNDLE_GEMFILE} bundle exec ruby ${DIR}/lib/server.rb "$@"

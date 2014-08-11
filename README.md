@@ -37,16 +37,28 @@ in the `instance-data`, and can be used by `khan-metadata-server`.
 ### khan-metadata-server
 
 A Ruby web server is provided under `khan-metadata-server`.
-(locally a symlink can be found under `bin` in the project root.)
+
+> For convenience symlinks for the built binaries can be found under `bin` in the project root.
 
 This server needs to be run with `sudo` and the name of the network interface to
 shape traffic for. On `OSX` the services can be found by running `networksetup -listallnetworkservices`.
 
-> Typically, if you are connected to the network on WLAN, the name of the interface on `OSX` would be `Wi-Fi`.
-
 The server will then remove any DNS servers for the selected interface and inspect
 all lookups - modifying the packets to ensure that any requests to `http://instance-data`
 are proxied to `localhost`.
+
+#### Example
+
+Typically, if you are connected to the network on WLAN, the name of the interface on `OSX` would be `Wi-Fi`.
+
+For example:
+
+```
+$ sudo bin/khan-metadata-server Wi-Fi
+
+```
+
+
 
 
 ## Licence

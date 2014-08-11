@@ -30,6 +30,7 @@ test:
 clean:
 	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT) bin
 	cabal clean
+	make -C khan-metadata-server clean
 
 dist: install dist/$(DEB) $(SDIST)
 
@@ -62,16 +63,10 @@ cabal.sandbox.config:
 vendor/%:
 	git clone https://github.com/brendanhay/$*.git $@
 
-link: bin/khan bin/metadata-sync bin/metadata-server
+link: bin/khan bin/khan-metadata-sync
 
-bin/khan: bin
+bin/khan:
 	ln -fs ../$(BIN_CLI) $@
 
-bin/metadata-sync: bin
+bin/khan-metadata-sync:
 	ln -fs ../$(BIN_SYNC) $@
-
-bin/metadata-server: bin
-	ln -fs ../khan-metadata-server/script/instance-data.sh $@
-
-bin:
-	-mkdir $@

@@ -75,7 +75,7 @@ def self.run
        root = File.join(File.expand_path(File.dirname(__FILE__)), '../www')
       run Rack::Metadata.new(root)
     end
-    
+
     files = Rack::Chunked.new(Rack::ContentLength.new(dir))
 
     Signal.trap('INT')  { EventMachine.stop }

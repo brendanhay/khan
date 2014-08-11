@@ -44,42 +44,45 @@ module Khan.Model.Tag
     ) where
 
 import           Control.Monad.Except
-import qualified Data.Attoparsec.Text      as AText
-import qualified Data.HashMap.Strict       as Map
+import qualified Data.Attoparsec.Text  as AText
+import qualified Data.HashMap.Strict   as Map
 import           Data.SemVer
-import           Data.Text.Lazy.IO         as LText
-import           Filesystem                as FS
-import           Khan.Internal             hiding (group)
+import qualified Data.Text             as Text
+import           Data.Text.Lazy.IO     as LText
+import           Filesystem            as FS
+import           Khan.Internal         hiding (group)
 import           Khan.Model.Tag.Tagged
-import           Khan.Prelude              hiding (filter)
+import           Khan.Prelude          hiding (filter)
 import           Network.AWS
 import           Network.AWS.EC2
 
 default (Text)
 
 annotate :: Tagged a => a -> Maybe (Ann a)
-annotate x = Ann x <$> parse x
+annotate x = Ann x <$> hush (parse x)
 
-parse :: Tagged a => a -> Maybe Tags
+parse :: Tagged a => a -> Either String Tags
 parse (tags -> ts) = Tags
     <$> (newRole <$> key role)
     <*> (newEnv <$> key env)
     <*> key domain
-    <*> pure (key name)
-    <*> pure lookupVersion
-    <*> pure lookupWeight
-    <*> pure (key group)
+    <*> opt (key name)
+    <*> lookupVersion
+    <*> lookupWeight
+    <*> opt (key group)
   where
-    key k = Map.lookup k ts
+    lookupVersion = opt $
+        key version >>= parseVersion
 
-    lookupVersion = join
-        . fmap (hush . parseVersion)
-        $ Map.lookup version ts
+    lookupWeight = maybe (Right 0) Right . hush $
+        key weight >>= AText.parseOnly AText.decimal
 
-    lookupWeight = fromMaybe 0
-        . join
-        . fmap (hush . AText.parseOnly AText.decimal)
-        $ Map.lookup weight ts
+    key (Text.toUpper -> mappend "KHAN_" -> k) =
+        note ("Failed to find key: " ++ Text.unpack k)
+             (Map.lookup k ts)
+
+    opt (Left  _) = Right Nothing
+    opt (Right x) = Right (Just x)
 
 env, role, domain, name, version, weight, group :: Text
 env     = "Env"
@@ -96,12 +99,19 @@ filter k = ec2Filter ("tag:" <> k)
 cached :: CacheDir -> Text -> AWS Tags
 cached (CacheDir dir) iid = do
     say "Lookup cached tags from {} for Instance {}..." [B path, B iid]
-    load >>= maybe store return
+    r <- load
+    either (\e -> say "Error reading cached tags: {}" [e] >> store)
+           return
+           r
   where
     load = liftIO $ do
         FS.isFile path >>=
-            bool (return Nothing)
-                 (parse . tags <$> FS.readTextFile path)
+            bool (return (Left "missing cached .tags"))
+                 (FS.readTextFile path >>= debug)
+
+    debug ts = do
+        print (tags ts)
+        return (parse ts)
 
     store = do
         ts <- require iid
@@ -115,7 +125,7 @@ require :: Text -> AWS Tags
 require iid = do
     say "Describing tags for Instance {}..." [iid]
     parse <$> send (DescribeTags [TagResourceId [iid]]) >>=
-        noteAWS "Unable to parse prerequisite tags for: {}" [iid]
+        liftEitherT . hoistEither
 
 instances :: Naming a => a -> Text -> [Text] -> AWS ()
 instances n dom ids = do

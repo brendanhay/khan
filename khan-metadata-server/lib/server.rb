@@ -62,7 +62,7 @@ def self.run
     command("ifconfig lo0 alias #{BIND}")
 
     dns = RubyDNS::RuleBasedServer.new do
-      match("instance-data", IN::A) do |tx|
+      match('instance-data', IN::A) do |tx|
         tx.respond!('169.254.169.254')
       end
 
@@ -75,7 +75,7 @@ def self.run
        root = File.join(File.expand_path(File.dirname(__FILE__)), '../www')
       run Rack::Metadata.new(root)
     end
-
+    
     files = Rack::Chunked.new(Rack::ContentLength.new(dir))
 
     Signal.trap('INT')  { EventMachine.stop }

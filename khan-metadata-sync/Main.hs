@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- Module      : Main
 -- Copyright   : (c) 2013-2014 Brendan Hay <brendan.g.hay@gmail.com>
@@ -57,8 +57,7 @@ url :: Action -> String
 url = mappend base . Text.unpack . _action
 
 path :: Action -> FilePath
-path a = bool (`Path.addExtension` "list") id (isFile a) $
-    Path.fromText (strip (_action a))
+path = Path.fromText . strip . _action
 
 isFile :: Action -> Bool
 isFile File{} = True
@@ -80,7 +79,7 @@ main = do
             mapM_ (retrieve (Path.decodeString d) m)
                 [ "latest/meta-data/"
                 , "latest/user-data/"
-                , "latest/dynamic"
+                , "latest/dynamic/"
                 ]
 
         say "Compressing {} ..." [output]
@@ -94,12 +93,12 @@ main = do
         rq <- parseUrl (url a)
         rs <- httpLbs (rq { checkStatus = \ _ _ _ -> Nothing }) m
 
-        when (fromEnum (responseStatus rs) == 200) $ do
-            let txt = strict (responseBody rs)
-            write d a txt
-            unless (isFile a) $
-                mapM_ (retrieve d m . (a Semi.<>) . action)
-                      (Text.lines txt)
+        let txt = strict (responseBody rs)
+
+        if | fromEnum (responseStatus rs) == 200 -> return ()
+           | isFile a  -> write d a txt
+           | otherwise -> mapM_ (retrieve d m . (a Semi.<>) . action)
+                                (Text.lines txt)
 
     strict !lbs = LText.toStrict (LText.decodeUtf8 lbs)
 

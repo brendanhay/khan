@@ -49,16 +49,35 @@ are proxied to `localhost`.
 
 #### Example
 
+The compressed `metadata.tar.gz` artifact from running `khan-metadata-sync` needs to
+be extracted into `khan-metadata-server/www`.
+
+```
+→ rm -rf khan-metadata-server/www/latest
+→ tar -C khan-metadata-server/www -xvf metadata.tar.gz
+x ./
+x ./latest/
+x ./latest/meta-data/
+x ./latest/meta-data/network/
+x ./latest/meta-data/network/interfaces/
+...
+```
+
 Typically, if you are connected to the network on WLAN, the name of the interface on `OSX` would be `Wi-Fi`.
 
-For example:
-
 ```
-$ sudo bin/khan-metadata-server Wi-Fi
-
+→ ./bin/khan-metadata-server Wi-Fi
+Password: *****
+Adding 169.254.169.254 to lo0
+Redirecting http://instance-data to localhost
+I, [2014-08-11T10:47:48.247533 #86615]  INFO -- : Starting RubyDNS server (v0.8.5)...
+I, [2014-08-11T10:47:48.247621 #86615]  INFO -- : Listening on tcp:0.0.0.0:53
+I, [2014-08-11T10:47:48.247784 #86615]  INFO -- : Listening on udp:0.0.0.0:53
+Serving metadata on http://169.254.169.254/latest
+Thin web server (v1.6.2 codename Doc Brown)
+Maximum connections set to 1024
+Listening on 169.254.169.254:80, CTRL+C to stop
 ```
-
-
 
 
 ## Licence

@@ -28,7 +28,7 @@ DEVICE =
   if ARGV.length > 0
     ARGV.first.chomp
   else
-    puts 'Usage: server.rb <NETWORK_DEVICE>'
+    puts 'Usage: server.sh <NETWORK_SERVICE> (use networksetup -listallnetworkservices to obtain.)'
     exit 1
   end
 
@@ -72,7 +72,8 @@ def self.run
     end
 
     dir = Rack::Builder.new do
-      run Rack::Metadata.new(File.expand_path(File.dirname(__FILE__)) + 'www')
+       root = File.join(File.expand_path(File.dirname(__FILE__)), '../www')
+      run Rack::Metadata.new(root)
     end
 
     files = Rack::Chunked.new(Rack::ContentLength.new(dir))

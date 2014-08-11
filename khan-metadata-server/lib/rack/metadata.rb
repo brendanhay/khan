@@ -5,6 +5,8 @@ module Rack
     attr_accessor :root, :path
 
     def initialize(root, app = nil)
+      puts "Serving #{root}"
+
       @root = ::File.expand_path(root)
       @app  = app || Rack::File.new(@root)
     end

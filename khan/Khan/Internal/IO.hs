@@ -51,7 +51,7 @@ import           Network.AWS               (AWS, liftEitherT)
 import           System.Exit
 import qualified System.Posix.Files        as Posix
 import           System.Posix.Types        (FileMode)
-import           System.Process            (system)
+import           System.Process            (readProcessWithExitCode)
 import qualified System.Random             as Random
 import qualified Text.EDE                  as EDE
 
@@ -60,7 +60,7 @@ sync = fmapLT show . syncIO
 
 which :: String -> EitherT String IO ()
 which cmd = do
-    c <- sync (system cmd)
+    (c, _, _) <- sync $ readProcessWithExitCode "which" [cmd] ""
     case c of
         ExitFailure _ -> throwError ("Failed to find command: " ++ cmd)
         ExitSuccess   -> return ()

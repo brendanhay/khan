@@ -34,14 +34,6 @@ instance Tagged a => Tagged (Members a) where
 instance Tagged (HashMap Text Text) where
     tags = id
 
-instance Tagged Text where
-    tags = Map.fromList . mapMaybe split . Text.lines
-      where
-        split t =
-            case Text.split (== '=') t of
-                [k, v] -> Just (k, v)
-                _      -> Nothing
-
 instance Tagged EC2.DescribeTagsResponse where
     tags = tags . EC2.dtagsrTagSet
 

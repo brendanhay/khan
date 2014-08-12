@@ -77,9 +77,7 @@ parse (tags -> ts) = Tags
     lookupWeight = maybe (Right 0) Right . hush $
         key weight >>= AText.parseOnly AText.decimal
 
-    key (Text.toUpper -> mappend "KHAN_" -> k) =
-        note ("Failed to find key: " ++ Text.unpack k)
-             (Map.lookup k ts)
+    key k = note ("Failed to find key: " ++ Text.unpack k) (Map.lookup k ts)
 
     opt (Left  _) = Right Nothing
     opt (Right x) = Right (Just x)
@@ -104,10 +102,7 @@ cached (CacheDir dir) iid = do
            return
            r
   where
-    load = liftIO $ do
-        FS.isFile path >>=
-            bool (return (Left "Missing cached .tags"))
-                 (parse <$> FS.readTextFile path)
+    path = dir </> ".tags"
 
     store = do
         ts <- require iid
@@ -115,7 +110,20 @@ cached (CacheDir dir) iid = do
             LText.hPutStr hd (renderEnv True ts)
         return ts
 
-    path = dir </> ".tags"
+    load = liftIO $ do
+        FS.isFile path >>=
+            bool (return (Left "Missing cached .tags"))
+                 (parse . hashMap <$> FS.readTextFile path)
+
+      where
+        hashMap = Map.fromList . mapMaybe split . Text.lines
+
+        split x =
+            case Text.split (== '=') x of
+                [k, v] -> Just (strip k, v)
+                _      -> Nothing
+
+        strip x = Text.toUpper . fromMaybe x $ Text.stripPrefix "KHAN_" x
 
 require :: Text -> AWS Tags
 require iid = do

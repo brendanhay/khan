@@ -78,7 +78,7 @@ instance Options Image where
         }
 
     validate Image{..} = do
-        checkPath iPlaybook    " specified by --playbook must exist."
+        checkFile iPlaybook    " specified by --playbook must exist."
         check (iNDevices > 24) "--block-devices should be less than 24"
 
 instance Naming Image where

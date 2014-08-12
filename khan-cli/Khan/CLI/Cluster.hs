@@ -128,8 +128,8 @@ instance Options Deploy where
         check (dDesired < dMin) "--desired must be greater than or equal to --min."
         check (dDesired > dMax) "--desired must be less than or equal to --max."
 
-        checkPath (_trust  dTrust)  " specified by --trust must exist."
-        checkPath (_policy dPolicy) " specified by --policy must exist."
+        checkFile (_trust  dTrust)  " specified by --trust must exist."
+        checkFile (_policy dPolicy) " specified by --policy must exist."
 
 instance Naming Deploy where
     names Deploy{..} = versioned dRole dEnv dVersion

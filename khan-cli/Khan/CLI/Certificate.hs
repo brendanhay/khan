@@ -54,11 +54,11 @@ instance Options Upload where
     validate Upload{..} = do
         check uDomain "--domain must be specified."
 
-        checkPath uPublic  " specified by --public must exist."
-        checkPath uPrivate " specified by --private must exist."
+        checkFile uPublic  " specified by --public must exist."
+        checkFile uPrivate " specified by --private must exist."
 
         maybe (return ())
-              (`checkPath` " specified by --chain must exist.")
+              (`checkFile` " specified by --chain must exist.")
               uChain
 
 data Delete = Delete

@@ -82,8 +82,8 @@ instance Options Launch where
         check lEnv   "--env must be specified."
         check lZones "--zones must be specified."
 
-        checkPath (_trust  lTrust)  " specified by --trust must exist."
-        checkPath (_policy lPolicy) " specified by --policy must exist."
+        checkFile (_trust  lTrust)  " specified by --trust must exist."
+        checkFile (_policy lPolicy) " specified by --policy must exist."
 
 instance Naming Launch where
     names Launch{..} = unversioned lRole lEnv

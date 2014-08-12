@@ -66,8 +66,8 @@ instance Options Update where
 
     validate Update{..} = do
         check uEnv "--env must be specified."
-        checkPath (_trust  uTrust)  " specified by --trust must exist."
-        checkPath (_policy uPolicy) " specified by --policy must exist."
+        checkFile (_trust  uTrust)  " specified by --trust must exist."
+        checkFile (_policy uPolicy) " specified by --policy must exist."
 
 instance Naming Update where
     names Update{..} = unversioned uRole uEnv

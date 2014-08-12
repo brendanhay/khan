@@ -82,7 +82,7 @@ instance Options Routes where
     validate Routes{..} = do
         check rEnv   "--env must be specified."
         check rZones "--zones must be specified."
-        checkPath rTemplate " specified by --template must exist."
+        checkFile rTemplate " specified by --template must exist."
 
 commands :: EnvMap -> Mod CommandFields Command
 commands env = command "routes" routes (routesParser env)

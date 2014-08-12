@@ -57,7 +57,8 @@ module Khan.Internal.Options
     -- * Validation
     , check
     , checkIO
-    , checkPath
+    , checkDir
+    , checkFile
 
     , module Export
     ) where
@@ -137,9 +138,9 @@ instance Options Common where
     validate Common{..} = do
        check cRegion " --region or KHAN_REGION must be specified."
 
-       checkPath (lKeysDir  cLKeys)  " specified by --local-keys or KHAN_LKEYS must exist."
-       checkPath (cacheDir  cCache)  " specified by --cache or KHAN_CACHE must exist."
-       checkPath (configDir cConfig) " specified by --config or KHAN_CONFIG must exist."
+       checkDir (lKeysDir  cLKeys)  " specified by --local-keys or KHAN_LKEYS must exist."
+       checkDir (cacheDir  cCache)  " specified by --cache or KHAN_CACHE must exist."
+       checkDir (configDir cConfig) " specified by --config or KHAN_CONFIG must exist."
 
 group :: String -> String -> Mod CommandFields a -> Mod CommandFields a
 group name desc cs = Options.command name $
@@ -270,10 +271,15 @@ check x = when (invalid x) . throwT . Err
 checkIO :: (MonadIO m, Invalid a) => IO a -> String -> EitherT AWSError m ()
 checkIO io e = liftIO io >>= (`check` e)
 
-checkPath :: MonadIO m => FilePath -> String -> EitherT AWSError m ()
-checkPath p e = check p msg >> checkIO (FS.isFile p) msg
+checkDir :: MonadIO m => FilePath -> String -> EitherT AWSError m ()
+checkDir p e = check p msg >> checkIO (not <$> FS.isDirectory p) msg
   where
-    msg = Text.unpack (Text.concat ["path '", toTextIgnore p, "'"]) ++ e
+    msg = Text.unpack ("directory '" <> toTextIgnore p <> "'") ++ e
+
+checkFile :: MonadIO m => FilePath -> String -> EitherT AWSError m ()
+checkFile p e = check p msg >> checkIO (not <$> FS.isFile p) msg
+  where
+    msg = Text.unpack ("file '" <> toTextIgnore p <> "'") ++ e
 
 etext :: HasValue f => Text -> EnvMap -> Mod f Text
 etext = evalue Just

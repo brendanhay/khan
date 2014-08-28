@@ -29,9 +29,7 @@ library
     ghc-options:       -Wall
 
     exposed-modules:
-        Data.SemVer
-
-      , Khan.Internal
+        Khan.Internal
 
       , Khan.Model.Ansible
       , Khan.Model.Ansible.Serialisation
@@ -93,6 +91,7 @@ library
       , process              >= 1.2
       , random
       , semigroups
+      , semver               == 0.1.*
       , system-fileio
       , system-filepath      >= 0.4.9
       , text                 >= 1.0

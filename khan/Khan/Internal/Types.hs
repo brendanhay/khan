@@ -57,7 +57,8 @@ import           Data.Aeson.Types             (Options(..), defaultOptions)
 import           Data.HashMap.Strict          (HashMap)
 import qualified Data.HashMap.Strict          as Map
 import           Data.Hashable
-import           Data.SemVer
+import           Data.SemVer                  (Version, Delimiters(..))
+import qualified Data.SemVer                  as Ver
 import           Data.String
 import qualified Data.Text                    as Text
 import qualified Data.Text.Lazy               as LText
@@ -166,7 +167,7 @@ instance ToEnv Tags where
         [ ("KHAN_ROLE", _role tagRole)
         , ("KHAN_ENV", _env tagEnv)
         , ("KHAN_DOMAIN", tagDomain)
-        ] ++ maybeToList (("KHAN_VERSION",) . showVersion <$> tagVersion)
+        ] ++ maybeToList (("KHAN_VERSION",) . Ver.toText <$> tagVersion)
           ++ maybeToList (("KHAN_NAME",) <$> tagName)
 
 instance Naming Tags where
@@ -204,11 +205,11 @@ createNames (_role -> role) (_env -> env) ver = Names
     , appName          = env <> "-" <> roleVer
     , balancerBaseName = envRole <> version '-' alphaVersion
     , dnsName          = Text.replace "_" "-" envRole
-    , versionName      = showVersion <$> ver
+    , versionName      = Ver.toText <$> ver
     }
   where
     envRole = env <> "-" <> role
-    roleVer = role <> Text.map f (version '_' showVersion)
+    roleVer = role <> Text.map f (version '_' Ver.toText)
       where
         f '+' = '/'
         f  c  = c
@@ -220,6 +221,17 @@ unversioned role env = createNames role env Nothing
 
 versioned :: Role -> Env -> Version -> Names
 versioned role env = createNames role env . Just
+
+alphaVersion :: Version -> Text
+alphaVersion = LText.toStrict . Build.toLazyText . Ver.toDelimitedBuilder alpha
+  where
+    alpha = Delimiters
+        { _delimMinor   = 'm'
+        , _delimPatch   = 'p'
+        , _delimRelease = 'r'
+        , _delimMeta    = 'b'
+        , _delimIdent   = 'i'
+        }
 
 class Naming a where
     names :: a -> Names

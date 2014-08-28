@@ -65,7 +65,8 @@ module Khan.Internal.Options
 
 import qualified Data.Attoparsec.Text                 as AText
 import qualified Data.HashMap.Strict                  as Map
-import           Data.SemVer
+import           Data.SemVer                          (Version)
+import qualified Data.SemVer                          as Ver
 import           Data.String
 import qualified Data.Text                            as Text
 import qualified Filesystem                           as FS
@@ -223,7 +224,7 @@ versionOption :: Parser Version
 versionOption = customOption "version" "SEMVER" p mempty
     "Version of the application."
   where
-    p = parseVersion . Text.map f . Text.pack
+    p = Ver.fromText . Text.map f . Text.pack
 
     f '/' = '+'
     f  c  = c

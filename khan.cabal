@@ -70,8 +70,8 @@ library
     build-depends:
         aeson                >= 0.7
       , aeson-pretty
-      , ansi-wl-pprint
       , amazonka             >= 0.4.8
+      , ansi-wl-pprint
       , attoparsec
       , base                 >= 4.7 && < 5
       , bytestring
@@ -139,6 +139,7 @@ executable khan
       , optparse-applicative
       , process
       , semigroups
+      , semver
       , system-fileio
       , system-filepath
       , text

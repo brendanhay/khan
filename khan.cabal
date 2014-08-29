@@ -91,7 +91,7 @@ library
       , process              >= 1.2
       , random
       , semigroups
-      , semver               == 0.1.*
+      , semver               == 0.2.*
       , system-fileio
       , system-filepath      >= 0.4.9
       , text                 >= 1.0

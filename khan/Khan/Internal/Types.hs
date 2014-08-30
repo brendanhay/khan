@@ -57,7 +57,9 @@ import           Data.Aeson.Types             (Options(..), defaultOptions)
 import           Data.HashMap.Strict          (HashMap)
 import qualified Data.HashMap.Strict          as Map
 import           Data.Hashable
-import           Data.SemVer
+import           Data.SemVer                  (Version)
+import qualified Data.SemVer                  as Ver
+import qualified Data.SemVer.Delimited        as Delim
 import           Data.String
 import qualified Data.Text                    as Text
 import qualified Data.Text.Lazy               as LText
@@ -167,7 +169,7 @@ instance ToEnv Tags where
         [ ("KHAN_ROLE", _role tagRole)
         , ("KHAN_ENV", _env tagEnv)
         , ("KHAN_DOMAIN", tagDomain)
-        ] ++ maybeToList (("KHAN_VERSION",) . toText <$> tagVersion)
+        ] ++ maybeToList (("KHAN_VERSION",) . Ver.toText <$> tagVersion)
           ++ maybeToList (("KHAN_NAME",) <$> tagName)
 
 instance Naming Tags where
@@ -203,18 +205,18 @@ createNames (_role -> role) (_env -> env) ver = Names
     , groupName        = envRole
     , imageName        = roleVer
     , appName          = env <> "-" <> roleVer
-    , balancerBaseName = envRole <> version' '-' alphaVersion
+    , balancerBaseName = envRole <> version '-' alphaVersion
     , dnsName          = Text.replace "_" "-" envRole
-    , versionName      = toText <$> ver
+    , versionName      = Ver.toText <$> ver
     }
   where
     envRole = env <> "-" <> role
-    roleVer = role <> Text.map f (version' '_' toText)
+    roleVer = role <> Text.map f (version '_' Ver.toText)
       where
         f '+' = '/'
         f  c  = c
 
-    version' c f = maybe "" (Text.cons c) $ f <$> ver
+    version c f = maybe "" (Text.cons c) $ f <$> ver
 
 unversioned :: Role -> Env -> Names
 unversioned role env = createNames role env Nothing
@@ -223,14 +225,14 @@ versioned :: Role -> Env -> Version -> Names
 versioned role env = createNames role env . Just
 
 alphaVersion :: Version -> Text
-alphaVersion = LText.toStrict . Build.toLazyText . toDelimitedBuilder alpha
+alphaVersion = LText.toStrict . Build.toLazyText . Delim.toBuilder alpha
   where
-    alpha = delimiters
-        & delimMinor   .~ 'm'
-        & delimPatch   .~ 'p'
-        & delimRelease .~ 'r'
-        & delimMeta    .~ 'b'
-        & delimIdent   .~ 'i'
+    alpha = Delim.semantic
+        & Delim.minor      .~ 'm'
+        & Delim.patch      .~ 'p'
+        & Delim.release    .~ 'r'
+        & Delim.metadata   .~ 'b'
+        & Delim.identifier .~ 'i'
 
 class Naming a where
     names :: a -> Names

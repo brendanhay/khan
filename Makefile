@@ -28,7 +28,7 @@ test:
 	cabal install --enable-tests $(FLAGS)
 
 clean:
-	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT) bin
+	-rm -rf dist cabal.sandbox.config .cabal-sandbox vendor $(OUT)
 	cabal clean
 	make -C khan-metadata-server clean
 

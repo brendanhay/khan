@@ -24,7 +24,6 @@ import qualified Data.Conduit.List         as Conduit
 import           Data.Function             (on)
 import qualified Data.List                 as List
 import           Data.Ord
-import           Data.SemVer
 import qualified Data.Text                 as Text
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal
@@ -86,7 +85,7 @@ prune c b p a = do
 
     isArtifact = Text.isPrefixOf $ fromMaybe "" (prefix p) <> a <> "_"
 
-    split   = filter (isJust . snd) . map (second version . join (,) . bcKey)
-    version = hush . parseFileName . Path.fromText
+    split =
+        filter (isJust . snd) . map (second fileNameVersion . join (,) . bcKey)
 
     sortSnd = List.sortBy (compare `on` (Down . snd))

@@ -65,6 +65,7 @@ import qualified Data.Text.Lazy.Builder       as Build
 import qualified Filesystem.Path.CurrentOS    as Path
 import           GHC.Generics                 (Generic)
 import           Khan.Prelude
+import           Lens.Family
 import           Network.AWS                  (Region)
 import qualified Text.ParserCombinators.ReadP as ReadP
 import           Text.Read
@@ -166,7 +167,7 @@ instance ToEnv Tags where
         [ ("KHAN_ROLE", _role tagRole)
         , ("KHAN_ENV", _env tagEnv)
         , ("KHAN_DOMAIN", tagDomain)
-        ] ++ maybeToList (("KHAN_VERSION",) . showVersion <$> tagVersion)
+        ] ++ maybeToList (("KHAN_VERSION",) . toText <$> tagVersion)
           ++ maybeToList (("KHAN_NAME",) <$> tagName)
 
 instance Naming Tags where
@@ -202,24 +203,34 @@ createNames (_role -> role) (_env -> env) ver = Names
     , groupName        = envRole
     , imageName        = roleVer
     , appName          = env <> "-" <> roleVer
-    , balancerBaseName = envRole <> version '-' alphaVersion
+    , balancerBaseName = envRole <> version' '-' alphaVersion
     , dnsName          = Text.replace "_" "-" envRole
-    , versionName      = showVersion <$> ver
+    , versionName      = toText <$> ver
     }
   where
     envRole = env <> "-" <> role
-    roleVer = role <> Text.map f (version '_' showVersion)
+    roleVer = role <> Text.map f (version' '_' toText)
       where
         f '+' = '/'
         f  c  = c
 
-    version c f = maybe "" (Text.cons c) $ f <$> ver
+    version' c f = maybe "" (Text.cons c) $ f <$> ver
 
 unversioned :: Role -> Env -> Names
 unversioned role env = createNames role env Nothing
 
 versioned :: Role -> Env -> Version -> Names
 versioned role env = createNames role env . Just
+
+alphaVersion :: Version -> Text
+alphaVersion = LText.toStrict . Build.toLazyText . toDelimitedBuilder alpha
+  where
+    alpha = delimiters
+        & delimMinor   .~ 'm'
+        & delimPatch   .~ 'p'
+        & delimRelease .~ 'r'
+        & delimMeta    .~ 'b'
+        & delimIdent   .~ 'i'
 
 class Naming a where
     names :: a -> Names

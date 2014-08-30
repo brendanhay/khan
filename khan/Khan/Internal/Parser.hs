@@ -12,18 +12,28 @@
 -- Portability : non-portable (GHC extensions)
 
 module Khan.Internal.Parser
-    ( TextParser (..)
+    (
+    -- * Version
+      fileNameVersion
+
+    -- * Text
+    , TextParser (..)
     , parseString
     , parseText
     ) where
 
 import           Control.Monad
 import           Data.Attoparsec.Text
+import qualified Data.SemVer          as Ver
+import           Data.SemVer          (Version)
 import qualified Data.Text            as Text
 import           Data.Tuple
 import           Khan.Prelude         hiding (find, min, max)
-import           Network.AWS.EC2      hiding (Protocol(..), Instance)
 import qualified Network.AWS.EC2      as EC2
+import           Network.AWS.EC2      hiding (Protocol(..), Instance)
+
+fileNameVersion :: Text -> Maybe Version
+fileNameVersion = lastMay . Text.split (== '/') >=> hush . Ver.fromText
 
 parseString :: TextParser a => String -> Either String a
 parseString = parseText . Text.pack

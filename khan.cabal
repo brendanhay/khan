@@ -29,9 +29,7 @@ library
     ghc-options:       -Wall
 
     exposed-modules:
-        Data.SemVer
-
-      , Khan.Internal
+        Khan.Internal
 
       , Khan.Model.Ansible
       , Khan.Model.Ansible.Serialisation
@@ -72,8 +70,8 @@ library
     build-depends:
         aeson                >= 0.7
       , aeson-pretty
-      , ansi-wl-pprint
       , amazonka             >= 0.4.8
+      , ansi-wl-pprint
       , attoparsec
       , base                 >= 4.7 && < 5
       , bytestring
@@ -85,6 +83,7 @@ library
       , http-client          == 0.3.*
       , http-conduit
       , http-types
+      , lens-family-core     == 1.1.*
       , mtl                  >= 2.2.1
       , network
       , old-locale
@@ -93,6 +92,7 @@ library
       , process              >= 1.2
       , random
       , semigroups
+      , semver               == 0.2.*
       , system-fileio
       , system-filepath      >= 0.4.9
       , text                 >= 1.0
@@ -140,6 +140,7 @@ executable khan
       , optparse-applicative
       , process
       , semigroups
+      , semver
       , system-fileio
       , system-filepath
       , text

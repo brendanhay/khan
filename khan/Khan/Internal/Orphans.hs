@@ -20,6 +20,8 @@ module Khan.Internal.Orphans where
 
 import           Data.Aeson
 import           Data.Hashable
+import           Data.SemVer         (Version)
+import qualified Data.SemVer         as Ver
 import qualified Data.Text           as Text
 import           Data.Text.Buildable
 import qualified Data.Text.Lazy      as LText
@@ -35,6 +37,12 @@ instance Buildable [LText.Text] where
 
 instance Buildable FilePath where
     build = build . toTextIgnore
+
+instance Buildable Version where
+    build = build . Ver.toText
+
+instance ToJSON Version where
+    toJSON = toJSON . Ver.toText
 
 instance ToJSON InstanceType where
     toJSON = toJSON . show

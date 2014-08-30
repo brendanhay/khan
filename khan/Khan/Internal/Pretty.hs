@@ -56,7 +56,8 @@ import qualified Data.Aeson.Encode.Pretty     as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LBS
 import           Data.List                    (sort)
 import           Data.Proxy                   (Proxy(..))
-import           Data.SemVer
+import           Data.SemVer                  (Version)
+import qualified Data.SemVer                  as Ver
 import           Data.String
 import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
@@ -375,7 +376,7 @@ instance Pretty FilePath where
     pretty = text . Path.encodeString
 
 instance Pretty Version where
-    pretty = pretty . showVersion
+    pretty = pretty . Ver.toText
 
 instance Pretty AvailabilityZone where
     pretty AZ{..} = pretty azRegion <> char azSuffix

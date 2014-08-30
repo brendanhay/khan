@@ -46,7 +46,7 @@ module Khan.Model.Tag
 import           Control.Monad.Except
 import qualified Data.Attoparsec.Text  as AText
 import qualified Data.HashMap.Strict   as Map
-import           Data.SemVer
+import qualified Data.SemVer           as Ver
 import qualified Data.Text             as Text
 import           Data.Text.Lazy.IO     as LText
 import           Filesystem            as FS
@@ -72,7 +72,7 @@ parse (tags -> ts) = Tags
     <*> opt (key group)
   where
     lookupVersion = opt $
-        key version >>= parseVersion
+        key version >>= Ver.fromText
 
     lookupWeight = maybe (Right 0) Right . hush $
         key weight >>= AText.parseOnly AText.decimal

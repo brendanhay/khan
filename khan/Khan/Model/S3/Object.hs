@@ -23,7 +23,6 @@ import           Control.Arrow
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
 import qualified Data.Conduit.List         as Conduit
-import           Data.SemVer
 import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
 import qualified Filesystem                as FS
@@ -69,8 +68,8 @@ latest b p f force = do
     start  = GetBucket b (Delimiter '/') (Just prefix) 250 Nothing
     prefix = fromMaybe p $ Text.stripPrefix "/" p
 
-    contents = map (Just . second version . join (,) . bcKey) . gbrContents
-    version  = hush . parseFileName . Path.fromText
+    contents =
+        map (Just . second fileNameVersion . join (,) . bcKey) . gbrContents
 
     max' (Just x) (Just y)
         | snd y > snd x = Just y

@@ -70,12 +70,13 @@ wait s addr user key = do
         , "BatchMode=yes"
         , "-o"
         , "StrictHostKeyChecking=no"
+        , "exit"
         ]
 
 exec :: MonadIO m => String -> [String] -> m ()
 exec run xs =
     let cmd = unwords (run : xs)
-     in log "{}" [cmd] >> liftIO (callCommand cmd)
+    in log "{}" [cmd] >> liftIO (callCommand cmd)
 
 args :: Text -> Text -> FilePath -> [String] -> [String]
 args addr user key = mappend

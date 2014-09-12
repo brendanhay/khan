@@ -76,7 +76,7 @@ instance Pretty Protocol where
     pretty = text . show
 
 instance TextParser Protocol where
-    parser = f "http" HTTP <|> f "https" HTTPS <|> f "tcp" TCP <|> f "ssl" SSL
+    parser = f "https" HTTPS <|> f "http" HTTP <|> f "tcp" TCP <|> f "ssl" SSL
       where
         f x y = string x >> return y
 

@@ -60,7 +60,7 @@ sync = fmapLT show . syncIO
 
 which :: String -> EitherT String IO ()
 which cmd = do
-    (c, _, _) <- sync $ readProcessWithExitCode "type" ["-fP", cmd] ""
+    (c, _, _) <- sync $ readProcessWithExitCode "which" ["-s", cmd] ""
     case c of
         ExitFailure _ -> throwError ("Failed to find command: " ++ cmd)
         ExitSuccess   -> return ()

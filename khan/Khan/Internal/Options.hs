@@ -162,8 +162,13 @@ readOption :: (Show a, Read a)
            -> Mod OptionFields a
            -> String
            -> Parser a
-readOption key typ m desc = option $ mconcat
-    [long key, metavar typ, reader auto, help desc, m, showDefault]
+readOption key typ m desc = option auto $ mconcat
+    [ long key
+    , metavar typ
+    , help desc
+    , m
+    , showDefault
+    ]
 
 switchOption :: String -> Bool -> String -> Parser Bool
 switchOption key p desc = flag p (not p) $ long key <> help desc
@@ -177,12 +182,14 @@ pathOption :: String
            -> Parser FilePath
 pathOption key = customOption key "PATH" (Right . Path.decodeString)
 
-stringOption :: String
-             -> Mod OptionFields String
-             -> String
-             -> Parser String
+stringOption :: String -> Mod OptionFields String -> String -> Parser String
 stringOption key m desc = strOption $ mconcat
-    [long key, metavar "STR", help desc, m, showDefault]
+    [ long key
+    , metavar "STR"
+    , help desc
+    , m
+    , showDefault
+    ]
 
 integralOption :: (Show a, Integral a)
                => String
@@ -199,8 +206,13 @@ customOption :: Show a
              -> Mod OptionFields a
              -> String
              -> Parser a
-customOption key typ rdr m desc = nullOption $ mconcat
-    [long key, metavar typ, eitherReader rdr, help desc, m, showDefault]
+customOption key typ rdr m desc = option (eitherReader rdr) $ mconcat
+    [ long key
+    , metavar typ
+    , help desc
+    , m
+    , showDefault
+    ]
 
 argsOption :: (String -> Maybe a)
            -> Mod ArgumentFields a

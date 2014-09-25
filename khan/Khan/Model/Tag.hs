@@ -43,9 +43,9 @@ module Khan.Model.Tag
     , defaults
     ) where
 
-import           Control.Arrow         (first)
 import           Control.Monad.Except
 import qualified Data.Attoparsec.Text  as AText
+import           Data.Bifunctor        (first)
 import qualified Data.CaseInsensitive  as CI
 import qualified Data.HashMap.Strict   as Map
 import qualified Data.SemVer           as Ver

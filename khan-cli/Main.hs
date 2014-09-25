@@ -1,7 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
 
 -- Module      : Main
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>
@@ -69,11 +68,11 @@ main = runScript $ do
         execCompletion c n >>= putStr >> exitSuccess
 
     failure f n =
-        let (msg, c) = execFailure f n
+        let (h, c, _) = execFailure f n
          in liftIO $ do
                 case c of
-                    ExitSuccess -> putStrLn msg
-                    _           -> hPutStrLn stderr msg
+                    ExitSuccess -> putStrLn (show h)
+                    _           -> hPutStrLn stderr (show h)
                 exitWith c
 
     regionalise False = return Nothing
@@ -105,14 +104,8 @@ parseProgram as es mr = uncurry execParserPure (parserInfo upd) as
     upd | Just r <- mr = Map.insert "KHAN_REGION" (Text.pack $ show r) env
         | otherwise    = env
 
-    env = Map.fromList $
-        [ join (***) Text.pack (k, v) | (k, v) <- cache ++ es
-        , "KHAN_" `isPrefixOf` k
-        ]
-
-    cache = case lookup "KHAN_CACHE" es of
-        Just  _ -> []
-        Nothing -> maybeToList $ ("KHAN_CACHE",) <$> lookup "HOME" es
+    env = Map.fromList
+        [join (***) Text.pack (k, v) | (k, v) <- es, "KHAN_" `isPrefixOf` k]
 
 parserInfo :: EnvMap -> (ParserPrefs, ParserInfo (Common, Command))
 parserInfo env =

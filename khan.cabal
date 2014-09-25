@@ -89,7 +89,7 @@ library
       , mtl                  >= 2.2.1
       , network
       , old-locale
-      , optparse-applicative >= 0.8 && < 0.10
+      , optparse-applicative == 0.10.*
       , prelude-prime
       , process              >= 1.2
       , random

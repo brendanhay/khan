@@ -74,7 +74,9 @@ library
       , ansi-wl-pprint
       , attoparsec
       , base                 >= 4.7 && < 5
+      , bifunctors           >= 4.1 && < 5
       , bytestring
+      , case-insensitive     >= 1.2 && < 2
       , conduit              >= 1.1
       , conduit-extra
       , ede                  >= 0.1.3

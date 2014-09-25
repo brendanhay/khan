@@ -45,6 +45,8 @@ module Khan.Model.Tag
 
 import           Control.Monad.Except
 import qualified Data.Attoparsec.Text  as AText
+import           Data.Bifunctor        (first)
+import qualified Data.CaseInsensitive  as CI
 import qualified Data.HashMap.Strict   as Map
 import qualified Data.SemVer           as Ver
 import qualified Data.Text             as Text
@@ -71,13 +73,16 @@ parse (tags -> ts) = Tags
     <*> lookupWeight
     <*> opt (key group)
   where
+    ciTags = Map.fromList . map (first CI.mk) $ Map.toList ts
+
     lookupVersion = opt $
         key version >>= Ver.fromText
 
     lookupWeight = maybe (Right 0) Right . hush $
         key weight >>= AText.parseOnly AText.decimal
 
-    key k = note ("Failed to find key: " ++ Text.unpack k) (Map.lookup k ts)
+    key k = note ("Failed to find key: " ++ Text.unpack k)
+                 (Map.lookup (CI.mk k) ciTags)
 
     opt (Left  _) = Right Nothing
     opt (Right x) = Right (Just x)

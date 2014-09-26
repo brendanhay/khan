@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -19,6 +20,7 @@ module Khan.Internal.Parser
     -- * Text
     , TextParser (..)
     , parseString
+    , parseDelimited
     , parseText
     ) where
 
@@ -37,6 +39,9 @@ fileNameVersion = lastMay . Text.split (== '/') >=> hush . Ver.fromText
 
 parseString :: TextParser a => String -> Either String a
 parseString = parseText . Text.pack
+
+parseDelimited :: TextParser a => Char -> String -> Either String [a]
+parseDelimited c = traverse parseText . Text.split (== c) . Text.pack
 
 parseText :: TextParser a => Text -> Either String a
 parseText = parseOnly parser

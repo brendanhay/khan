@@ -20,6 +20,7 @@ module Khan.Internal.Parser
     -- * Text
     , TextParser (..)
     , parseString
+    , parseDelimited
     , parseText
     ) where
 
@@ -39,6 +40,9 @@ fileNameVersion = lastMay . Text.split (== '/') >=> hush . Ver.fromText
 parseString :: TextParser a => String -> Either String a
 parseString = parseText . Text.pack
 
+parseDelimited :: TextParser a => Char -> String -> Either String [a]
+parseDelimited c = traverse parseText . Text.split (== c) . Text.pack
+
 parseText :: TextParser a => Text -> Either String a
 parseText = parseOnly parser
 
@@ -54,9 +58,6 @@ instance TextParser IpPermissionType where
         return . uncurry (IpPermissionType p f t)
                . swap
                $ partitionEithers g
-
-instance TextParser [IpPermissionType] where
-    parser = parser `sepBy1` (skipMany space *> char '@' <* skipMany space)
 
 instance TextParser IpRange where
     parser = do

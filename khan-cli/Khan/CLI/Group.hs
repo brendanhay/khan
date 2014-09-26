@@ -51,9 +51,14 @@ updateParser :: EnvMap -> Parser Update
 updateParser env = Update
     <$> roleOption
     <*> envOption env
-    <*> many (customOption "rule" "RULE" parseString mempty
-        "http|https|tcp|udp|icmp:from:to:[group|0.0.0.0,...]")
+    <*> (uncurry mappend <$> rulesParser)
     <*> ansibleOption
+  where
+    rulesParser = (,)
+        <$> many (customOption "rule" "RULE" parseString mempty
+            "Formatted rule. proto:from:to:[group|0.0.0.0,...]")
+        <*> customOption "rules" "RULE" parseString mempty
+            "Multiple rules. Internal use only."
 
 instance Options Update where
     discover _ Common{..} u@Update{..} = return $! u

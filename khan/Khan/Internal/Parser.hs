@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -53,6 +54,9 @@ instance TextParser IpPermissionType where
         return . uncurry (IpPermissionType p f t)
                . swap
                $ partitionEithers g
+
+instance TextParser [IpPermissionType] where
+    parser = parser `sepBy1` (skipMany space *> char '@' <* skipMany space)
 
 instance TextParser IpRange where
     parser = do

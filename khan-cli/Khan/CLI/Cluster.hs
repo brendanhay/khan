@@ -140,6 +140,8 @@ instance Options Deploy where
         check (dDesired < dMin) "--desired must be greater than or equal to --min."
         check (dDesired > dMax) "--desired must be less than or equal to --max."
 
+        check (not dAutoPromote && dAutoRetire) "--auto-retire requires --auto-promote"
+
         checkFile (_trust  dTrust)  " specified by --trust must exist."
         checkFile (_policy dPolicy) " specified by --policy must exist."
 

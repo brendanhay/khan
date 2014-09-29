@@ -65,21 +65,25 @@ instance Naming Info where
     names Info{..} = unversioned iRole iEnv
 
 data Deploy = Deploy
-    { dRKeys    :: !RKeysBucket
-    , dRole     :: !Role
-    , dEnv      :: !Env
-    , dDomain   :: !Text
-    , dVersion  :: !Version
-    , dZones    :: [Char]
-    , dGrace    :: !Integer
-    , dMin      :: !Integer
-    , dMax      :: !Integer
-    , dDesired  :: !Integer
-    , dCooldown :: !Integer
-    , dType     :: !InstanceType
-    , dTrust    :: !TrustPath
-    , dPolicy   :: !PolicyPath
-    , dBalance  :: [Balancer.Mapping]
+    { dRKeys        :: !RKeysBucket
+    , dRole         :: !Role
+    , dEnv          :: !Env
+    , dDomain       :: !Text
+    , dVersion      :: !Version
+    , dZones        :: [Char]
+    , dGrace        :: !Integer
+    , dMin          :: !Integer
+    , dMax          :: !Integer
+    , dDesired      :: !Integer
+    , dCooldown     :: !Integer
+    , dType         :: !InstanceType
+    , dTrust        :: !TrustPath
+    , dPolicy       :: !PolicyPath
+    , dBalance      :: [Balancer.Mapping]
+    , dAutoPromote  :: !Bool
+    , dAutoRetire   :: !Bool
+    , dPromoteDelay :: !Int
+    , dRetireDelay  :: !Int
     }
 
 deployParser :: EnvMap -> Parser Deploy
@@ -107,6 +111,14 @@ deployParser env = Deploy
     <*> policyOption
     <*> many (customOption "elb" "ELB" parseString mempty
         "Balancer shizzle (e.g. https:443-http:8080/status)")
+    <*> switchOption "auto-promote" False
+        "Automatically promote the new cluster."
+    <*> switchOption "auto-retire" False
+        "Automatically retire old clusters."
+    <*> integralOption "auto-promote-delay" (value 0)
+        "Delay (seconds) before auto-promoting the new cluster."
+    <*> integralOption "auto-retire-delay" (value 0)
+        "Delay (seconds) before auto-retiring the old clusters."
 
 instance Options Deploy where
     discover _ Common{..} d@Deploy{..} = do
@@ -253,7 +265,7 @@ info Common{..} Info{..} = do
                           <-> body is
 
 deploy :: Common -> Deploy -> AWS ()
-deploy Common{..} d@Deploy{..} = ensure >> create
+deploy c@Common{..} d@Deploy{..} = ensure >> create >> autoPromote >> autoRetire
   where
     ensure = do
         g <- ASG.find d
@@ -285,13 +297,33 @@ deploy Common{..} d@Deploy{..} = ensure >> create
         ac <- async $ Cert.find dDomain
         ab <- async $ mapM (Balancer.find . Balancer.mkBalancerName d) dBalance
 
-        c  <- wait ac >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
+        ct <- wait ac >>= noteAWS "Missing Server Certificate for {}" [B dDomain]
         bs <- wait ab
 
         forM_ (dBalance `zip` map isJust bs) $ \(b, exists) ->
             if exists
                 then say "Load Balancer {} already exists." [B $ Balancer.mkBalancerName d b]
-                else Balancer.create d zones b c
+                else Balancer.create d zones b ct
+
+    autoPromote = when dAutoPromote $ do
+        say "Waiting {} seconds before auto-promoting" [dPromoteDelay]
+        delaySeconds dPromoteDelay
+        say "Auto-promoting cluster {} at version {} in {}" [B dRole, B dVersion, B dEnv]
+        promote c $ Cluster dRole dEnv dVersion
+
+    autoRetire = when dAutoRetire $ do
+        say "Waiting {} seconds before auto-retiring" [dRetireDelay]
+        vs <- ASG.findAll []
+            $= Conduit.mapMaybe Tag.annotate
+            $= Conduit.filter (matchTags . annTags)
+            $= Conduit.mapMaybe (tagVersion . annTags)
+            $$ Conduit.consume
+        delaySeconds dPromoteDelay
+        forM_ vs $ \v -> do
+            say "Auto-retiring cluster {} at version {} in {}" [B dRole, B v, B dEnv]
+            retire c $ Cluster dRole dEnv v
+
+    matchTags Tags{..} = tagEnv == dEnv && dRole == tagRole && Just dVersion /= tagVersion
 
     Names{..} = names d
     balancers = map (Balancer.mkBalancerName d) dBalance

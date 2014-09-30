@@ -315,12 +315,12 @@ deploy c@Common{..} d@Deploy{..} = ensure >> create >> autoPromote >> autoRetire
 
     autoRetire = when dAutoRetire $ do
         say "Waiting {} seconds before auto-retiring" [dRetireDelay]
+        delaySeconds dPromoteDelay
         vs <- ASG.findAll []
             $= Conduit.mapMaybe Tag.annotate
             $= Conduit.filter (matchTags . annTags)
             $= Conduit.mapMaybe (tagVersion . annTags)
             $$ Conduit.consume
-        delaySeconds dPromoteDelay
         forM_ vs $ \v -> do
             say "Auto-retiring cluster {} at version {} in {}" [B dRole, B v, B dEnv]
             retire c $ Cluster dRole dEnv v

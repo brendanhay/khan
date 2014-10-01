@@ -57,7 +57,7 @@ updateParser env = Update
     rulesParser = (,)
         <$> many (customOption "rule" "RULE" parseString mempty
             "Formatted rule. proto:from:to:[group|0.0.0.0,...]")
-        <*> customOption "rules" "RULE" (parseDelimited '@') mempty
+        <*> customOption "rules" "RULE" (parseDelimited '@') (value [])
             "Multiple rules. Internal use only."
 
 instance Options Update where

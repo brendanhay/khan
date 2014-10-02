@@ -49,7 +49,7 @@ download b k f force = do
     if exists && size > etagThreshold
         then say "File {} already exists" [B f] >> return False
         else do
-            et <- if exists && not force && size <= etagThreshold
+            et <- if exists && not force
                 then pure . ifNoneMatch <$> (hashFile file :: AWS (Digest MD5))
                 else return []
             rs <- send $ GetObject b (safeKey k) et

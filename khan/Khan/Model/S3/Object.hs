@@ -39,25 +39,30 @@ import           Network.HTTP.Conduit
 import           Network.HTTP.Types        (urlEncode)
 import           Network.HTTP.Types.Status (status304)
 
+-- | Downloads a file from S3.
+-- If the file exists locally and is <= 5GB, a conditional GET
+-- request with an ETag is made to ensure the local file is up-to-date.
 download :: Text -> Text -> FilePath -> Bool -> AWS Bool
 download b k f force = do
-    exists <- liftIO (FS.isFile f)
-    etag   <- if exists && not force
-        then pure . ifNoneMatch <$> (hashFile file :: AWS (Digest MD5))
-        else return []
-    rs    <- send $ GetObject b (safeKey k) etag
-    -- FIXME: This code is unreachable atm. since the 304 response is treated
-    --        as an error by amazonka and thus fails the AWS computation.
-    if responseStatus rs == status304
-        then do
-            say "File {} already exists" [B f]
-            return False
+    exists <- liftIO $ FS.isFile f
+    size   <- liftIO $ FS.getSize f
+    if exists && size > etagThreshold
+        then say "File {} already exists" [B f] >> return False
         else do
-            say "Downloading {}/{} to {}" [P b, P k, B f]
-            responseBody rs $$+- Conduit.sinkFile file
-            return True
+            et <- if exists && not force && size <= etagThreshold
+                then pure . ifNoneMatch <$> (hashFile file :: AWS (Digest MD5))
+                else return []
+            rs <- send $ GetObject b (safeKey k) et
+            if responseStatus rs == status304
+                then say "File {} already exists" [B f] >> return False
+                else do
+                    say "Downloading {}/{} to {}" [P b, P k, B f]
+                    responseBody rs $$+- Conduit.sinkFile file
+                    return True
   where
     file = Path.encodeString f
+    -- Files > 5 GB have an ETag which doesn't solely consist of the MD5
+    etagThreshold = 5000000000
     ifNoneMatch x = ("If-None-Match",  B16.encode $ toBytes x)
 
 upload :: Text -> Text -> FilePath -> Bool -> AWS Bool

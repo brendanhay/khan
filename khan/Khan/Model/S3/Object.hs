@@ -20,6 +20,10 @@ module Khan.Model.S3.Object
     ) where
 
 import           Control.Arrow
+import           Crypto.Hash               (Digest, MD5)
+import           Crypto.Hash.Conduit       (hashFile)
+import           Data.Byteable             (toBytes)
+import qualified Data.ByteString.Base16    as B16
 import           Data.Conduit
 import qualified Data.Conduit.Binary       as Conduit
 import qualified Data.Conduit.List         as Conduit
@@ -33,16 +37,28 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import           Network.HTTP.Conduit
 import           Network.HTTP.Types        (urlEncode)
+import           Network.HTTP.Types.Status (status304)
 
 download :: Text -> Text -> FilePath -> Bool -> AWS Bool
 download b k f force = do
-    p <- liftIO (FS.isFile f)
-    when p $ say "File {} already exists." [B f]
-    when (not p || force) $ do
-        say "Downloading {}/{} to {}" [P b, P k, B f]
-        rs <- send $ GetObject b (safeKey k) []
-        responseBody rs $$+- Conduit.sinkFile (Path.encodeString f)
-    return (not p || force)
+    exists <- liftIO (FS.isFile f)
+    etag   <- if exists && not force
+        then pure . ifNoneMatch <$> (hashFile file :: AWS (Digest MD5))
+        else return []
+    rs    <- send $ GetObject b (safeKey k) etag
+    -- FIXME: This code is unreachable atm. since the 304 response is treated
+    --        as an error by amazonka and thus fails the AWS computation.
+    if responseStatus rs == status304
+        then do
+            say "File {} already exists" [B f]
+            return False
+        else do
+            say "Downloading {}/{} to {}" [P b, P k, B f]
+            responseBody rs $$+- Conduit.sinkFile file
+            return True
+  where
+    file = Path.encodeString f
+    ifNoneMatch x = ("If-None-Match",  B16.encode $ toBytes x)
 
 upload :: Text -> Text -> FilePath -> Bool -> AWS Bool
 upload b k (Path.encodeString -> f) force = do

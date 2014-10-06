@@ -45,8 +45,8 @@ import           Network.HTTP.Types.Status (status304)
 download :: Text -> Text -> FilePath -> Bool -> AWS Bool
 download b k f force = do
     exists <- liftIO $ FS.isFile f
-    size   <- liftIO $ FS.getSize f
-    if exists && size > etagThreshold
+    size   <- bool (return Nothing) (liftIO (Just <$> FS.getSize f)) exists
+    if exists && size > Just etagThreshold
         then say "File {} already exists" [B f] >> return False
         else do
             et <- if exists && not force

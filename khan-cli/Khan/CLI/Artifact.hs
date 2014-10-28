@@ -50,6 +50,7 @@ data Bucket = Bucket
     , bDir     :: !FilePath
     , bN       :: !Int
     , bForce   :: !Bool
+    , bRemoveP :: !Bool
     , bAnsible :: !Bool
     } deriving (Show)
 
@@ -65,6 +66,8 @@ bucketParser = Bucket
         "Number of simultaneous downloads."
     <*> switchOption "force" False
         "Overwrite the destination object if it already exists."
+    <*> switchOption "remove-prefix" False
+        "Removes the prefix (if given) from the destination directory."
     <*> ansibleOption
 
 instance Options Bucket
@@ -116,7 +119,7 @@ object g c Object{..} =
 sync :: Common -> Bucket -> AWS ()
 sync c Bucket{..} =
     capture bAnsible c "bucket {}/{}" [bBucket, fromMaybe "" bPrefix] $
-        Bucket.download bN bBucket bPrefix bDir bForce
+        Bucket.download bN bBucket bPrefix bDir bForce bRemoveP
 
 prune :: Common -> Prune -> AWS ()
 prune c Prune{..} =

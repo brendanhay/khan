@@ -41,8 +41,8 @@ findAll ids fs = do
 findAllCatch :: [Text]
              -> [Filter]
              -> AWS (Either EC2ErrorResponse [DescribeImagesResponseItemType])
-findAllCatch ids fs = either Left (Right . djImagesSet) <$>
-    sendCatch (DescribeImages [] ids [] fs)
+findAllCatch ids fs =
+    fmap djImagesSet <$> sendCatch (DescribeImages [] ids [] fs)
 
 create :: Naming a => a -> Text -> [BlockDeviceMappingItemType] -> AWS Text
 create (names -> n@Names{..}) i bs = do

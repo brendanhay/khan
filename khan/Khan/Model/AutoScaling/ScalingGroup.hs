@@ -92,7 +92,7 @@ update (names -> n@Names{..}) cool desired grace min max = do
     AutoScalingGroup{..} <- find n >>=
         noteAWS "Auto Scaling Group {} doesn't exist." [B appName]
     say "Updating Auto Scaling Group {}" [appName]
-    send_ $ UpdateAutoScalingGroup
+    send_ UpdateAutoScalingGroup
         { uasgAutoScalingGroupName    = appName
         , uasgAvailabilityZones       = Members asgAvailabilityZones
         , uasgDefaultCooldown         = cool

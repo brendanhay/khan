@@ -1,7 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 -- Module      : Khan.Internal.IO
 -- Copyright   : (c) 2013 Brendan Hay <brendan.g.hay@gmail.com>

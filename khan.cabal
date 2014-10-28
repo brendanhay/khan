@@ -83,6 +83,7 @@ library
       , conduit-extra
       , cryptohash           == 0.11.*
       , cryptohash-conduit   == 0.1.*
+      , ede                  >= 0.2.3
       , errors
       , hashable
       , http-client          == 0.3.*
@@ -102,6 +103,7 @@ library
       , system-filepath      >= 0.4.9
       , text                 >= 1.0
       , text-format
+      , text-manipulate
       , time
       , transformers         == 0.4.*
       , unix

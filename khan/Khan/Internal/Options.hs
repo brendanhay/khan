@@ -214,7 +214,7 @@ customOption key typ rdr m desc = option (eitherReader rdr) $ mconcat
     , showDefault
     ]
 
-argsOption :: (String -> Maybe a)
+argsOption :: ReadM a
            -> Mod ArgumentFields a
            -> String
            -> Parser [a]

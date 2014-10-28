@@ -103,7 +103,6 @@ library
       , system-filepath      >= 0.4.9
       , text                 >= 1.0
       , text-format
-      , text-manipulate
       , time
       , transformers         == 0.4.*
       , unix
@@ -150,6 +149,7 @@ executable khan
       , system-filepath
       , text
       , text-format
+      , text-manipulate
       , time
       , unix
       , unordered-containers

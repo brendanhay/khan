@@ -138,7 +138,6 @@ executable khan
       , base
       , bytestring
       , conduit
-      , ede
       , errors
       , khan
       , optparse-applicative

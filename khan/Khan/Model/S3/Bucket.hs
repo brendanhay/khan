@@ -32,8 +32,8 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import qualified Filesystem as FS
 
-download :: Int -> Text -> Maybe Text -> FilePath -> Bool -> AWS Bool
-download n b p dir force = do
+download :: Int -> Text -> Maybe Text -> FilePath -> Bool -> Bool -> AWS Bool
+download n b p dir force sdest = do
     say "Paginating Bucket {} contents" [b]
     or <$> (paginate start
         $= Conduit.concatMap (filter match . gbrContents)
@@ -52,8 +52,11 @@ download n b p dir force = do
         | bcStorageClass == Glacier = False
         | otherwise                 = True
 
+    removeFromDest True (Just prf) t = fromMaybe t (Text.stripPrefix prf t)
+    removeFromDest _    _          t = t
+
     retrieve Contents{..} = do
-        let dest = dir </> Path.fromText bcKey
+        let dest = dir </> Path.fromText (removeFromDest sdest (prefix p) bcKey)
         liftAWS . FS.createTree $ Path.parent dest
         Object.download b bcKey dest force
 

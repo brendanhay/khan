@@ -30,30 +30,23 @@ module Khan.Internal.IO
     -- * Psuedo Randomisation
     , randomSelect
     , randomShuffle
-
-    -- * Templates
-    , renderTemplate
     ) where
 
 import           Control.Concurrent        (threadDelay)
-import           Data.Aeson                (Object)
 import qualified Data.List                 as List
 import           Data.Ord
 import           Data.String
 import qualified Data.Text                 as Text
-import qualified Data.Text.Lazy            as LText
 import           Data.Time.Clock.POSIX
 import qualified Filesystem                as FS
 import qualified Filesystem.Path.CurrentOS as Path
 import           Khan.Internal.Types
 import           Khan.Prelude
-import           Network.AWS               (AWS, liftEitherT)
 import           System.Exit
 import qualified System.Posix.Files        as Posix
 import           System.Posix.Types        (FileMode)
 import           System.Process            (readProcessWithExitCode)
 import qualified System.Random             as Random
-import qualified Text.EDE                  as EDE
 
 sync :: IO a -> EitherT String IO a
 sync = fmapLT show . syncIO
@@ -102,8 +95,3 @@ randomShuffle xs = liftIO $
     f (ys, g1) x =
         (\(n :: Int, g2) -> ((n, x) : ys, g2))
         (Random.random g1)
-
-renderTemplate :: Object -> FilePath -> AWS LText.Text
-renderTemplate o (Path.encodeString -> f) = liftEitherT $ do
-    et <- sync (EDE.eitherParseFile f)
-    hoistEither . join $ (`EDE.eitherRender` o) <$> et

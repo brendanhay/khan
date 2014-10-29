@@ -5,7 +5,7 @@ BUILD_NUMBER ?= 0
 DEB             := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
 SDIST           := dist/$(NAME)-$(VERSION).tar.gz
 FLAGS           := --disable-documentation --disable-library-coverage
-DEPS            := vendor/amazonka vendor/ede
+DEPS            := vendor/amazonka
 
 BIN_CLI         := dist/build/$(NAME)/$(NAME)
 BIN_SYNC        := dist/build/khan-metadata-sync/khan-metadata-sync

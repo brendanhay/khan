@@ -115,7 +115,7 @@ cached (CacheDir dir) iid = do
             LText.hPutStr hd (renderEnv True ts)
         return ts
 
-    load = liftIO $ do
+    load = liftIO $
         FS.isFile path >>=
             bool (return (Left "Missing cached .tags"))
                  (parse . hashMap <$> FS.readTextFile path)

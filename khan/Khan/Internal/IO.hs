@@ -105,5 +105,5 @@ randomShuffle xs = liftIO $
 
 renderTemplate :: Object -> FilePath -> AWS LText.Text
 renderTemplate o (Path.encodeString -> f) = liftEitherT $ do
-    et <- sync (EDE.eitherParseFile f)
-    hoistEither . join $ (`EDE.eitherRender` o) <$> et
+    t <- sync (EDE.eitherParseFile f)
+    hoistEither (join (EDE.eitherRender <$> t <*> pure o))

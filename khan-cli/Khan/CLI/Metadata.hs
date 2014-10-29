@@ -14,13 +14,14 @@ module Khan.CLI.Metadata (commands) where
 -- Stability   : experimental
 -- Portability : non-portable (GHC extensions)
 
-import qualified Data.Aeson                       as Aeson
 import           Data.Aeson                       (Value(String))
+import qualified Data.Aeson                       as Aeson
 import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.HashMap.Strict              as Map
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
 import qualified Data.Text.Lazy.IO                as LText
+import           Data.Text.Manipulate
 import           Khan.Internal
 import qualified Khan.Model.Ansible.Serialisation as Ansible
 import qualified Khan.Model.Tag                   as Tag
@@ -28,7 +29,6 @@ import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.EC2.Metadata         (Dynamic(..), toPath)
 import qualified Network.AWS.EC2.Metadata         as Meta
-import qualified Text.EDE.Filters                 as EDE
 
 data Describe = Describe
     { dMultiLine :: !Bool
@@ -69,11 +69,12 @@ describe Common{..} Describe{..} = do
         . LBS.fromStrict
 
     filtered m =
-        let key = awsPrefix . Text.toUpper . EDE.underscore
+        let key = awsPrefix . Text.toUpper . toSnake
          in Map.fromList [(key k, v) | (k, Just v) <- Map.toList m]
 
     instanceId = lookupKey (awsPrefix "INSTANCE_ID")
-    awsPrefix  = mappend "AWS_"
+
+    awsPrefix = mappend "AWS_"
 
     lookupKey k = noteError ("Unable to find " <> k <> " in: ") . Map.lookup k
 

@@ -83,7 +83,7 @@ library
       , conduit-extra
       , cryptohash           == 0.11.*
       , cryptohash-conduit   == 0.1.*
-      , ede                  >= 0.1.6  && < 0.2
+      , ede                  >= 0.2.3
       , errors
       , hashable
       , http-client          == 0.3.*
@@ -93,7 +93,7 @@ library
       , mtl                  >= 2.2.1
       , network
       , old-locale
-      , optparse-applicative == 0.10.*
+      , optparse-applicative == 0.11.*
       , prelude-prime
       , process              >= 1.2
       , random
@@ -129,7 +129,6 @@ executable khan
       , Khan.CLI.Launch
       , Khan.CLI.Metadata
       , Khan.CLI.Profile
-      , Khan.CLI.Routing
       , Khan.CLI.SSH
 
     build-depends:
@@ -140,7 +139,6 @@ executable khan
       , base
       , bytestring
       , conduit
-      , ede
       , errors
       , khan
       , optparse-applicative
@@ -151,6 +149,7 @@ executable khan
       , system-filepath
       , text
       , text-format
+      , text-manipulate
       , time
       , unix
       , unordered-containers

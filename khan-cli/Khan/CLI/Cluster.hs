@@ -122,9 +122,9 @@ deployParser env = Deploy
         "Delay (seconds) before auto-promoting the new cluster."
     <*> integralOption "auto-retire-delay" (value 0)
         "Delay (seconds) before auto-retiring the old clusters."
-    <*> integralOption "scale-up-average-cpu" (value 60)
-        "Average CPU load threshold percetange after which to scale up."
-    <*> integralOption "scale-down-average-cpu" (value 30)
+    <*> integralOption "scale-up-cpu" (value 60)
+        "Average CPU load threshold percentage after which to scale up."
+    <*> integralOption "scale-down-cpu" (value 30)
         "Average CPU load threshold percentage after which to scale down."
 
 instance Options Deploy where
@@ -183,9 +183,9 @@ scaleParser env = Scale
         "Desired number of instances.")
     <*> optional (integralOption "cooldown" mempty
         "Seconds between subsequent auto scaling activities.")
-    <*> optional (integralOption "scale-up-average-cpu" mempty
+    <*> optional (integralOption "scale-up-cpu" mempty
         "Average CPU load threshold percentage after which to scale up.")
-    <*> optional (integralOption "scale-down-average-cpu" mempty
+    <*> optional (integralOption "scale-down-cpu" mempty
         "Average CPU load threshold percentage after which to scale down.")
 
 instance Options Scale where
@@ -435,7 +435,9 @@ promote _ c@Cluster{..} = do
     Names{..} = names c
 
 scale :: Common -> Scale -> AWS ()
-scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax >> scalePol sUpCpu sDownCpu
+scale _ s@Scale{..} = do
+    ASG.update s sCooldown sDesired sGrace sMin sMax
+    scalePol sUpCpu sDownCpu
   where
     scalePol (Just u) (Just d) = setupScalingPolicies appName u d
     scalePol _        _        = return ()
@@ -473,20 +475,37 @@ retire _ c@Cluster{..} = do
 
     Names{..} = names c
 
-    deleteAlarms = send_ ( DeleteAlarms
-                         $ Members
-                         $ map (metricAlarmName appName) ["Up", "Down"]
-                         )
+    deleteAlarms = send_
+        . DeleteAlarms
+        . Members
+        $ map (metricAlarmName appName) ["Up", "Down"]
 
 -- Creates an alarm that gets triggered when for the `period` of time
 -- the value of `val` makes the condition defined by `cond` is True
-putMetricAlarm :: Text -> Text -> Text -> Text -> Integer -> Integer -> PutMetricAlarm
+putMetricAlarm :: Text
+               -> Text
+               -> Text
+               -> Text
+               -> Integer
+               -> Integer
+               -> PutMetricAlarm
 putMetricAlarm appName polName suffix cond period val = PutMetricAlarm
-    (Just True) (Members [polName]) Nothing
-    (metricAlarmName appName suffix) cond
-    (Members [Dimension "AutoScalingGroupName" appName]) 1
-    (Members []) "CPUUtilization" "AWS/EC2" (Members []) period
-    "Average" (fromIntegral val) (Just "Percent")
+    { pmaActionsEnabled          = Just True
+    , pmaAlarmActions            = Members [polName]
+    , pmaAlarmDescription        = Nothing
+    , pmaAlarmName               = metricAlarmName appName suffix
+    , pmaComparisonOperator      = cond
+    , pmaDimensions              = Members [Dimension "AutoScalingGroupName" appName]
+    , pmaEvaluationPeriods       = 1
+    , pmaInsufficientDataActions = Members []
+    , pmaMetricName              = "CPUUtilization"
+    , pmaNamespace               = "AWS/EC2"
+    , pmaOKActions               = Members []
+    , pmaPeriod                  = period
+    , pmaStatistic               = "Average"
+    , pmaThreshold               = fromIntegral val
+    , pmaUnit                    = Just "Percent"
+    }
 
 -- Convenience to define the names for the alarms
 metricAlarmName :: Text -> Text -> Text
@@ -495,9 +514,13 @@ metricAlarmName p s = p <> "-CPUUtilizationForScaling" <> s
 -- Sets up a policy to Scale up/down an ASG
 putScalingPolicy :: Text -> Integer -> PutScalingPolicy
 putScalingPolicy appName val = PutScalingPolicy
-    "ChangeInCapacity" appName (Just 60) Nothing
-    ((if val > 0 then "Up" else "Down") <> appName)
-    val
+    { pspAdjustmentType       = "ChangeInCapacity"
+    , pspAutoScalingGroupName = appName
+    , pspCooldown             = Just 60
+    , pspMinAdjustmentStep    = Nothing
+    , pspPolicyName           = (if val > 0 then "Up" else "Down") <> appName
+    , pspScalingAdjustment    = val
+    }
 
 setupScalingPolicies :: Text -> Integer -> Integer -> AWS ()
 setupScalingPolicies name cpuUp cpuDown = do

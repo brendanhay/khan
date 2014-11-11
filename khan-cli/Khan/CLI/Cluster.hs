@@ -101,11 +101,11 @@ deployParser env = Deploy
          "Availability Zone suffixes the cluster will encompass."
     <*> integralOption "grace" (value 20)
         "Seconds after an auto scaling activity until healthchecks are activated."
-    <*> integralOption "min" (value 1)
+    <*> integralOption "min" (value 3)
         "Minimum number of instances."
-    <*> integralOption "max" (value 1)
+    <*> integralOption "max" (value 30)
         "Maximum number of instances."
-    <*> integralOption "desired" (value 1)
+    <*> integralOption "desired" (value 3)
         "Desired number of instances."
     <*> integralOption "cooldown" (value 60)
         "Seconds between subsequent auto scaling activities."
@@ -146,6 +146,9 @@ instance Options Deploy where
         check (dMax < dMin)     "--max must be greater than or equal to --max."
         check (dDesired < dMin) "--desired must be greater than or equal to --min."
         check (dDesired > dMax) "--desired must be less than or equal to --max."
+
+        check (dScaleUpCpu - dScaleDownCpu < 20)
+                        "--scale-up must be greater than --scale-down by at least 20."
 
         check (not dAutoPromote && dAutoRetire) "--auto-retire requires --auto-promote"
 
@@ -194,7 +197,8 @@ instance Options Scale where
         check (sMin >= sMax)       "--min must be less than --max."
         check (sDesired < sMin)    "--desired must be greater than or equal to --min."
         check (sDesired > sMax)    "--desired must be less than or equal to --max."
-        check (sDownCpu >= sUpCpu) "--scale-up must be larger than scale-down."
+        check (((-) <$> sUpCpu <*> sDownCpu) < Just 20)
+            "--scale-up must be greater than --scale-down by at least 20."
 
 instance Naming Scale where
     names Scale{..} = versioned sRole sEnv sVersion

@@ -40,6 +40,7 @@ import qualified Khan.Model.Tag                      as Tag
 import           Khan.Prelude
 import           Network.AWS
 import           Network.AWS.AutoScaling             hiding (Filter)
+import           Network.AWS.CloudWatch
 import           Network.AWS.EC2                     hiding (Filter)
 import           Network.AWS.ELB
 import           Network.AWS.Route53                 hiding (Protocol(..))
@@ -84,6 +85,8 @@ data Deploy = Deploy
     , dAutoRetire   :: !Bool
     , dPromoteDelay :: !Int
     , dRetireDelay  :: !Int
+    , dScaleUpCpu   :: !Integer
+    , dScaleDownCpu :: !Integer
     }
 
 deployParser :: EnvMap -> Parser Deploy
@@ -98,11 +101,11 @@ deployParser env = Deploy
          "Availability Zone suffixes the cluster will encompass."
     <*> integralOption "grace" (value 20)
         "Seconds after an auto scaling activity until healthchecks are activated."
-    <*> integralOption "min" (value 1)
+    <*> integralOption "min" (value 3)
         "Minimum number of instances."
-    <*> integralOption "max" (value 1)
+    <*> integralOption "max" (value 30)
         "Maximum number of instances."
-    <*> integralOption "desired" (value 1)
+    <*> integralOption "desired" (value 3)
         "Desired number of instances."
     <*> integralOption "cooldown" (value 60)
         "Seconds between subsequent auto scaling activities."
@@ -119,6 +122,10 @@ deployParser env = Deploy
         "Delay (seconds) before auto-promoting the new cluster."
     <*> integralOption "auto-retire-delay" (value 0)
         "Delay (seconds) before auto-retiring the old clusters."
+    <*> integralOption "scale-up-cpu" (value 60)
+        "Average CPU load threshold percentage after which to scale up."
+    <*> integralOption "scale-down-cpu" (value 30)
+        "Average CPU load threshold percentage after which to scale down."
 
 instance Options Deploy where
     discover _ Common{..} d@Deploy{..} = do
@@ -140,6 +147,9 @@ instance Options Deploy where
         check (dDesired < dMin) "--desired must be greater than or equal to --min."
         check (dDesired > dMax) "--desired must be less than or equal to --max."
 
+        check (dScaleUpCpu - dScaleDownCpu < 20)
+                        "--scale-up must be greater than --scale-down by at least 20."
+
         check (not dAutoPromote && dAutoRetire) "--auto-retire requires --auto-promote"
 
         checkFile (_trust  dTrust)  " specified by --trust must exist."
@@ -157,6 +167,8 @@ data Scale = Scale
     , sMax      :: Maybe Integer
     , sDesired  :: Maybe Integer
     , sCooldown :: Maybe Integer
+    , sUpCpu    :: Maybe Integer
+    , sDownCpu  :: Maybe Integer
     }
 
 scaleParser :: EnvMap -> Parser Scale
@@ -174,13 +186,19 @@ scaleParser env = Scale
         "Desired number of instances.")
     <*> optional (integralOption "cooldown" mempty
         "Seconds between subsequent auto scaling activities.")
+    <*> optional (integralOption "scale-up-cpu" mempty
+        "Average CPU load threshold percentage after which to scale up.")
+    <*> optional (integralOption "scale-down-cpu" mempty
+        "Average CPU load threshold percentage after which to scale down.")
 
 instance Options Scale where
     validate Scale{..} = do
         check sEnv "--env must be specified."
-        check (sMin >= sMax)    "--min must be less than --max."
-        check (sDesired < sMin) "--desired must be greater than or equal to --min."
-        check (sDesired > sMax) "--desired must be less than or equal to --max."
+        check (sMin >= sMax)       "--min must be less than --max."
+        check (sDesired < sMin)    "--desired must be greater than or equal to --min."
+        check (sDesired > sMax)    "--desired must be less than or equal to --max."
+        check (((-) <$> sUpCpu <*> sDownCpu) < Just 20)
+            "--scale-up must be greater than --scale-down by at least 20."
 
 instance Naming Scale where
     names Scale{..} = versioned sRole sEnv sVersion
@@ -294,6 +312,8 @@ deploy c@Common{..} d@Deploy{..} = ensure >> create >> autoPromote >> autoRetire
 
         Config.create d ami dType
         ASG.create d balancers dDomain zones dCooldown dDesired dGrace dMin dMax
+
+        setupScalingPolicies appName dScaleUpCpu dScaleDownCpu
 
     balance = do
         ac <- async $ Cert.find dDomain
@@ -419,14 +439,21 @@ promote _ c@Cluster{..} = do
     Names{..} = names c
 
 scale :: Common -> Scale -> AWS ()
-scale _ s@Scale{..} = ASG.update s sCooldown sDesired sGrace sMin sMax
+scale _ s@Scale{..} = do
+    ASG.update s sCooldown sDesired sGrace sMin sMax
+    scalePol sUpCpu sDownCpu
+  where
+    scalePol (Just u) (Just d) = setupScalingPolicies appName u d
+    scalePol _        _        = return ()
+
+    Names{..} = names s
 
 retire :: Common -> Cluster -> AWS ()
 retire _ c@Cluster{..} = do
     ag <- ASG.find c >>= noteAWS "Unable to find Auto Scaling Group {}" [appName]
         . join
         . fmap Tag.annotate
-    dg <- async $ ASG.delete c >> Config.delete c
+    dg <- async $ ASG.delete c >> Config.delete c >> deleteAlarms
     let elbs = Balancer.balancerNamesFromASG (annValue ag)
     ab <- if null elbs
         then log_ "No associated Elastic Load Balancers found." >> return []
@@ -451,3 +478,63 @@ retire _ c@Cluster{..} = do
     cmp a b = (stripText "." <$> a) == (stripText "." <$> b)
 
     Names{..} = names c
+
+    deleteAlarms = send_
+        . DeleteAlarms
+        . Members
+        $ map (metricAlarmName appName) ["Up", "Down"]
+
+-- Creates an alarm that gets triggered when for the `period` of time
+-- the value of `val` makes the condition defined by `cond` is True
+putMetricAlarm :: Text
+               -> Text
+               -> Text
+               -> Text
+               -> Integer
+               -> Integer
+               -> PutMetricAlarm
+putMetricAlarm appName polName suffix cond period val = PutMetricAlarm
+    { pmaActionsEnabled          = Just True
+    , pmaAlarmActions            = Members [polName]
+    , pmaAlarmDescription        = Nothing
+    , pmaAlarmName               = metricAlarmName appName suffix
+    , pmaComparisonOperator      = cond
+    , pmaDimensions              = Members [Dimension "AutoScalingGroupName" appName]
+    , pmaEvaluationPeriods       = 1
+    , pmaInsufficientDataActions = Members []
+    , pmaMetricName              = "CPUUtilization"
+    , pmaNamespace               = "AWS/EC2"
+    , pmaOKActions               = Members []
+    , pmaPeriod                  = period
+    , pmaStatistic               = "Average"
+    , pmaThreshold               = fromIntegral val
+    , pmaUnit                    = Just "Percent"
+    }
+
+-- Convenience to define the names for the alarms
+metricAlarmName :: Text -> Text -> Text
+metricAlarmName p s = p <> "-CPUUtilizationForScaling" <> s
+
+-- Sets up a policy to Scale up/down an ASG
+putScalingPolicy :: Text -> Integer -> PutScalingPolicy
+putScalingPolicy appName val = PutScalingPolicy
+    { pspAdjustmentType       = "ChangeInCapacity"
+    , pspAutoScalingGroupName = appName
+    , pspCooldown             = Just 60
+    , pspMinAdjustmentStep    = Nothing
+    , pspPolicyName           = (if val > 0 then "Up" else "Down") <> appName
+    , pspScalingAdjustment    = val
+    }
+
+setupScalingPolicies :: Text -> Integer -> Integer -> AWS ()
+setupScalingPolicies name cpuUp cpuDown = do
+    -- Setup Scale up rules
+    say "Creating ScaleUp Policy and Alarm for {}" [name]
+    pNameUp <- toPolName <$> send (putScalingPolicy name 1)
+    send_ $ putMetricAlarm name pNameUp "Up" "GreaterThanOrEqualToThreshold" 60 cpuUp
+    -- Setup Scale down rules
+    say "Creating ScaleDown Policy and Alarm for {}" [name]
+    pNameDown <- toPolName <$> send (putScalingPolicy name (-1))
+    send_ $ putMetricAlarm name pNameDown "Down" "LessThanThreshold" 600 cpuDown
+  where
+    toPolName = psprPolicyARN . psprPutScalingPolicyResult

@@ -42,11 +42,16 @@ import           Network.HTTP.Types.Status (status304)
 -- | Downloads a file from S3.
 -- If the file exists locally and is <= 5GB, a conditional GET
 -- request with an ETag is made to ensure the local file is up-to-date.
-download :: Text -> Text -> FilePath -> Bool -> AWS Bool
-download b k f force = do
+download :: Text     -- ^ Bucket
+         -> Text     -- ^ Key
+         -> FilePath -- ^ Destination
+         -> Bool     -- ^ Force download even if file exists?
+         -> Bool     -- ^ Skip ETag verification if file exists?
+         -> AWS Bool
+download b k f force noVerify = do
     exists <- liftIO $ FS.isFile f
     size   <- bool (return Nothing) (liftIO (Just <$> FS.getSize f)) exists
-    if exists && size > Just etagThreshold
+    if exists && (noVerify || size > Just etagThreshold)
         then say "File {} already exists" [B f] >> return False
         else do
             et <- if exists && not force
@@ -83,7 +88,7 @@ latest b p f force = do
         $= Conduit.concatMap contents
         $$ Conduit.fold max' Nothing
     maybe (throwAWS "No semantically versioned keys in Bucket {}" [B b])
-          (\(k, _) -> download b k f force)
+          (\(k, _) -> download b k f force False)
           mk
   where
     start  = GetBucket b (Delimiter '/') (Just prefix) 250 Nothing

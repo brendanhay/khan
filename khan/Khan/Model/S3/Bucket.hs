@@ -32,7 +32,7 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import qualified Filesystem as FS
 
-download :: Int        -- ^ Limit
+download :: Int        -- ^ Concurrency
          -> Text       -- ^ Bucket
          -> Maybe Text -- ^ Prefix
          -> FilePath   -- ^ Destination dir.

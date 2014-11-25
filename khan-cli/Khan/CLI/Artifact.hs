@@ -44,14 +44,28 @@ objectParser = Object
 
 instance Options Object
 
+data Download = Download
+    { dlObject   :: !Object
+    , dlNoVerify :: !Bool
+    } deriving (Show)
+
+downloadParser :: Parser Download
+downloadParser = Download
+    <$> objectParser
+    <*> switchOption "no-verify" False
+        "Do not verify existing files (via MD5 ETag)."
+
+instance Options Download
+
 data Bucket = Bucket
-    { bBucket  :: !Text
-    , bPrefix  :: Maybe Text
-    , bDir     :: !FilePath
-    , bN       :: !Int
-    , bForce   :: !Bool
-    , bRemoveP :: !Bool
-    , bAnsible :: !Bool
+    { bBucket   :: !Text
+    , bPrefix   :: Maybe Text
+    , bDir      :: !FilePath
+    , bN        :: !Int
+    , bForce    :: !Bool
+    , bRemoveP  :: !Bool
+    , bNoVerify :: !Bool
+    , bAnsible  :: !Bool
     } deriving (Show)
 
 bucketParser :: Parser Bucket
@@ -68,6 +82,8 @@ bucketParser = Bucket
         "Overwrite the destination object if it already exists."
     <*> switchOption "remove-prefix" False
         "Removes the prefix (if given) from the destination directory."
+    <*> switchOption "no-verify" False
+        "Do not verify existing files (via MD5 ETag)."
     <*> ansibleOption
 
 instance Options Bucket
@@ -96,11 +112,11 @@ instance Options Prune
 
 commands :: Mod CommandFields Command
 commands = group "artifact" "Manage S3 Artifacts." $ mconcat
-    [ command "upload" (object Object.upload) objectParser
+    [ command "upload" upload objectParser
         "Upload an object to S3."
-    , command "download" (object Object.download) objectParser
+    , command "download" download downloadParser
         "Download an object from S3 to disk."
-    , command "latest" (object Object.latest) objectParser
+    , command "latest" latest objectParser
         "Download the latest semantically versioned object to disk."
     , command "sync" sync bucketParser
         "Synchronize a bucket to disk."
@@ -108,18 +124,25 @@ commands = group "artifact" "Manage S3 Artifacts." $ mconcat
         "Prune old artifacts from the bucket."
     ]
 
-object :: (Text -> Text -> FilePath -> Bool -> AWS Bool)
-       -> Common
-       -> Object
-       -> AWS ()
-object g c Object{..} =
+upload :: Common -> Object -> AWS ()
+upload c Object{..} =
     capture oAnsible c "object {}/{}" [oBucket, oKey] $
-        g oBucket oKey oPath oForce
+        Object.upload oBucket oKey oPath oForce
+
+download :: Common -> Download -> AWS ()
+download c Download{..} = let Object{..} = dlObject in
+    capture oAnsible c "object {}/{}" [oBucket, oKey] $
+        Object.download oBucket oKey oPath oForce dlNoVerify
+
+latest :: Common -> Object -> AWS ()
+latest c Object{..} =
+    capture oAnsible c "object {}/{}" [oBucket, oKey] $
+        Object.latest oBucket oKey oPath oForce
 
 sync :: Common -> Bucket -> AWS ()
 sync c Bucket{..} =
     capture bAnsible c "bucket {}/{}" [bBucket, fromMaybe "" bPrefix] $
-        Bucket.download bN bBucket bPrefix bDir bForce bRemoveP
+        Bucket.download bN bBucket bPrefix bDir bForce bRemoveP bNoVerify
 
 prune :: Common -> Prune -> AWS ()
 prune c Prune{..} =

@@ -32,8 +32,15 @@ import           Khan.Prelude
 import           Network.AWS.S3
 import qualified Filesystem as FS
 
-download :: Int -> Text -> Maybe Text -> FilePath -> Bool -> Bool -> AWS Bool
-download n b p dir force sdest = do
+download :: Int        -- ^ Concurrency
+         -> Text       -- ^ Bucket
+         -> Maybe Text -- ^ Prefix
+         -> FilePath   -- ^ Destination dir.
+         -> Bool       -- ^ Force download if file exists?
+         -> Bool       -- ^ Strip prefix from key?
+         -> Bool       -- ^ Skip ETag verification if file exists?
+         -> AWS Bool
+download n b p dir force sdest noVerify = do
     say "Paginating Bucket {} contents" [b]
     or <$> (paginate start
         $= Conduit.concatMap (filter match . gbrContents)
@@ -58,7 +65,7 @@ download n b p dir force sdest = do
     retrieve Contents{..} = do
         let dest = dir </> Path.fromText (removeFromDest sdest (prefix p) bcKey)
         liftAWS . FS.createTree $ Path.parent dest
-        Object.download b bcKey dest force
+        Object.download b bcKey dest force noVerify
 
     chunked xs = do
         mx <- await

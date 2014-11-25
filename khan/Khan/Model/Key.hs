@@ -50,7 +50,7 @@ path :: Naming a => RKeysBucket -> a -> LKeysDir -> AWS FilePath
 path (RKeysBucket b) (names -> n@Names{..}) (LKeysDir dir) = do
     f <- filePath n dir
     let key = Text.pack . Path.encodeString $ Path.filename f
-    void $ Object.download b key f False
+    void $ Object.download b key f False False
     setFileMode f (ownerReadMode  .|. ownerWriteMode)
     return f
 

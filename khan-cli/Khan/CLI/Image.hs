@@ -58,7 +58,7 @@ imageParser env = Image
         "Playbook to run on the base instance."
     <*> textOption "base" (short 'b')
         "Id of the base image/ami."
-    <*> readOption "type" "TYPE" (value M1_Small)
+    <*> readOption "type" "TYPE" (value M3_Medium)
         "Instance's type."
     <*> switchOption "preserve" False
         "Don't terminate the base instance on error."

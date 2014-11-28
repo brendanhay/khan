@@ -31,6 +31,7 @@ import qualified Khan.CLI.Image           as Image
 import qualified Khan.CLI.Launch          as Launch
 import qualified Khan.CLI.Metadata        as Metadata
 import qualified Khan.CLI.Profile         as Role
+import qualified Khan.CLI.Routing         as Routing
 import qualified Khan.CLI.SSH             as SSH
 import           Khan.Internal
 import           Khan.Prelude
@@ -125,5 +126,6 @@ parserInfo env =
             <> Launch.commands env
             <> Metadata.commands
             <> Role.commands env
+            <> Routing.commands env
             <> SSH.commands env
              )

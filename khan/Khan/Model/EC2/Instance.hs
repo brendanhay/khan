@@ -29,6 +29,7 @@ module Khan.Model.EC2.Instance
 import           Control.Arrow                ((***))
 import           Control.Monad
 import           Data.List                    (partition)
+import           Data.Word                    (Word8)
 import           Khan.Internal
 import qualified Khan.Model.EC2.SecurityGroup as Security
 import           Khan.Prelude                 hiding (find, min, max)
@@ -37,6 +38,12 @@ import           Network.AWS.EC2              hiding (Instance, wait)
 findAll :: [Text] -> [Filter] -> AWS [RunningInstancesItemType]
 findAll ids = fmap (concatMap ritInstancesSet . dirReservationSet) .
     send . DescribeInstances ids
+
+findAllCatch :: [Text]
+             -> [Filter]
+             -> AWS (Either EC2ErrorResponse [RunningInstancesItemType])
+findAllCatch ids = fmap (fmap (concatMap ritInstancesSet . dirReservationSet)) .
+    sendCatch . DescribeInstances ids
 
 find :: Text -> AWS (Maybe RunningInstancesItemType)
 find = fmap listToMaybe . (`findAll` []) . (:[])
@@ -83,17 +90,29 @@ run (names -> n@Names{..}) image typ az min max opt = do
 
 wait :: [Text] -> AWS ()
 wait []  = log_ "All instances running."
-wait ids = do
-    xs <- findAll ids []
-    let (ps, rs) = join (***) (map riitInstanceId) $ pending xs
-    unless (null rs) $
-        say "Instances marked as running: {}" [rs]
-    unless (null ps) $ do
-        say "Instances still pending: {}" [ps]
-        log_ "Waiting..."
-        delaySeconds 30
-    wait ps
+wait ids = fetch (0 :: Word8) >>= ensureRunning
   where
+    fetch i = do
+        rs <- findAllCatch ids []
+        verifyEC2 "InvalidInstanceID.NotFound" rs
+        case rs of
+            Left  _ | i < 8 -> do
+                log_ "Instances not found. Waiting..."
+                delaySeconds 15
+                fetch (i + 1)
+            Left  _        -> throwAWS "Instances not found: {}" [ids]
+            Right xs       -> return xs
+
+    ensureRunning xs = do
+        let (ps, rs) = join (***) (map riitInstanceId) $ pending xs
+        unless (null rs) $
+            say "Instances marked as running: {}" [rs]
+        unless (null ps) $ do
+            say "Instances still pending: {}" [ps]
+            log_ "Waiting..."
+            delaySeconds 30
+        wait ps
+
     pending = partition (("pending" ==) . istName . riitInstanceState)
 
 address :: Bool -> RunningInstancesItemType -> Maybe (Text, Text)

@@ -63,6 +63,11 @@ cabal.sandbox.config:
 vendor/%:
 	git clone https://github.com/brendanhay/$*.git $@
 
+vendor/amazonka:
+	git clone https://github.com/brendanhay/amazonka.git vendor/amazonka
+	(cd vendor/amazonka && \
+         git checkout -b khan-compat a995e433aba5a02ff22eee07e75b2c14982cd337)
+
 link: bin/khan bin/khan-metadata-sync
 
 bin/khan:

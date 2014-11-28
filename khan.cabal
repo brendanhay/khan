@@ -129,6 +129,7 @@ executable khan
       , Khan.CLI.Launch
       , Khan.CLI.Metadata
       , Khan.CLI.Profile
+      , Khan.CLI.Routing
       , Khan.CLI.SSH
 
     build-depends:

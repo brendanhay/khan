@@ -5,7 +5,7 @@ BUILD_NUMBER ?= 0
 DEB             := $(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
 SDIST           := dist/$(NAME)-$(VERSION).tar.gz
 FLAGS           := --disable-documentation --disable-library-coverage
-DEPS            := vendor/amazonka
+DEPS            := vendor/amazonka-limited
 
 BIN_CLI         := dist/build/$(NAME)/$(NAME)
 BIN_SYNC        := dist/build/khan-metadata-sync/khan-metadata-sync
@@ -62,11 +62,6 @@ cabal.sandbox.config:
 
 vendor/%:
 	git clone https://github.com/brendanhay/$*.git $@
-
-vendor/amazonka:
-	git clone https://github.com/brendanhay/amazonka.git vendor/amazonka
-	(cd vendor/amazonka && \
-         git checkout -b khan-compat a995e433aba5a02ff22eee07e75b2c14982cd337)
 
 link: bin/khan bin/khan-metadata-sync
 

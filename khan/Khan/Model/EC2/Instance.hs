@@ -96,9 +96,9 @@ wait ids = fetch (0 :: Word8) >>= ensureRunning
         rs <- findAllCatch ids []
         verifyEC2 "InvalidInstanceID.NotFound" rs
         case rs of
-            Left  _ | i < 6 -> do
+            Left  _ | i < 8 -> do
                 log_ "Instances not found. Waiting..."
-                delaySeconds 10
+                delaySeconds 15
                 fetch (i + 1)
             Left  _        -> throwAWS "Instances not found: {}" [ids]
             Right xs       -> return xs

@@ -38,10 +38,10 @@ $(BIN):
 	cabal build $(addprefix -,$(findstring j,$(MAKEFLAGS)))
 
 $(OUT_CLI): $(BIN_CLI)
-	strip -o $(OUT_CLI) $< && upx $(OUT_CLI)
+	strip -o $(OUT_CLI) $<
 
 $(OUT_SYNC): $(BIN_SYNC)
-	strip -o $(OUT_SYNC) $< && upx $(OUT_SYNC)
+	strip -o $(OUT_SYNC) $<
 
 %.deb: $(OUT)
 	makedeb --name=$(NAME) \

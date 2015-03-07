@@ -90,7 +90,7 @@ instance ToJSON (Inv Host) where
     toJSON (Meta Host      {..}) = object $
         ("khan_domain", String hvDomain) : hostVars hvRegion hvNames
     toJSON (Meta Localhost {..}) = object $
-        -- Fix for https://github.com/zinfra/khan/issues/74
+        -- Fix for https://github.com/brendanhay/khan/issues/74
         ("ansible_connection", String "local") : regionVars hvRegion
 
 data ImageInput = ImageInput
